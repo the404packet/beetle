@@ -1,1 +1,2 @@
-# Beetle - The exOSkeleton for your OS
+#The exOSkeleton for your OS
+    
