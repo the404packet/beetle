@@ -1,38 +1,32 @@
-$beetle = @"
-          ##########        ##########
-          ##      ##        ##      ##
-          ####    ####    ####    ####      
-                    ########                
-                    ########                
-            ########################        
-      ##    ########################       
-      ####################################   BBBBBBBB  EEEEEEEE  EEEEEEEE  TTTTTTTT  LL        EEEEEEEE
-            ########################    ##   BB    BB  EE        EE           TT     LL        EE
-      ##    ########################         BBBBBBBB  EEEEEE    EEEEEE       TT     LL        EEEEEE
-      ####################################   BB    BB  EE        EE           TT     LL        EE
-            ########################    ##   BBBBBBBB  EEEEEEEE  EEEEEEEE     TT     LLLLLLL   EEEEEEEE
-      ##    ########################
-      ####################################
-            ########################    ##
-            ########################
-                ################
-                  ##        ##       
-                  ##        ##  
+function Show-Banner {
+    . "$PSScriptRoot\lib\banner.ps1"
+}
 
-        +----------------------------+
-        |           BEETLE           |
-        +----------------------------+
-"@
+function Show-Help {
+    . "$PSScriptRoot\lib\help.ps1"
+}
 
+function Show-Version {
+    Write-Host "Beetle Framework v1.0.0" -ForegroundColor Green
+}
 
-foreach ($line in $beetle -split "`n") {
-    foreach ($char in $line.ToCharArray()) {
-        if ($char -eq '#') {
-            Write-Host $char -NoNewline -ForegroundColor DarkGreen
-        }
-        else {
-            Write-Host $char -NoNewline -ForegroundColor Blue
-        }
+if ($args.Count -eq 0) {
+    Show-Banner
+    exit
+}
+
+switch ($args[0]) {
+    "--help" { Show-Help }
+    "-h"     { Show-Help }
+    "help"   { Show-Help }
+
+    "banner" { Show-Banner }
+
+    "version" { Show-Version }
+    "-v"      { Show-Version }
+
+    default {
+        Write-Host "Unknown command: $($args[0])" -ForegroundColor Red
+        Write-Host "Try: beetle --help"
     }
-    Write-Host ""
 }
