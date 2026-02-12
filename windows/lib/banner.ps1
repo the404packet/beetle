@@ -1,4 +1,5 @@
 $beetle = @"
+
           ##########        ##########
           ##      ##        ##      ##
           ####    ####    ####    ####      
@@ -6,11 +7,11 @@ $beetle = @"
                     ########                
             ########################        
       ##    ########################       
-      ####################################   BBBBBBBB  EEEEEEEE  EEEEEEEE  TTTTTTTT  LL        EEEEEEEE
-            ########################    ##   BB    BB  EE        EE           TT     LL        EE
-      ##    ########################         BBBBBBBB  EEEEEE    EEEEEE       TT     LL        EEEEEE
-      ####################################   BB    BB  EE        EE           TT     LL        EE
-            ########################    ##   BBBBBBBB  EEEEEEEE  EEEEEEEE     TT     LLLLLLL   EEEEEEEE
+      ####################################    BBBBBBBB  EEEEEEEE  EEEEEEEE  TTTTTTTT  LL        EEEEEEEE
+            ########################    ##    BB    BB  EE        EE           TT     LL        EE
+      ##    ########################          BBBBBBBB  EEEEEE    EEEEEE       TT     LL        EEEEEE
+      ####################################    BB    BB  EE        EE           TT     LL        EE
+            ########################    ##    BBBBBBBB  EEEEEEEE  EEEEEEEE     TT     LLLLLLL   EEEEEEEE
       ##    ########################
       ####################################
             ########################    ##
@@ -18,10 +19,9 @@ $beetle = @"
                 ################
                   ##        ##       
                   ##        ##  
-
-        +----------------------------+
-        |           BEETLE           |
-        +----------------------------+
+         +----------------------------+
+         |      OS HARDENING TOOL     |
+         +----------------------------+
 "@
 
 
