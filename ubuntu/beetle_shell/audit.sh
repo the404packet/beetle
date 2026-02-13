@@ -1,86 +1,91 @@
 #!/usr/bin/env bash
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+TARGET_DIR="$1"
 
-GREEN="\033[0;32m"
-RED="\033[0;31m"
-CYAN="\033[0;36m"
-RESET="\033[0m"
+GREEN="\e[32m"
+RED="\e[31m"
+CYAN="\e[36m"
+RESET="\e[0m"
 
-SPINNER_CHARS='|/-\'
-
-total=0
-success=0
-failed=0
+PASS_COUNT=0
+FAIL_COUNT=0
+HARDENED_COUNT=0
+NOT_HARDENED_COUNT=0
 
 spinner() {
     local pid=$1
-    local delay=0.1
-
-    while ps -p $pid > /dev/null 2>&1; do
-        for i in $(seq 0 3); do
-            printf "\r[%c] Running..." "${SPINNER_CHARS:$i:1}"
-            sleep $delay
-        done
+    local spin='-\|/'
+    local i=0
+    while kill -0 "$pid" 2>/dev/null; do
+        i=$(( (i+1) %4 ))
+        printf "\r  ${CYAN}%s${RESET}" "${spin:$i:1}"
+        sleep 0.1
     done
 }
 
-run_checks_in_folder() {
-    local folder="$1"
+run_check() {
+    local script="$1"
 
-    for file in "$folder"/*.sh; do
-        [[ -f "$file" ]] || continue
+    NAME=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
 
-        ((total++))
+    TMP_FILE=$(mktemp)
 
-        chmod +x "$file"
+    bash "$script" > "$TMP_FILE" 2>/dev/null &
+    pid=$!
+    spinner "$pid"
+    wait "$pid"
+    exit_code=$?
 
-        printf "${CYAN}→ %s ${RESET}" "$(basename "$file")"
+    result=$(cat "$TMP_FILE")
+    rm -f "$TMP_FILE"
 
-        "$file" >/dev/null 2>&1 &
-        pid=$!
-
-        spinner $pid
-        wait $pid
-        exit_code=$?
-
-        if [[ $exit_code -eq 0 ]]; then
-            printf "\r${GREEN}✔ %s${RESET}\n" "$(basename "$file")"
-            ((success++))
-        else
-            printf "\r${RED}✖ %s${RESET}\n" "$(basename "$file")"
-            ((failed++))
-        fi
-    done
-}
-
-TARGET="$1"
-
-echo -e "${CYAN}🔍 Starting Audit...${RESET}\n"
-
-if [[ -z "$TARGET" ]]; then
-    for dir in "$BASE_DIR"/*/; do
-        [[ -d "$dir" ]] || continue
-        echo -e "${CYAN}📂 $(basename "$dir")${RESET}"
-        run_checks_in_folder "$dir"
-        echo
-    done
-else
-    FOLDER_PATH="$BASE_DIR/$TARGET"
-    if [[ -d "$FOLDER_PATH" ]]; then
-        echo -e "${CYAN}📂 $TARGET${RESET}"
-        run_checks_in_folder "$FOLDER_PATH"
-    else
-        echo -e "${RED}Unknown audit folder: $TARGET${RESET}"
-        exit 1
+    if [ "$exit_code" -ne 0 ]; then
+        printf "\r${RED}[FAIL]${RESET} %-60s  ${RED}ERROR${RESET}\n" "$NAME"
+        ((FAIL_COUNT++))
+        return
     fi
+
+    ((PASS_COUNT++))
+
+    # Count hardening state
+    if [[ "$result" == *"HARDENED"* && "$result" != *"NOT HARDENED"* ]]; then
+        ((HARDENED_COUNT++))
+        STATE_COLOR="${GREEN}"
+    else
+        ((NOT_HARDENED_COUNT++))
+        STATE_COLOR="${RED}"
+    fi
+
+    # Dot padding for clean alignment
+    total_width=75
+    name_length=${#NAME}
+    dots_count=$(( total_width - name_length ))
+    dots=$(printf "%0.s." $(seq 1 $dots_count))
+
+    printf "\r${GREEN}[PASS]${RESET} %s %s  ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
+}
+
+echo -e "${CYAN}Starting Beetle Audit...${RESET}\n"
+
+# Determine directories
+if [ -n "$TARGET_DIR" ]; then
+    SCAN_DIR="$BASE_DIR/$TARGET_DIR"
+    [ -d "$SCAN_DIR" ] || { echo -e "${RED}Folder not found: $TARGET_DIR${RESET}"; exit 1; }
+    DIRS=("$SCAN_DIR")
+else
+    DIRS=("$BASE_DIR"/*/)
 fi
 
-echo
-echo -e "${CYAN}──────────── Summary ────────────${RESET}"
-echo -e "Total Checks : $total"
-echo -e "${GREEN}Passed       : $success${RESET}"
-echo -e "${RED}Failed       : $failed${RESET}"
-echo -e "${CYAN}─────────────────────────────────${RESET}"
+for dir in "${DIRS[@]}"; do
+    [ -d "$dir" ] || continue
+    for script in "$dir"/*.sh; do
+        [ -f "$script" ] && run_check "$script"
+    done
+done
 
-exit $failed
+echo
+echo -e "${GREEN}Executed Successfully: $PASS_COUNT${RESET}"
+echo -e "${RED}Execution Failed: $FAIL_COUNT${RESET}"
+echo -e "${GREEN}Hardened: $HARDENED_COUNT${RESET}"
+echo -e "${RED}Not Hardened: $NOT_HARDENED_COUNT${RESET}"
