@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 set -e
 
@@ -22,8 +22,8 @@ echo "📦 Copying beetle_shell directory (overwrite)..."
 sudo rm -rf "$DEST_DIR/beetle_shell"
 sudo cp -r "$SHELL_SRC" "$DEST_DIR/"
 
-echo "🔧 Fixing shebang for beetle..."
-sudo sed -i '1c #!/usr/bin/env bash' "$DEST_DIR/beetle"
+# echo "🔧 Fixing shebang for beetle..."
+# sudo sed -i '1c #!/usr/bin/env bash' "$DEST_DIR/beetle"
 
 echo "🧼 Converting to Unix format..."
 sudo dos2unix "$DEST_DIR/beetle" 2>/dev/null || true
