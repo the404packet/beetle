@@ -40,15 +40,21 @@ run_check() {
     result=$(cat "$TMP_FILE")
     rm -f "$TMP_FILE"
 
+    # Dot padding for clean alignment (CALCULATE EARLY)
+    total_width=75
+    name_length=${#NAME}
+    dots_count=$(( total_width - name_length ))
+    (( dots_count < 1 )) && dots_count=1
+    dots=$(printf "%0.s." $(seq 1 $dots_count))
+
     if [ "$exit_code" -ne 0 ]; then
-        printf "\r${RED}[FAIL]${RESET} %-60s  ${RED}ERROR${RESET}\n" "$NAME"
+        printf "\r${RED}[FAIL]${RESET} %s %s  ${RED}ERROR${RESET}\n" "$NAME" "$dots"
         ((FAIL_COUNT++))
         return
     fi
 
     ((PASS_COUNT++))
 
-    # Count hardening state
     if [[ "$result" == *"HARDENED"* && "$result" != *"NOT HARDENED"* ]]; then
         ((HARDENED_COUNT++))
         STATE_COLOR="${GREEN}"
@@ -56,12 +62,6 @@ run_check() {
         ((NOT_HARDENED_COUNT++))
         STATE_COLOR="${RED}"
     fi
-
-    # Dot padding for clean alignment
-    total_width=75
-    name_length=${#NAME}
-    dots_count=$(( total_width - name_length ))
-    dots=$(printf "%0.s." $(seq 1 $dots_count))
 
     printf "\r${GREEN}[PASS]${RESET} %s %s  ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
 }
