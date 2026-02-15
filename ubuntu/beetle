@@ -1,0 +1,21 @@
+#!/bin/bash
+
+command="$1"
+shift || true
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [[ -z "$command" || "$command" == "help" || "$command" == "-h" || "$command" == "--help" ]]; then
+    exec "$SCRIPT_DIR/beetle_shell/help.sh"
+fi
+
+COMMAND_FILE="$SCRIPT_DIR/beetle_shell/${command}.sh"
+
+# Run command if exists
+if [[ -x "$COMMAND_FILE" ]]; then
+    exec "$COMMAND_FILE" "$@"
+else
+    echo "Unknown command: $command" >&2
+    echo "Type 'beetle help' or 'beetle --help' or 'beetle -h' to see available commands."
+    exit 1
+fi
