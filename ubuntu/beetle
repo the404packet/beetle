@@ -1,28 +1,21 @@
 #!/bin/bash
 
 command="$1"
-#When assigning vars we cant put space it gives error
 shift || true
-#for shifting args so i can use $1 again
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-COMMAND_FILE="$SCRIPT_DIR/beetlecommands/$command.sh"
-#relative path which goes to file of that command as we use $command
 
-# echo "$SCRIPT_DIR"
-# echo "$COMMAND_FILE"
-# find file exist?
-# echo "$( [ -f "$COMMAND_FILE" ] && echo yes || echo no )"
-# find if file executable
-# echo "$( [ -x "$COMMAND_FILE" ] && echo yes || echo no )"
+if [[ -z "$command" || "$command" == "help" || "$command" == "-h" || "$command" == "--help" ]]; then
+    exec "$SCRIPT_DIR/beetle_shell/help.sh"
+fi
 
+COMMAND_FILE="$SCRIPT_DIR/beetle_shell/${command}.sh"
 
-if [ -x "$COMMAND_FILE" ]; then
-	"$COMMAND_FILE" "$@" #to use the shifted args
+# Run command if exists
+if [[ -x "$COMMAND_FILE" ]]; then
+    exec "$COMMAND_FILE" "$@"
 else
-	echo "Dont know command : $commands" >&2 #&>2 is the standard error discriptor
-	echo "Type 'beetle help' to see available commands."
-	exit 1
-fi 
-#use chmod +x  ~/bin/beetlecommands/*.sh after every new file
-
+    echo "Unknown command: $command" >&2
+    echo "Type 'beetle help' or 'beetle --help' or 'beetle -h' to see available commands."
+    exit 1
+fi
