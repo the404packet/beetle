@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-TARGET_DIR="$1"
+CONFIG_FILE="/etc/beetle/beetle.conf"
+[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+
+BEETLE_SHELL_ROOT="${BEETLE_SHELL_ROOT:-/usr/local/bin/beetle_shell}"
+AUDIT_SORT="${AUDIT_SORT:-true}"
 
 GREEN="\e[32m"
 RED="\e[31m"
 CYAN="\e[36m"
+YELLOW="\e[33m"
 RESET="\e[0m"
 
 PASS_COUNT=0
@@ -28,6 +32,7 @@ run_check() {
     local script="$1"
 
     NAME=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
+    [ -z "$NAME" ] && NAME="$(basename "$script")"
 
     TMP_FILE=$(mktemp)
 
@@ -40,7 +45,6 @@ run_check() {
     result=$(cat "$TMP_FILE")
     rm -f "$TMP_FILE"
 
-    # Dot padding for clean alignment (CALCULATE EARLY)
     total_width=75
     name_length=${#NAME}
     dots_count=$(( total_width - name_length ))
@@ -68,20 +72,21 @@ run_check() {
 
 echo -e "${CYAN}Starting Beetle Audit...${RESET}\n"
 
-# Determine directories
-if [ -n "$TARGET_DIR" ]; then
-    SCAN_DIR="$BASE_DIR/$TARGET_DIR"
-    [ -d "$SCAN_DIR" ] || { echo -e "${RED}Folder not found: $TARGET_DIR${RESET}"; exit 1; }
-    DIRS=("$SCAN_DIR")
-else
-    DIRS=("$BASE_DIR"/*/)
+if [ ! -d "$BEETLE_SHELL_ROOT" ]; then
+    echo -e "${RED}beetle_shell directory not found${RESET}"
+    exit 1
 fi
 
-for dir in "${DIRS[@]}"; do
-    [ -d "$dir" ] || continue
-    for script in "$dir"/*.sh; do
-        [ -f "$script" ] && run_check "$script"
-    done
+mapfile -d '' scripts < <(
+    find "$BEETLE_SHELL_ROOT" \
+        -mindepth 2 \
+        -type f \
+        -name "*.sh" \
+        -print0
+)
+
+for script in "${scripts[@]}"; do
+    run_check "$script"
 done
 
 echo
