@@ -4,7 +4,6 @@ CONFIG_FILE="/etc/beetle/beetle.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 
 BEETLE_SHELL_ROOT="${BEETLE_SHELL_ROOT:-/usr/local/bin/beetle_shell}"
-AUDIT_SORT="${AUDIT_SORT:-true}"
 
 GREEN="\e[32m"
 RED="\e[31m"

@@ -6,7 +6,7 @@ SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BEETLE_SRC="$SRC_DIR/beetle"
 SHELL_SRC="$SRC_DIR/beetle_shell"
-CONFIG_SRC="$SRC_DIR/beetle.config"
+CONFIG_SRC="$SRC_DIR/beetle.conf"
 
 DEST_DIR="/usr/local/bin"
 CONF_DIR="/etc/beetle"
