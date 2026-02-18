@@ -76,13 +76,29 @@ if [ ! -d "$BEETLE_SHELL_ROOT" ]; then
     exit 1
 fi
 
+TARGET_FOLDER="$1"
+
+if [ -n "$TARGET_FOLDER" ]; then
+    TARGET_PATH="$BEETLE_SHELL_ROOT/$TARGET_FOLDER"
+
+    if [ ! -d "$TARGET_PATH" ]; then
+        echo -e "${RED}Folder '$TARGET_FOLDER' not found inside beetle_shell${RESET}"
+        exit 1
+    fi
+
+    SEARCH_PATH="$TARGET_PATH"
+else
+    SEARCH_PATH="$BEETLE_SHELL_ROOT"
+fi
+
 mapfile -d '' scripts < <(
-    find "$BEETLE_SHELL_ROOT" \
-        -mindepth 2 \
+    find "$SEARCH_PATH" \
+        -mindepth 1 \
         -type f \
         -name "*.sh" \
         -print0
 )
+
 
 for script in "${scripts[@]}"; do
     run_check "$script"
