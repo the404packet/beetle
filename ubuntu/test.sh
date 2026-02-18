@@ -1,37 +1,74 @@
 #!/usr/bin/env bash
 
-set -e
-
 echo "🚀 Deploying Beetle..."
 
-SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BEETLE_SRC="$SRC_DIR/beetle"
 SHELL_SRC="$SRC_DIR/beetle_shell"
+CONFIG_SRC="$SRC_DIR/beetle.conf"
 
 DEST_DIR="/usr/local/bin"
+CONF_DIR="/etc/beetle"
+CONF_FILE="$CONF_DIR/beetle.conf"
 
-# Check sources
+# ---------- Pre-flight ----------
+command -v sudo >/dev/null || { echo "❌ sudo required"; exit 1; }
+sudo -v
+
 [[ -f "$BEETLE_SRC" ]] || { echo "❌ beetle file not found"; exit 1; }
-[[ -d "$SHELL_SRC" ]] || { echo "❌ beetle_shell directory not found"; exit 1; }
+[[ -d "$SHELL_SRC" ]]  || { echo "❌ beetle_shell directory not found"; exit 1; }
+[[ -f "$CONFIG_SRC" ]] || { echo "❌ beetle.config not found"; exit 1; }
 
-echo "📦 Copying beetle (overwrite)..."
-sudo cp -f "$BEETLE_SRC" "$DEST_DIR/beetle"
+# ---------- Install beetle ----------
+echo "📦 Installing beetle"
+sudo install -m 755 "$BEETLE_SRC" "$DEST_DIR/beetle"
 
-echo "📦 Copying beetle_shell directory (overwrite)..."
+# ---------- Install beetle_shell (recursive) ----------
+echo "📦 Installing beetle_shell"
 sudo rm -rf "$DEST_DIR/beetle_shell"
-sudo cp -r "$SHELL_SRC" "$DEST_DIR/"
+sudo cp -a "$SHELL_SRC" "$DEST_DIR/"
 
-# echo "🔧 Fixing shebang for beetle..."
-# sudo sed -i '1c #!/usr/bin/env bash' "$DEST_DIR/beetle"
+# ---------- Install config (safe) ----------
+echo "📄 Installing config"
+sudo mkdir -p "$CONF_DIR"
 
-echo "🧼 Converting to Unix format..."
-sudo dos2unix "$DEST_DIR/beetle" 2>/dev/null || true
-sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" -exec dos2unix {} \; 2>/dev/null || true
+FORCE_CONFIG=false
 
-echo "🔐 Setting executable permissions..."
+if [[ "$1" == "--force-config" ]]; then
+    FORCE_CONFIG=true
+fi
+
+if [[ ! -f "$CONF_FILE" || "$FORCE_CONFIG" == true ]]; then
+    sudo install -m 644 "$CONFIG_SRC" "$CONF_FILE"
+    echo "📄 Config installed/updated"
+else
+    echo "⚠️  Existing config preserved"
+fi
+
+# ---------- Normalize line endings (CRITICAL for WSL) ----------
+if command -v dos2unix >/dev/null; then
+    echo "🧼 Normalizing line endings"
+
+    sudo dos2unix "$DEST_DIR/beetle" >/dev/null 2>&1 || true
+    sudo dos2unix "$CONF_FILE" >/dev/null 2>&1 || true
+
+    sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" \
+        -exec dos2unix {} \; >/dev/null 2>&1 || true
+else
+    echo "⚠️  dos2unix not installed (recommended)"
+fi
+
+# ---------- Permissions ----------
+echo "🔐 Setting executable permissions"
+
 sudo chmod +x "$DEST_DIR/beetle"
-sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" -exec chmod +x {} \;
+
+sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" \
+    -exec chmod +x {} \;
+
+# ---------- PATH sanity ----------
+command -v beetle >/dev/null || echo "⚠️  /usr/local/bin not in PATH"
 
 echo "✅ Deployment complete!"
-echo "Run: beetle banner"
+echo "➡️  Run: beetle banner"

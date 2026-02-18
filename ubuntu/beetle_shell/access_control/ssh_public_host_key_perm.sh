@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 
-NAME='/etc/ssh/sshd_config file permission'
+NAME='ssh_public_host_key_permission'
 SEVERITY='basic'
 
-
-perm_mask=0177
+perm_mask=0133
 flag=1
 
 check_file(){
     local file=$1
-    local mode owner group
     read -r mode owner group < <(stat -Lc '%#a %U %G' "$file")
     if (( $mode & perm_mask )) || [[ $owner != "root" || $group != "root" ]]; then
         return 1 #file is not compliant
@@ -17,23 +15,17 @@ check_file(){
     return 0 #file is compliant
 }
 
-
-#sshd_config file
-if [[ -f /etc/ssh/sshd_config ]]; then 
-    if ! check_file /etc/ssh/sshd_config; then
-        flag=0
-    fi
-fi
-
-#check if conf exist in sshd_config.d/
-if (( flag )) && [[ -d /etc/ssh/sshd_config.d ]]; then
+if [[ -d /etc/ssh ]]; then
     while IFS= read -r -d $'\0' file; do
-        if !check_file "$file"; then
+    if ssh-keygen -lf "$file" &>/dev/null && file "$file" | grep -Piq -- '\bopenssh\h+([^#\n\r]+\h+)?public\h+key\b'; then
+        if ! check_file "$file"; then
             flag=0
             break
         fi
-    done < <(find /etc/ssh/sshd_config.d -type f -name "*.conf" -print0)
+    fi
+    done < <(find /etc/ssh -xdev -type f -print0)
 fi
+
 
 if (( flag )); then
     echo -e "${GREEN}HARDENED${RESET}"
