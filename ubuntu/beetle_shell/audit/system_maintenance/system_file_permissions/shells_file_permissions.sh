@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 NAME="/etc/shells file permissions"
+SEVERITY="basic"
 
 FILE="/etc/shells"
 

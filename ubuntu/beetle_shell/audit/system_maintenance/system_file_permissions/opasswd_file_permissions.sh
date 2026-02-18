@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 NAME="/etc/security/opasswd file permissions"
+SEVERITY="basic"
 
 FILE="/etc/security/opasswd"
 

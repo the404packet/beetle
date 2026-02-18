@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 NAME="/etc/security/opasswd.old file permissions"
+SEVERITY="basic"
 
 FILE="/etc/security/opasswd.old"
 

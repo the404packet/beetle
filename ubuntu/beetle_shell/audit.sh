@@ -29,6 +29,15 @@ spinner() {
 
 run_check() {
     local script="$1"
+    
+    SEVERITY=$(grep -E '^SEVERITY=' "$script" | cut -d= -f2 | tr -d '"[:space:]')
+
+    if [ -n "$TARGET_SEVERITY" ]; then
+        if [[ "${SEVERITY,,}" != "${TARGET_SEVERITY,,}" ]]; then
+            return
+        fi
+    fi
+
 
     NAME=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
     [ -z "$NAME" ] && NAME="$(basename "$script")"
@@ -76,21 +85,26 @@ if [ ! -d "$BEETLE_SHELL_ROOT" ]; then
     exit 1
 fi
 
-TARGET_FOLDER="$1"
+TARGET_FOLDER=""
+TARGET_SEVERITY=""
 
-if [ -n "$TARGET_FOLDER" ]; then
-    TARGET_PATH="$BEETLE_SHELL_ROOT/$TARGET_FOLDER"
-
-    if [ ! -d "$TARGET_PATH" ]; then
-        echo -e "${RED}Folder '$TARGET_FOLDER' not found inside beetle_shell${RESET}"
-        exit 1
+# Parse arguments
+for arg in "$@"; do
+    if [ -d "$BEETLE_SHELL_ROOT/$arg" ]; then
+        TARGET_FOLDER="$arg"
+    else
+        TARGET_SEVERITY="$arg"
     fi
+done
 
-    SEARCH_PATH="$TARGET_PATH"
+# Determine search path
+if [ -n "$TARGET_FOLDER" ]; then
+    SEARCH_PATH="$BEETLE_SHELL_ROOT/$TARGET_FOLDER"
 else
     SEARCH_PATH="$BEETLE_SHELL_ROOT"
 fi
 
+# Collect scripts
 mapfile -d '' scripts < <(
     find "$SEARCH_PATH" \
         -mindepth 1 \
@@ -98,6 +112,7 @@ mapfile -d '' scripts < <(
         -name "*.sh" \
         -print0
 )
+
 
 
 for script in "${scripts[@]}"; do

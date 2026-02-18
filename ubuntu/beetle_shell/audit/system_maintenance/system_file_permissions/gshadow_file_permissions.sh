@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 NAME="/etc/gshadow file permissions"
+SEVERITY="basic"
 
 FILE="/etc/gshadow"
 
