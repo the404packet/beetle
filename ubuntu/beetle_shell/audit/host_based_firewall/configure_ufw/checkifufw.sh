@@ -1,7 +1,7 @@
 #!/bin/bash
 
 dpkg-query -s ufw &>/dev/null && echo "ufw is installed"
-
+SEVERITY=""
 if command -v ufw >/dev/null 2>&1; then
 	echo "Ufw already installed ."
 else

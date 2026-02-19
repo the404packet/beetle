@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
-NAME="/etc/gshadow file permissions"
+NAME="/etc/gshadow- backup file permissions"
+SEVERITY="basic"
 
-FILE="/etc/gshadow"
+FILE="/etc/gshadow-"
 
+[ -e "$FILE" ] || exit 0
 [ -f "$FILE" ] || exit 2
 
 mode=$(stat -Lc '%a' "$FILE" 2>/dev/null) || exit 2

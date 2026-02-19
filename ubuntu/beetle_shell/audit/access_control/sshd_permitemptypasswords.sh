@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 
-NAME='sshd gssapiauthentication set to no'
-SEVERITY='basic'
+NAME='sshd permitEmptyPasswords config'
+SEVERITY="basic"
 
 flag=1
 
 
 #global config
-if  sshd -T 2>/dev/null | grep -Piq '^gssapiauthentication\s+yes'; then
+if  sshd -T 2>/dev/null | grep -Piq '^permitemptypasswords\s+yes'; then
     flag=0 # set wrong
 fi
     
 
 #if MATCH exists 
 if (( flag )) && grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
-    if ! sshd -T -C user="$USER" 2>/dev/null | grep -Piq '^gssapiauthentication\s+yes'; then
+    if ! sshd -T -C user="$USER" 2>/dev/null | grep -Piq '^permitemptypasswords\s+yes'; then
         flag=0
     fi
 fi

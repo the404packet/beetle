@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME='sshd hostbasedauthentication set to no'
-SEVERITY='basic'
+SEVERITY="basic"
 
 flag=1
 
