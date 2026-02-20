@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 echo "🚀 Deploying Beetle..."
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BEETLE_SRC="$SRC_DIR/beetle"
 SHELL_SRC="$SRC_DIR/beetle_shell"
-CONFIG_SRC="$SRC_DIR/config/beetle.conf"
+CONFIG_SRC="$SRC_DIR/config"
 
 DEST_DIR="/usr/local/bin"
 CONF_DIR="/etc/beetle"
-CONF_FILE="$CONF_DIR/beetle.conf"
 
 # ---------- Pre-flight ----------
 command -v sudo >/dev/null || { echo "❌ sudo required"; exit 1; }
@@ -18,7 +19,7 @@ sudo -v
 
 [[ -f "$BEETLE_SRC" ]] || { echo "❌ beetle file not found"; exit 1; }
 [[ -d "$SHELL_SRC" ]]  || { echo "❌ beetle_shell directory not found"; exit 1; }
-[[ -f "$CONFIG_SRC" ]] || { echo "❌ beetle.config not found"; exit 1; }
+[[ -d "$CONFIG_SRC" ]] || { echo "❌ config directory not found"; exit 1; }
 
 # ---------- Install beetle ----------
 echo "📦 Installing beetle"
@@ -29,31 +30,33 @@ echo "📦 Installing beetle_shell"
 sudo rm -rf "$DEST_DIR/beetle_shell"
 sudo cp -a "$SHELL_SRC" "$DEST_DIR/"
 
-# ---------- Install config (safe) ----------
-echo "📄 Installing config"
+# ---------- Install config directory ----------
+echo "📄 Installing config directory"
 sudo mkdir -p "$CONF_DIR"
 
 FORCE_CONFIG=false
+[[ "${1:-}" == "--force-config" ]] && FORCE_CONFIG=true
 
-if [[ "$1" == "--force-config" ]]; then
-    FORCE_CONFIG=true
-fi
-
-if [[ ! -f "$CONF_FILE" || "$FORCE_CONFIG" == true ]]; then
-    sudo install -m 644 "$CONFIG_SRC" "$CONF_FILE"
-    echo "📄 Config installed/updated"
+if [[ "$FORCE_CONFIG" == true ]]; then
+    sudo rm -rf "$CONF_DIR"
+    sudo mkdir -p "$CONF_DIR"
+    sudo cp -a "$CONFIG_SRC/." "$CONF_DIR/"
+    echo "📄 Config directory installed/updated"
 else
-    echo "⚠️  Existing config preserved"
+    sudo cp -an "$CONFIG_SRC/." "$CONF_DIR/"
+    echo "📄 Config installed (existing files preserved)"
 fi
 
-# ---------- Normalize line endings (CRITICAL for WSL) ----------
+# ---------- Normalize line endings (important for WSL) ----------
 if command -v dos2unix >/dev/null; then
     echo "🧼 Normalizing line endings"
 
     sudo dos2unix "$DEST_DIR/beetle" >/dev/null 2>&1 || true
-    sudo dos2unix "$CONF_FILE" >/dev/null 2>&1 || true
 
     sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" \
+        -exec dos2unix {} \; >/dev/null 2>&1 || true
+
+    sudo find "$CONF_DIR" -type f \
         -exec dos2unix {} \; >/dev/null 2>&1 || true
 else
     echo "⚠️  dos2unix not installed (recommended)"
