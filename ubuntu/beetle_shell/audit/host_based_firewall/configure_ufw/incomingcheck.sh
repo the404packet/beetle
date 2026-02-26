@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-NAME='ufw install check'
+NAME='ufw incoming check'
 SEVERITY="basic"
 
 flag=1
 
-if ! command -v ufw >/dev/null 2>&1; then
+if ! ufw status verbose | grep -q "Default: deny (incoming)"; then
     flag=0
 fi
 
