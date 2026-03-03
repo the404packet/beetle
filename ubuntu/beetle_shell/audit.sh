@@ -120,7 +120,9 @@ for script in "${scripts[@]}"; do
 done
 
 echo
-echo -e "${GREEN}Executed Successfully: $PASS_COUNT${RESET}"
-echo -e "${RED}Execution Failed: $FAIL_COUNT${RESET}"
-echo -e "${GREEN}Hardened: $HARDENED_COUNT${RESET}"
-echo -e "${RED}Not Hardened: $NOT_HARDENED_COUNT${RESET}"
+echo -e "Audit Summary : "
+echo -e "+----------------------+------------------+------------+---------------+"
+echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Execution Failed") | $(printf "%-10s" "Hardened") | $(printf "%-13s" "Not Hardened") |"
+echo -e "+----------------------+------------------+------------+---------------+"
+echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$HARDENED_COUNT") | $(printf "%-13s" "$NOT_HARDENED_COUNT") |"
+echo -e "+----------------------+------------------+------------+---------------+"
