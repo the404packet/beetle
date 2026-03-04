@@ -18,13 +18,21 @@ NOT_HARDENED_COUNT=0
 
 spinner() {
     local pid=$1
+
+    # Do nothing if not interactive terminal
+    if [[ "$ENABLE_SPINNER" != true ]]; then
+        return
+    fi
+
     local spin='-\|/'
     local i=0
+
     while kill -0 "$pid" 2>/dev/null; do
         i=$(( (i+1) %4 ))
         printf "\r  ${CYAN}%s${RESET}" "${spin:$i:1}"
         sleep 0.1
     done
+    printf "\r"
 }
 
 run_check() {
@@ -46,11 +54,11 @@ run_check() {
 
     bash "$script" > "$TMP_FILE" 2>/dev/null &
     pid=$!
-    spinner "$pid"
+   
     wait "$pid"
     exit_code=$?
 
-    result=$(cat "$TMP_FILE")
+    result=$(tr -d '\n' < "$TMP_FILE")
     rm -f "$TMP_FILE"
 
     total_width=75
@@ -60,7 +68,7 @@ run_check() {
     dots=$(printf "%0.s." $(seq 1 $dots_count))
 
     if [ "$exit_code" -ne 0 ]; then
-        printf "\r${RED}[FAIL]${RESET} %s %s  ${RED}ERROR${RESET}\n" "$NAME" "$dots"
+        printf "${RED}[FAIL]${RESET} %s %s  ${RED}ERROR${RESET}\n" "$NAME" "$dots"
         ((FAIL_COUNT++))
         return
     fi
@@ -75,10 +83,11 @@ run_check() {
         STATE_COLOR="${RED}"
     fi
 
-    printf "\r${GREEN}[PASS]${RESET} %s %s  ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
+    printf "${GREEN}[PASS]${RESET} %s %s  ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
 }
 
 echo -e "${CYAN}Starting Beetle Audit...${RESET}\n"
+echo
 
 if [ ! -d "$BEETLE_SHELL_ROOT" ]; then
     echo -e "${RED}beetle_shell directory not found${RESET}"
