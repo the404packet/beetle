@@ -1,21 +1,25 @@
 #!/bin/bash
 
-command="$1"
+set -euo pipefail
+
+command="${1:-}"
 shift || true
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# ---------- Local Commands ----------
 if [[ "$command" == "version" || "$command" == "banner" ]]; then
     COMMAND_FILE="$SCRIPT_DIR/beetle_shell/${command}.sh"
+
     if [[ -x "$COMMAND_FILE" ]]; then
         exec "$COMMAND_FILE" "$@"
     else
         echo "Unknown command: $command"
         exit 1
     fi
-    exit 0
 fi
 
+# ---------- Daemon Commands ----------
 SOCKET="/var/run/beetle.sock"
 
 if [[ ! -S "$SOCKET" ]]; then
@@ -23,16 +27,5 @@ if [[ ! -S "$SOCKET" ]]; then
     exit 1
 fi
 
-# Send to daemon using Python (no socat needed)
-python3 - <<EOF
-import socket
-sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-sock.connect("$SOCKET")
-sock.sendall(b"$command $*")
-while True:
-    data = sock.recv(4096)
-    if not data:
-        break
-    print(data.decode(), end="")
-sock.close()
-EOF
+# Send full command safely via socat
+printf '%s\n' "$command $*" | socat - UNIX-CONNECT:"$SOCKET"
