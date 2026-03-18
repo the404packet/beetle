@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
-NAME="/etc/security/opasswd file permissions"
+NAME="/etc/security/opasswd.old file permissions"
+SEVERITY="basic"
 
-FILE="/etc/security/opasswd"
+FILE="/etc/security/opasswd.old"
 
-[ -e "$FILE" ] || exit 0
+[ -e "$FILE" ] || exit 1
 [ -f "$FILE" ] || exit 2
 
 mode=$(stat -Lc '%a' "$FILE" 2>/dev/null) || exit 2

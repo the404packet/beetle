@@ -29,6 +29,15 @@ spinner() {
 
 run_check() {
     local script="$1"
+    
+    SEVERITY=$(grep -E '^SEVERITY=' "$script" | cut -d= -f2 | tr -d '"[:space:]')
+
+    if [ -n "$TARGET_SEVERITY" ]; then
+        if [[ "${SEVERITY,,}" != "${TARGET_SEVERITY,,}" ]]; then
+            return
+        fi
+    fi
+
 
     NAME=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
     [ -z "$NAME" ] && NAME="$(basename "$script")"
@@ -76,20 +85,44 @@ if [ ! -d "$BEETLE_SHELL_ROOT" ]; then
     exit 1
 fi
 
+TARGET_FOLDER=""
+TARGET_SEVERITY=""
+
+# Parse arguments
+for arg in "$@"; do
+    if [ -d "$BEETLE_SHELL_ROOT/$arg" ]; then
+        TARGET_FOLDER="$arg"
+    else
+        TARGET_SEVERITY="$arg"
+    fi
+done
+
+# Determine search path
+if [ -n "$TARGET_FOLDER" ]; then
+    SEARCH_PATH="$BEETLE_SHELL_ROOT/$TARGET_FOLDER"
+else
+    SEARCH_PATH="$BEETLE_SHELL_ROOT"
+fi
+
+# Collect scripts
 mapfile -d '' scripts < <(
-    find "$BEETLE_SHELL_ROOT" \
-        -mindepth 2 \
+    find "$SEARCH_PATH" \
+        -mindepth 1 \
         -type f \
         -name "*.sh" \
         -print0
 )
+
+
 
 for script in "${scripts[@]}"; do
     run_check "$script"
 done
 
 echo
-echo -e "${GREEN}Executed Successfully: $PASS_COUNT${RESET}"
-echo -e "${RED}Execution Failed: $FAIL_COUNT${RESET}"
-echo -e "${GREEN}Hardened: $HARDENED_COUNT${RESET}"
-echo -e "${RED}Not Hardened: $NOT_HARDENED_COUNT${RESET}"
+echo -e "Audit Summary : "
+echo -e "+----------------------+------------------+------------+---------------+"
+echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Execution Failed") | $(printf "%-10s" "Hardened") | $(printf "%-13s" "Not Hardened") |"
+echo -e "+----------------------+------------------+------------+---------------+"
+echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$HARDENED_COUNT") | $(printf "%-13s" "$NOT_HARDENED_COUNT") |"
+echo -e "+----------------------+------------------+------------+---------------+"
