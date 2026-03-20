@@ -2,13 +2,12 @@
 
 set -euo pipefail
 
-echo "🚀 Deploying Beetle..."
+echo "🚀 Deploying Beetle (C Daemon)..."
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BEETLE_SRC="$SRC_DIR/beetle"
-BEETLED_WRAPPER_SRC="$SRC_DIR/beetled"
-HANDLER_SRC="$SRC_DIR/beetled-handler"
+BEETLED_SRC="$SRC_DIR/beetled.c"
 SERVICE_SRC="$SRC_DIR/beetled.service"
 SHELL_SRC="$SRC_DIR/beetle_shell"
 CONFIG_SRC="$SRC_DIR/config"
@@ -21,30 +20,30 @@ SERVICE_DEST="/etc/systemd/system/beetled.service"
 command -v sudo >/dev/null || { echo "❌ sudo required"; exit 1; }
 sudo -v
 
-[[ -f "$BEETLE_SRC" ]]            || { echo "❌ beetle file not found"; exit 1; }
-[[ -f "$BEETLED_WRAPPER_SRC" ]]  || { echo "❌ beetled wrapper not found"; exit 1; }
-[[ -f "$HANDLER_SRC" ]]          || { echo "❌ beetled-handler file not found"; exit 1; }
-[[ -f "$SERVICE_SRC" ]]          || { echo "❌ beetled.service file not found"; exit 1; }
-[[ -d "$SHELL_SRC" ]]            || { echo "❌ beetle_shell directory not found"; exit 1; }
-[[ -d "$CONFIG_SRC" ]]           || { echo "❌ config directory not found"; exit 1; }
+[[ -f "$BEETLE_SRC" ]]   || { echo "❌ beetle file not found"; exit 1; }
+[[ -f "$BEETLED_SRC" ]]  || { echo "❌ beetled.c not found"; exit 1; }
+[[ -f "$SERVICE_SRC" ]]  || { echo "❌ beetled.service not found"; exit 1; }
+[[ -d "$SHELL_SRC" ]]    || { echo "❌ beetle_shell directory not found"; exit 1; }
+[[ -d "$CONFIG_SRC" ]]   || { echo "❌ config directory not found"; exit 1; }
 
-# ---------- Create beetle group ----------
-if ! getent group beetle >/dev/null; then
-    echo "👥 Creating beetle group"
-    sudo groupadd beetle
+# ---------- Install build tools ----------
+if ! command -v gcc >/dev/null; then
+    echo "📥 Installing build tools (gcc)"
+    sudo apt update
+    sudo apt install -y build-essential
 fi
 
-# ---------- Install beetle ----------
-echo "📦 Installing beetle"
+# ---------- Compile daemon ----------
+echo "⚙️ Compiling beetled (C daemon)"
+gcc "$BEETLED_SRC" -o beetled
+
+# ---------- Install beetle CLI ----------
+echo "📦 Installing beetle CLI"
 sudo install -m 755 "$BEETLE_SRC" "$DEST_DIR/beetle"
 
-# ---------- Install beetled wrapper ----------
-echo "📦 Installing beetled daemon wrapper"
-sudo install -m 755 "$BEETLED_WRAPPER_SRC" "$DEST_DIR/beetled"
-
-# ---------- Install handler ----------
-echo "📦 Installing beetled handler"
-sudo install -m 755 "$HANDLER_SRC" "$DEST_DIR/beetled-handler"
+# ---------- Install beetled daemon ----------
+echo "📦 Installing beetled daemon"
+sudo install -m 755 ./beetled "$DEST_DIR/beetled"
 
 # ---------- Install beetle_shell ----------
 echo "📦 Installing beetle_shell"
@@ -68,25 +67,16 @@ else
     echo "📄 Config installed (preserved)"
 fi
 
-# ---------- Install service ----------
+# ---------- Install systemd service ----------
 echo "⚙️ Installing systemd service"
 sudo cp "$SERVICE_SRC" "$SERVICE_DEST"
 sudo chmod 644 "$SERVICE_DEST"
-
-# ---------- Ensure socat ----------
-if ! command -v socat >/dev/null; then
-    echo "📥 Installing socat"
-    sudo apt update
-    sudo apt install -y socat
-fi
 
 # ---------- Normalize line endings ----------
 if command -v dos2unix >/dev/null; then
     echo "🧼 Normalizing line endings"
 
     sudo dos2unix "$DEST_DIR/beetle" >/dev/null 2>&1 || true
-    sudo dos2unix "$DEST_DIR/beetled" >/dev/null 2>&1 || true
-    sudo dos2unix "$DEST_DIR/beetled-handler" >/dev/null 2>&1 || true
 
     sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" \
         -exec dos2unix {} \; >/dev/null 2>&1 || true
@@ -99,18 +89,23 @@ fi
 echo "🔐 Setting permissions"
 sudo chmod +x "$DEST_DIR/beetle"
 sudo chmod +x "$DEST_DIR/beetled"
-sudo chmod +x "$DEST_DIR/beetled-handler"
 
 sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" \
     -exec chmod +x {} \;
 
 # ---------- Cleanup old socket ----------
+echo "🧹 Cleaning old socket"
 sudo rm -f /var/run/beetle.sock
 
-# ---------- Start service ----------
+# ---------- Stop old services ----------
+echo "🛑 Stopping old beetled"
+sudo systemctl stop beetled 2>/dev/null || true
+
+# ---------- Reload systemd ----------
 echo "🔄 Reloading systemd"
 sudo systemctl daemon-reload
 
+# ---------- Enable + Start ----------
 echo "🚀 Enabling beetled"
 sudo systemctl enable beetled
 
