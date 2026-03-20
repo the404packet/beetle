@@ -7,7 +7,8 @@ echo "🚀 Deploying Beetle..."
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BEETLE_SRC="$SRC_DIR/beetle"
-BEETLED_SRC="$SRC_DIR/beetled"
+BEETLED_WRAPPER_SRC="$SRC_DIR/beetled"
+HANDLER_SRC="$SRC_DIR/beetled-handler"
 SERVICE_SRC="$SRC_DIR/beetled.service"
 SHELL_SRC="$SRC_DIR/beetle_shell"
 CONFIG_SRC="$SRC_DIR/config"
@@ -20,13 +21,14 @@ SERVICE_DEST="/etc/systemd/system/beetled.service"
 command -v sudo >/dev/null || { echo "❌ sudo required"; exit 1; }
 sudo -v
 
-[[ -f "$BEETLE_SRC" ]]   || { echo "❌ beetle file not found"; exit 1; }
-[[ -f "$BEETLED_SRC" ]]  || { echo "❌ beetled file not found"; exit 1; }
-[[ -f "$SERVICE_SRC" ]]  || { echo "❌ beetled.service file not found"; exit 1; }
-[[ -d "$SHELL_SRC" ]]    || { echo "❌ beetle_shell directory not found"; exit 1; }
-[[ -d "$CONFIG_SRC" ]]   || { echo "❌ config directory not found"; exit 1; }
+[[ -f "$BEETLE_SRC" ]]            || { echo "❌ beetle file not found"; exit 1; }
+[[ -f "$BEETLED_WRAPPER_SRC" ]]  || { echo "❌ beetled wrapper not found"; exit 1; }
+[[ -f "$HANDLER_SRC" ]]          || { echo "❌ beetled-handler file not found"; exit 1; }
+[[ -f "$SERVICE_SRC" ]]          || { echo "❌ beetled.service file not found"; exit 1; }
+[[ -d "$SHELL_SRC" ]]            || { echo "❌ beetle_shell directory not found"; exit 1; }
+[[ -d "$CONFIG_SRC" ]]           || { echo "❌ config directory not found"; exit 1; }
 
-# ---------- Create beetle group if not exists ----------
+# ---------- Create beetle group ----------
 if ! getent group beetle >/dev/null; then
     echo "👥 Creating beetle group"
     sudo groupadd beetle
@@ -36,9 +38,13 @@ fi
 echo "📦 Installing beetle"
 sudo install -m 755 "$BEETLE_SRC" "$DEST_DIR/beetle"
 
-# ---------- Install beetled ----------
-echo "📦 Installing beetled daemon"
-sudo install -m 755 "$BEETLED_SRC" "$DEST_DIR/beetled"
+# ---------- Install beetled wrapper ----------
+echo "📦 Installing beetled daemon wrapper"
+sudo install -m 755 "$BEETLED_WRAPPER_SRC" "$DEST_DIR/beetled"
+
+# ---------- Install handler ----------
+echo "📦 Installing beetled handler"
+sudo install -m 755 "$HANDLER_SRC" "$DEST_DIR/beetled-handler"
 
 # ---------- Install beetle_shell ----------
 echo "📦 Installing beetle_shell"
@@ -56,16 +62,23 @@ if [[ "$FORCE_CONFIG" == true ]]; then
     sudo rm -rf "$CONF_DIR"
     sudo mkdir -p "$CONF_DIR"
     sudo cp -a "$CONFIG_SRC/." "$CONF_DIR/"
-    echo "📄 Config directory installed/updated"
+    echo "📄 Config installed/updated"
 else
     sudo cp -an "$CONFIG_SRC/." "$CONF_DIR/"
-    echo "📄 Config installed (existing files preserved)"
+    echo "📄 Config installed (preserved)"
 fi
 
-# ---------- Install systemd service ----------
+# ---------- Install service ----------
 echo "⚙️ Installing systemd service"
 sudo cp "$SERVICE_SRC" "$SERVICE_DEST"
 sudo chmod 644 "$SERVICE_DEST"
+
+# ---------- Ensure socat ----------
+if ! command -v socat >/dev/null; then
+    echo "📥 Installing socat"
+    sudo apt update
+    sudo apt install -y socat
+fi
 
 # ---------- Normalize line endings ----------
 if command -v dos2unix >/dev/null; then
@@ -73,39 +86,39 @@ if command -v dos2unix >/dev/null; then
 
     sudo dos2unix "$DEST_DIR/beetle" >/dev/null 2>&1 || true
     sudo dos2unix "$DEST_DIR/beetled" >/dev/null 2>&1 || true
+    sudo dos2unix "$DEST_DIR/beetled-handler" >/dev/null 2>&1 || true
 
     sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" \
         -exec dos2unix {} \; >/dev/null 2>&1 || true
 
     sudo find "$CONF_DIR" -type f \
         -exec dos2unix {} \; >/dev/null 2>&1 || true
-else
-    echo "⚠️  dos2unix not installed (recommended)"
 fi
 
 # ---------- Permissions ----------
 echo "🔐 Setting permissions"
-
 sudo chmod +x "$DEST_DIR/beetle"
 sudo chmod +x "$DEST_DIR/beetled"
+sudo chmod +x "$DEST_DIR/beetled-handler"
 
 sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" \
     -exec chmod +x {} \;
 
-# ---------- Reload systemd ----------
+# ---------- Cleanup old socket ----------
+sudo rm -f /var/run/beetle.sock
+
+# ---------- Start service ----------
 echo "🔄 Reloading systemd"
 sudo systemctl daemon-reload
 
-echo "🚀 Enabling beetled service"
+echo "🚀 Enabling beetled"
 sudo systemctl enable beetled
 
-echo "▶️ Starting beetled service"
+echo "▶️ Starting beetled"
 sudo systemctl restart beetled
 
-# ---------- PATH sanity ----------
-command -v beetle >/dev/null || echo "⚠️  /usr/local/bin not in PATH"
-
+# ---------- Done ----------
 echo ""
 echo "✅ Deployment complete!"
 echo "➡️  Run: beetle banner"
-echo "➡️  Check daemon: systemctl status beetled"
+echo "➡️  Check: systemctl status beetled"
