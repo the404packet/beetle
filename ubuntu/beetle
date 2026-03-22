@@ -28,4 +28,4 @@ if [[ ! -S "$SOCKET" ]]; then
 fi
 
 # Send full command safely via socat
-printf '%s\n' "$command $*" | socat - UNIX-CONNECT:"$SOCKET"
+printf '%s\n' "$command $*" | beetled - UNIX-CONNECT:"$SOCKET"
