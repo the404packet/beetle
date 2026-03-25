@@ -6,16 +6,33 @@ BEETLE_DIR="$BASE_DIR/beetle_snapshots"
 USER_DIR="$BASE_DIR/user_snapshots"
 SOURCE_DIR="/etc/beetle"
 
+ID_FILE="$BASE_DIR/.snapshot_id"
+META_FILE="$BASE_DIR/.snapshot_meta"
+
 mkdir -p "$STORE_DIR" "$BEETLE_DIR" "$USER_DIR"
+touch "$ID_FILE" "$META_FILE"
 
 # ---------- HELP ----------
 show_help() {
     echo "Usage:"
     echo "  beetle snapshot capture           (user snapshot)"
     echo "  beetle snapshot capture main      (system snapshot - daemon only)"
-    echo "  beetle snapshot list"
-    echo "  beetle snapshot list user"
-    echo "  beetle snapshot list beetle"
+    echo "  beetle snapshot ls"
+    echo "  beetle snapshot ls user"
+    echo "  beetle snapshot ls beetle"
+}
+
+# ---------- ID GENERATOR ----------
+get_next_id() {
+    if [[ ! -s "$ID_FILE" ]]; then
+        echo 1 > "$ID_FILE"
+    fi
+
+    ID=$(cat "$ID_FILE")
+    NEXT_ID=$((ID + 1))
+    echo "$NEXT_ID" > "$ID_FILE"
+
+    echo "$ID"
 }
 
 # ---------- HASH ----------
@@ -39,13 +56,11 @@ capture_snapshot() {
 
     # ---------- SECURITY CHECK ----------
     if [[ "$TYPE" == "beetle" ]]; then
-        # Must be root
         if [[ "$EUID" -ne 0 ]]; then
             echo "[!] Permission denied: system snapshot requires root"
             exit 1
         fi
 
-        # Optional: ensure called by beetled
         BEETLED_PID=$(pgrep -x beetled)
 
         if [[ -z "$BEETLED_PID" || "$PPID" -ne "$BEETLED_PID" ]]; then
@@ -55,7 +70,7 @@ capture_snapshot() {
     fi
 
     # ---------- CREATE HASH ----------
-    HASH=$(tar -cf - "$SOURCE_DIR" 2>/dev/null | sha256sum | awk '{print $1}')
+    HASH=$(create_hash)
 
     if [[ -z "$HASH" ]]; then
         echo "[!] Failed to compute snapshot hash"
@@ -63,6 +78,8 @@ capture_snapshot() {
     fi
 
     TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+    SNAP_ID=$(get_next_id)
+
     STORE_FILE="$STORE_DIR/$HASH.tar.gz"
 
     # ---------- STORE SNAPSHOT (DEDUP) ----------
@@ -74,7 +91,7 @@ capture_snapshot() {
     fi
 
     # ---------- CREATE SYMLINK ----------
-    SNAP_NAME="snapshot_${TIMESTAMP}.tar.gz"
+    SNAP_NAME="snapshot_${SNAP_ID}_${TIMESTAMP}.tar.gz"
 
     if [[ "$TYPE" == "user" ]]; then
         TARGET_DIR="$USER_DIR"
@@ -89,7 +106,11 @@ capture_snapshot() {
         exit 1
     fi
 
+    # ---------- STORE METADATA ----------
+    echo "${SNAP_ID}|${SNAP_NAME}|${TIMESTAMP}|${TYPE}" >> "$META_FILE"
+
     echo "[+] Snapshot created:"
+    echo "    ID   : $SNAP_ID"
     echo "    Name : $SNAP_NAME"
     echo "    Type : $TYPE"
 }
@@ -98,35 +119,18 @@ capture_snapshot() {
 list_snapshots() {
     TYPE=$1
 
-    print_list() {
-        DIR=$1
-        LABEL=$2
+    printf "\n%-5s | %-35s | %-20s | %-10s\n" "ID" "SNAPSHOT NAME" "CREATED" "TYPE"
+    printf -- "-------------------------------------------------------------------------------\n"
 
-        echo "---- $LABEL ----"
-        for file in "$DIR"/*; do
-            [[ -e "$file" ]] || continue
-            NAME=$(basename "$file")
-            TIME=$(stat -c %y "$file" 2>/dev/null | cut -d'.' -f1)
-            echo "$NAME  |  $TIME"
-        done
-        echo ""
-    }
+    while IFS="|" read -r ID NAME TIME SNAP_TYPE; do
+        [[ -z "$ID" ]] && continue
 
-    case "$TYPE" in
-        user)
-            print_list "$USER_DIR" "User Snapshots"
-            ;;
-        beetle)
-            print_list "$BEETLE_DIR" "Beetle Snapshots"
-            ;;
-        "")
-            print_list "$BEETLE_DIR" "Beetle Snapshots"
-            print_list "$USER_DIR" "User Snapshots"
-            ;;
-        *)
-            echo "Invalid type"
-            ;;
-    esac
+        if [[ -z "$TYPE" || "$TYPE" == "$SNAP_TYPE" ]]; then
+            printf "%-5s | %-35s | %-20s | %-10s\n" "$ID" "$NAME" "$TIME" "$SNAP_TYPE"
+        fi
+    done < "$META_FILE"
+
+    echo ""
 }
 
 # ---------- MAIN ----------
