@@ -8,7 +8,7 @@ shift || true
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ---------- Local Commands ----------
-if [[ "$command" == "version" || "$command" == "banner" || "$command" == "help"]]; then
+if [[ "$command" == "version" || "$command" == "banner" || "$command" == "help" ]]; then
     COMMAND_FILE="$SCRIPT_DIR/beetle_shell/${command}.sh"
 
     if [[ -x "$COMMAND_FILE" ]]; then
