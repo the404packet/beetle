@@ -1,11 +1,11 @@
 [Unit]
-Description=Beetle Daemon 
+Description=Beetle Daemon
 After=network.target
 
 [Service]
 ExecStart=/usr/local/bin/beetled
 Restart=always
-RestartSec=2
+User=root
 
 [Install]
 WantedBy=multi-user.target
