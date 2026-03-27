@@ -6,9 +6,16 @@ BASE_DIR="/usr/local/bin/beetle_shell"
 
 read -r line
 
-command=$(echo "$line" | awk '{print $1}')
-args=$(echo "$line" | cut -d' ' -f2-)
+read -ra parts <<< "$line"
 
+command="${parts[0]:-}"
+
+if [[ -z "$command" ]]; then
+    echo "Invalid command"
+    exit 1
+fi
+
+# security check
 if [[ ! "$command" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "Invalid command"
     exit 1
@@ -17,7 +24,7 @@ fi
 script="$BASE_DIR/${command}.sh"
 
 if [[ -x "$script" ]]; then
-    exec "$script" $args
+    exec "$script" "${parts[@]:1}"
 else
     echo "Unknown command"
 fi
