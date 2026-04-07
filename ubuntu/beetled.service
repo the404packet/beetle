@@ -5,7 +5,7 @@ After=network.target
 [Service]
 ExecStart=/usr/local/bin/beetled
 Restart=always
-User=root
+User=somanshu
 
 [Install]
 WantedBy=multi-user.target
