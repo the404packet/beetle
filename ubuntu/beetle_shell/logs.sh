@@ -1,29 +1,33 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -uo pipefail
 
-LOG_FILE="/var/log/beetle.log"
+CONFIG_FILE="/etc/beetle/beetle.conf"
 
-# ---------- HELP ----------
+LOG_FILE=$(grep "^AUDIT_LOG_FILE=" "$CONFIG_FILE" 2>/dev/null | cut -d '=' -f2 | xargs || true)
+
+if [[ -z "${LOG_FILE:-}" || ! -f "$LOG_FILE" ]]; then
+    echo "Log file not found: $LOG_FILE"
+    exit 1
+fi
+
+CURRENT_USER=$(whoami)
+
 show_help() {
     echo "Usage: beetle logs [options]"
     echo ""
     echo "Options:"
-    echo "  --since <time>        Filter logs (e.g., 10d, 5h, 30m, 20s)"
-    echo "  --type <category>     Filter by type (snapshot, audit, system)"
+    echo "  --since <time>        Filter logs (10d, 5h, 30m, 20s)"
+    echo "  --type <command>      Filter by command"
     echo "  --user <username>     Filter by user"
-    echo "  --summary             Show success/failure counts"
     echo "  --help                Show this help"
 }
 
-# ---------- PARSE TIME ----------
 parse_time() {
     local input="$1"
-
-    local value unit seconds=0
-
-    value="${input::-1}"
-    unit="${input: -1}"
+    local value="${input::-1}"
+    local unit="${input: -1}"
+    local seconds=0
 
     case "$unit" in
         d) seconds=$((value * 86400)) ;;
@@ -36,11 +40,9 @@ parse_time() {
     date -d "-$seconds seconds" "+%Y-%m-%d %H:%M:%S"
 }
 
-# ---------- FILTER LOGS ----------
 since_time=""
 type_filter=""
 user_filter=""
-summary=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -56,10 +58,6 @@ while [[ $# -gt 0 ]]; do
             user_filter="$2"
             shift 2
             ;;
-        --summary)
-            summary=true
-            shift
-            ;;
         --help|"")
             show_help
             exit 0
@@ -72,57 +70,65 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ---------- READ LOGS ----------
-filtered_logs=$(cat "$LOG_FILE")
+filtered_logs=$(<"$LOG_FILE")
 
-# ---------- APPLY TIME FILTER ----------
+# ---------- TIME FILTER ----------
 if [[ -n "$since_time" ]]; then
     filtered_logs=$(awk -v since="$since_time" '
+    function to_epoch(ts) {
+        gsub(/[-:]/, " ", ts)
+        return mktime(ts)
+    }
+    BEGIN {
+        split(since, s, "[- :]")
+        since_epoch = mktime(s[1]" "s[2]" "s[3]" "s[4]" "s[5]" "s[6])
+    }
     {
         timestamp = $1 " " $2
-        if (timestamp >= since)
+        split(timestamp, t, "[- :]")
+        log_epoch = mktime(t[1]" "t[2]" "t[3]" "t[4]" "t[5]" "t[6])
+
+        if (log_epoch >= since_epoch)
             print
-    }' <<< "$filtered_logs")
+    }' <<< "$filtered_logs" || true)
 fi
 
-# ---------- APPLY TYPE FILTER ----------
+# ---------- TYPE FILTER ----------
 if [[ -n "$type_filter" ]]; then
-    case "$type_filter" in
-        snapshot)
-            filtered_logs=$(grep 'cmd="snapshot' <<< "$filtered_logs" || true)
-            ;;
-        audit)
-            filtered_logs=$(grep -E 'status=FAIL|status=SUCCESS' <<< "$filtered_logs" || true)
-            ;;
-        system)
-            filtered_logs=$(grep 'cmd="system' <<< "$filtered_logs" || true)
-            ;;
-        *)
-            echo "Unknown type: $type_filter"
-            exit 1
-            ;;
-    esac
+    filtered_logs=$(grep -E "cmd=\".*$type_filter.*\"" <<< "$filtered_logs" || true)
 fi
 
-# ---------- APPLY USER FILTER ----------
+# ---------- USER FILTER ----------
 if [[ -n "$user_filter" ]]; then
     filtered_logs=$(grep "user=$user_filter" <<< "$filtered_logs" || true)
 fi
 
-# ---------- SUMMARY ----------
-if [[ "$summary" = true ]]; then
-    success_count=$(grep -c "status=SUCCESS" <<< "$filtered_logs" || true)
-    fail_count=$(grep -c "status=FAIL" <<< "$filtered_logs" || true)
-
-    echo "Summary:"
-    echo "  SUCCESS: $success_count"
-    echo "  FAIL:    $fail_count"
+if [[ -z "$filtered_logs" ]]; then
+    echo "No logs found"
     exit 0
 fi
 
-# ---------- OUTPUT ----------
-if [[ -z "$filtered_logs" ]]; then
-    echo "No logs found"
-else
-    echo "$filtered_logs"
-fi
+# ---------- HEADER ----------
+printf "%-19s | %-6s | %-10s | %-10s | %-8s | %-6s | %s\n" \
+"TIMESTAMP" "PID" "USER" "STATUS" "TIME" "ID" "COMMAND"
+
+printf "%s\n" "------------------------------------------------------------------------------------------------------"
+
+# ---------- OUTPUT (NO WRAP) ----------
+echo "$filtered_logs" | awk -v user_override="$(whoami)" '
+{
+    # Extract timestamp
+    ts = $1 " " $2
+
+    # Extract fields
+    match($0, /pid=([^ ]+)/, p); pid = p[1]
+    match($0, /user=([^ ]+)/, u); user = user_override   # override root
+    match($0, /status=([^ ]+)/, s); status = s[1]
+    match($0, /time=([^ ]+)/, t); time = t[1]
+    match($0, /id=([^ ]+)/, i); id = substr(i[1], length(i[1])-5)
+    match($0, /cmd="([^"]*)"/, c); cmd = c[1]
+
+    printf "%-19s | %-6s | %-10s | %-10s | %-8s | %-6s | %s\n", \
+    ts, pid, user, status, time, id, cmd
+}
+'

@@ -16,6 +16,7 @@ CONFIG_SRC="$SRC_DIR/config"
 DEST_DIR="/usr/local/bin"
 CONF_DIR="/etc/beetle"
 SERVICE_DEST="/etc/systemd/system/beetled.service"
+LOG_DIR="/var/log/beetle"
 
 # ---------- Pre-flight ----------
 command -v sudo >/dev/null || { echo "❌ sudo required"; exit 1; }
@@ -37,9 +38,7 @@ fi
 
 # ---------- Normalize SOURCE files ----------
 echo "🧼 Converting source files to LF"
-
 dos2unix "$BEETLE_SRC" "$BEETLED_SRC" "$SERVICE_SRC" "$HANDLER_SRC" "$0" >/dev/null 2>&1 || true
-
 find "$SHELL_SRC" -type f -exec dos2unix {} \; >/dev/null 2>&1 || true
 find "$CONFIG_SRC" -type f -exec dos2unix {} \; >/dev/null 2>&1 || true
 
@@ -81,6 +80,15 @@ else
     echo "📄 Config preserved"
 fi
 
+# ---------- CREATE LOG DIRECTORY (FIX) ----------
+echo "📁 Setting up log directory"
+sudo mkdir -p "$LOG_DIR"
+sudo chmod 755 "$LOG_DIR"
+
+# Optional: create initial log file
+sudo touch "$LOG_DIR/audit.log"
+sudo chmod 644 "$LOG_DIR/audit.log"
+
 # ---------- Install systemd ----------
 echo "⚙️ Installing service"
 sudo cp "$SERVICE_SRC" "$SERVICE_DEST"
@@ -88,9 +96,7 @@ sudo chmod 644 "$SERVICE_DEST"
 
 # ---------- Normalize INSTALLED files ----------
 echo "🧼 Converting installed files to LF"
-
 sudo dos2unix "$DEST_DIR/beetle" "$DEST_DIR/beetled-handler" >/dev/null 2>&1 || true
-
 sudo find "$DEST_DIR/beetle_shell" -type f -exec dos2unix {} \; >/dev/null 2>&1 || true
 sudo find "$CONF_DIR" -type f -exec dos2unix {} \; >/dev/null 2>&1 || true
 
@@ -99,7 +105,6 @@ echo "🔐 Setting permissions"
 sudo chmod +x "$DEST_DIR/beetle"
 sudo chmod +x "$DEST_DIR/beetled"
 sudo chmod +x "$DEST_DIR/beetled-handler"
-
 sudo find "$DEST_DIR/beetle_shell" -type f -name "*.sh" -exec chmod +x {} \;
 
 # ---------- Cleanup ----------
@@ -122,5 +127,5 @@ sudo systemctl restart beetled
 # ---------- Done ----------
 echo ""
 echo "✅ Deployment complete!"
-echo "➡️  Try: beetle snapshot capture"
+echo "➡️  Try: beetle logs"
 echo "➡️  Status: systemctl status beetled"

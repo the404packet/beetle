@@ -19,18 +19,28 @@ log_command() {
 }
 
 # ---------- READ INPUT ----------
-read -r line || {
+read -r input || {
     echo "Invalid command"
     exit 1
 }
 
-read -ra parts <<< "$line"
+# ---------- PARSE INPUT ----------
+# Expected format: user=somanshu cmd="logs --type audit"
+
+user=$(echo "$input" | grep -o 'user=[^ ]*' | cut -d= -f2 || true)
+cmd=$(echo "$input" | grep -o 'cmd="[^"]*"' | cut -d'"' -f2 || true)
+
+# fallback safety
+user=${user:-unknown}
+cmd=${cmd:-""}
+
+# Split command into parts
+read -ra parts <<< "$cmd"
 command="${parts[0]:-}"
 
 # ---------- METADATA ----------
-user="${USER:-unknown}"
 pid="$$"
-cmd_id="$(date +%s%N)"   # unique command id
+cmd_id="$(date +%s%N)"
 start_time=$(date +%s%3N)
 
 # ---------- VALIDATION ----------
@@ -38,7 +48,7 @@ if [[ -z "$command" ]]; then
     echo "Invalid command"
     end_time=$(date +%s%3N)
     duration=$((end_time - start_time))
-    log_command "$user" "$line" "FAIL" "$duration" "$pid" "$cmd_id"
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
     exit 1
 fi
 
@@ -46,7 +56,7 @@ if [[ ! "$command" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "Invalid command"
     end_time=$(date +%s%3N)
     duration=$((end_time - start_time))
-    log_command "$user" "$line" "FAIL" "$duration" "$pid" "$cmd_id"
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
     exit 1
 fi
 
@@ -54,7 +64,7 @@ script="$BASE_DIR/${command}.sh"
 
 # ---------- EXECUTION ----------
 if [[ -x "$script" ]]; then
-    set +e  # allow script to fail without exiting handler
+    set +e
 
     "$script" "${parts[@]:1}"
     status_code=$?
@@ -65,9 +75,9 @@ if [[ -x "$script" ]]; then
     duration=$((end_time - start_time))
 
     if [[ $status_code -eq 0 ]]; then
-        log_command "$user" "$line" "SUCCESS" "$duration" "$pid" "$cmd_id"
+        log_command "$user" "$cmd" "SUCCESS" "$duration" "$pid" "$cmd_id"
     else
-        log_command "$user" "$line" "FAIL($status_code)" "$duration" "$pid" "$cmd_id"
+        log_command "$user" "$cmd" "FAIL($status_code)" "$duration" "$pid" "$cmd_id"
     fi
 
     exit $status_code
@@ -77,6 +87,6 @@ else
     end_time=$(date +%s%3N)
     duration=$((end_time - start_time))
 
-    log_command "$user" "$line" "FAIL" "$duration" "$pid" "$cmd_id"
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
     exit 1
 fi
