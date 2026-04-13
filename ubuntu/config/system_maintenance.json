@@ -38,7 +38,7 @@
     },
     {
       "file": "/etc/gshadow",
-      "mode": "640",
+      "mode": "777",
       "owner": "root",
       "group": "shadow"
     },
