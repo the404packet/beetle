@@ -9,10 +9,19 @@ RESET="\e[0m"
 
 FILE="/etc/passwd-"
 
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+
+EXPECTED_MODE=$(get_perm "$FILE" mode)
+EXPECTED_OWNER=$(get_perm "$FILE" owner)
+EXPECTED_GROUP=$(get_perm "$FILE" group)
+
 [ -f "$FILE" ] || exit 2
 
-chmod u-x,go-wx "$FILE" || { echo -e "${RED}HARDENING FAILED${RESET}: chmod on $FILE"; exit 1; }
-chown root:root "$FILE" || { echo -e "${RED}HARDENING FAILED${RESET}: chown on $FILE"; exit 1; }
+if chmod "$EXPECTED_MODE" "$FILE" && chown "${EXPECTED_OWNER}:${EXPECTED_GROUP}" "$FILE"; then
+    echo -e "${GREEN}SUCCESS${RESET}"
+else
+    echo -e "${RED}FAILED${RESET}"
+    exit 1
+fi
 
-echo -e "${GREEN}HARDENED SUCCESS${RESET}"
 exit 0

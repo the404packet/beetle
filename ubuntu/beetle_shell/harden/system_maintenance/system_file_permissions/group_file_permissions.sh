@@ -9,12 +9,18 @@ RESET="\e[0m"
 
 FILE="/etc/group"
 
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+
+EXPECTED_MODE=$(get_perm "$FILE" mode)
+EXPECTED_OWNER=$(get_perm "$FILE" owner)
+EXPECTED_GROUP=$(get_perm "$FILE" group)
+
 [ -f "$FILE" ] || exit 2
 
-if chmod u-x,go-wx "$FILE" && chown root:root "$FILE"; then
-    echo -e "${GREEN}HARDENED - SUCCESS${RESET}"
+if chmod "$EXPECTED_MODE" "$FILE" && chown "${EXPECTED_OWNER}:${EXPECTED_GROUP}" "$FILE"; then
+    echo -e "${GREEN}SUCCESS${RESET}"
 else
-    echo -e "${RED}HARDENED - FAILED${RESET}"
+    echo -e "${RED}FAILED${RESET}"
     exit 1
 fi
 
