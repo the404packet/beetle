@@ -28,25 +28,25 @@
       "file": "/etc/shadow",
       "mode": "640",
       "owner": "root",
-      "group": "root/shadow"
+      "group": "shadow"
     },
     {
       "file": "/etc/shadow-",
       "mode": "640",
       "owner": "root",
-      "group": "root/shadow"
+      "group": "shadow"
     },
     {
       "file": "/etc/gshadow",
       "mode": "640",
       "owner": "root",
-      "group": "root/shadow"
+      "group": "shadow"
     },
     {
       "file": "/etc/gshadow-",
       "mode": "640",
       "owner": "root",
-      "group": "root/shadow"
+      "group": "shadow"
     },
     {
       "file": "/etc/shells",
