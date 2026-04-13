@@ -3,19 +3,19 @@
 NAME="/etc/passwd accounts use shadowed passwords"
 SEVERITY="basic"
 
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
 FILE="/etc/passwd"
 
-# File must exist
 [ -f "$FILE" ] || exit 2
 
-# Run awk check
-output=$(awk -F: '($2 != "x") { print "User: \"" $1 "\" is not set to shadowed passwords" }' "$FILE")
-
-if [[ -z "$output" ]]; then
-    echo -e "${GREEN}HARDENED${RESET}"
+if pwconv 2>/dev/null; then
+    echo -e "${GREEN}SUCCESS${RESET}"
 else
-    echo -e "${RED}NOT HARDENED${RESET}"
-    echo "$output"
+    echo -e "${RED}FAILED${RESET}"
+    exit 1
 fi
 
 exit 0
