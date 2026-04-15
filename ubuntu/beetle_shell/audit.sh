@@ -22,6 +22,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 HARDENED_COUNT=0
 NOT_HARDENED_COUNT=0
+SKIPPED_COUNT=0
 
 spinner() {
     local pid=$1
@@ -39,18 +40,16 @@ spinner() {
 run_check() {
     local script="$1"
 
-    SEVERITY=$(grep -E '^SEVERITY=' "$script" | cut -d= -f2 | tr -d '"[:space:]')
-
-    if [ -n "$TARGET_SEVERITY" ]; then
-        if [[ "${SEVERITY,,}" != "${TARGET_SEVERITY,,}" ]]; then
-            return
-        fi
-    fi
-
     NAME=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
     [ -z "$NAME" ] && NAME="$(basename "$script")"
 
-    # Load this script's JSON into RAM
+    # ── Check severity config — skip if disabled ──
+    if ! is_check_enabled "$script"; then
+        ((SKIPPED_COUNT++))
+        return
+    fi
+
+    # ── Load this script's JSON into RAM ──
     local json_file
     json_file=$(find_module_json "$script")
 
@@ -64,6 +63,7 @@ run_check() {
 
     export DPKG_RAM_STORE
     export PERM_RAM_STORE
+    export SEVERITY_RAM_STORE
 
     TMP_FILE=$(mktemp)
     bash "$script" > "$TMP_FILE" 2>/dev/null &
@@ -74,7 +74,7 @@ run_check() {
     result=$(tr -d '\n' < "$TMP_FILE")
     rm -f "$TMP_FILE"
 
-    # Unload this script's JSON from RAM
+    # ── Unload this script's JSON from RAM ──
     [ -n "$json_file" ] && unload_json_permissions
 
     total_width=75
@@ -110,20 +110,34 @@ if [ ! -d "$BEETLE_SHELL_ROOT" ]; then
     exit 1
 fi
 
-echo -e "${CYAN}Loading package database into RAM...${RESET}\n"
-load_dpkg || { echo -e "${RED}Failed to load dpkg into RAM${RESET}"; unload_all; exit 1; }
-
+# ── Parse arguments ──
 TARGET_FOLDER=""
-TARGET_SEVERITY=""
+TARGET_LEVEL=""
 
 for arg in "$@"; do
     if [ -d "$BEETLE_SHELL_ROOT/audit/$arg" ]; then
         TARGET_FOLDER="$arg"
-    else
-        TARGET_SEVERITY="$arg"
+    elif [[ "$arg" == "basic" || "$arg" == "moderate" || "$arg" == "strict" ]]; then
+        TARGET_LEVEL="$arg"
     fi
 done
 
+# ── Fall back to DEFAULT_SEVERITY from beetle.conf ──
+if [ -z "$TARGET_LEVEL" ]; then
+    TARGET_LEVEL="${DEFAULT_SEVERITY:-basic}"
+fi
+
+echo -e "${CYAN}Severity level : ${YELLOW}${TARGET_LEVEL}${RESET}\n"
+
+# ── Load dpkg into RAM once — persists entire run ──
+echo -e "${CYAN}Loading package database into RAM...${RESET}\n"
+load_dpkg || { echo -e "${RED}Failed to load dpkg into RAM${RESET}"; unload_all; exit 1; }
+
+# ── Load severity config into RAM once — persists entire run ──
+echo -e "${CYAN}Loading severity config into RAM...${RESET}\n"
+load_severity "$TARGET_LEVEL" || { echo -e "${RED}Failed to load severity config into RAM${RESET}"; unload_all; exit 1; }
+
+# ── Determine search path ──
 if [ -n "$TARGET_FOLDER" ]; then
     SEARCH_PATH="$BEETLE_SHELL_ROOT/audit/$TARGET_FOLDER"
 else
@@ -142,13 +156,14 @@ for script in "${scripts[@]}"; do
     run_check "$script"
 done
 
+# ── Unload everything from RAM ──
 echo -e "\n${CYAN}Cleaning up RAM...${RESET}"
 unload_all
 
 echo
 echo -e "Audit Summary : "
-echo -e "+----------------------+------------------+------------+---------------+"
-echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Execution Failed") | $(printf "%-10s" "Hardened") | $(printf "%-13s" "Not Hardened") |"
-echo -e "+----------------------+------------------+------------+---------------+"
-echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$HARDENED_COUNT") | $(printf "%-13s" "$NOT_HARDENED_COUNT") |"
-echo -e "+----------------------+------------------+------------+---------------+"
+echo -e "+----------------------+------------------+------------+---------------+-----------+"
+echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Execution Failed") | $(printf "%-10s" "Hardened") | $(printf "%-13s" "Not Hardened") | $(printf "%-9s" "Skipped") |"
+echo -e "+----------------------+------------------+------------+---------------+-----------+"
+echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$HARDENED_COUNT") | $(printf "%-13s" "$NOT_HARDENED_COUNT") | $(printf "%-9s" "$SKIPPED_COUNT") |"
+echo -e "+----------------------+------------------+------------+---------------+-----------+"
