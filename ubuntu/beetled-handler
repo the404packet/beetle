@@ -3,28 +3,90 @@
 set -euo pipefail
 
 BASE_DIR="/usr/local/bin/beetle_shell"
+LOG_FILE="/var/log/beetle.log"
 
-read -r line
+# ---------- LOG FUNCTION ----------
+log_command() {
+    local user="$1"
+    local cmd="$2"
+    local status="$3"
+    local duration="$4"
+    local pid="$5"
+    local cmd_id="$6"
 
-read -ra parts <<< "$line"
+    printf "%(%Y-%m-%d %H:%M:%S)T | id=%s | pid=%s | user=%s | cmd=\"%s\" | status=%s | time=%sms\n" \
+        -1 "$cmd_id" "$pid" "$user" "$cmd" "$status" "$duration" >> "$LOG_FILE"
+}
 
+# ---------- READ INPUT ----------
+read -r input || {
+    echo "Invalid command"
+    exit 1
+}
+
+# ---------- PARSE INPUT ----------
+# Expected format: user=somanshu cmd="logs --type audit"
+
+user=$(echo "$input" | grep -o 'user=[^ ]*' | cut -d= -f2 || true)
+cmd=$(echo "$input" | grep -o 'cmd="[^"]*"' | cut -d'"' -f2 || true)
+
+# fallback safety
+user=${user:-unknown}
+cmd=${cmd:-""}
+
+# Split command into parts
+read -ra parts <<< "$cmd"
 command="${parts[0]:-}"
 
+# ---------- METADATA ----------
+pid="$$"
+cmd_id="$(date +%s%N)"
+start_time=$(date +%s%3N)
+
+# ---------- VALIDATION ----------
 if [[ -z "$command" ]]; then
     echo "Invalid command"
+    end_time=$(date +%s%3N)
+    duration=$((end_time - start_time))
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
     exit 1
 fi
 
-# security check
 if [[ ! "$command" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "Invalid command"
+    end_time=$(date +%s%3N)
+    duration=$((end_time - start_time))
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
     exit 1
 fi
 
 script="$BASE_DIR/${command}.sh"
 
+# ---------- EXECUTION ----------
 if [[ -x "$script" ]]; then
-    exec "$script" "${parts[@]:1}"
+    set +e
+
+    "$script" "${parts[@]:1}"
+    status_code=$?
+
+    set -e
+
+    end_time=$(date +%s%3N)
+    duration=$((end_time - start_time))
+
+    if [[ $status_code -eq 0 ]]; then
+        log_command "$user" "$cmd" "SUCCESS" "$duration" "$pid" "$cmd_id"
+    else
+        log_command "$user" "$cmd" "FAIL($status_code)" "$duration" "$pid" "$cmd_id"
+    fi
+
+    exit $status_code
 else
     echo "Unknown command"
+
+    end_time=$(date +%s%3N)
+    duration=$((end_time - start_time))
+
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
+    exit 1
 fi

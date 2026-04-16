@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <pwd.h>
 
 #define SOCKET_PATH "/var/run/beetle.sock"
 #define BUFFER_SIZE 1024
@@ -20,6 +21,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // ✅ Get actual user
+    struct passwd *pw = getpwuid(getuid());
+    const char *user = pw ? pw->pw_name : "unknown";
+
+    // Create socket
     sock = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock < 0)
     {
@@ -38,24 +44,28 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    char command[BUFFER_SIZE] = {0};
-
+    char cmd[BUFFER_SIZE] = {0};
     for (int i = 1; i < argc; i++)
     {
-        strncat(command, argv[i], BUFFER_SIZE - strlen(command) - 1);
+        strncat(cmd, argv[i], BUFFER_SIZE - strlen(cmd) - 1);
         if (i != argc - 1)
-            strncat(command, " ", BUFFER_SIZE - strlen(command) - 1);
+            strncat(cmd, " ", BUFFER_SIZE - strlen(cmd) - 1);
     }
 
-    strncat(command, "\n", BUFFER_SIZE - strlen(command) - 1);
+    char request[BUFFER_SIZE];
+    snprintf(request, sizeof(request),
+             "user=%s cmd=\"%s\"\n",
+             user, cmd);
 
-    if (write(sock, command, strlen(command)) < 0)
+    // Send request
+    if (write(sock, request, strlen(request)) < 0)
     {
         perror("write");
         close(sock);
         return 1;
     }
 
+    // Read response
     int n;
     while ((n = read(sock, buffer, BUFFER_SIZE - 1)) > 0)
     {
