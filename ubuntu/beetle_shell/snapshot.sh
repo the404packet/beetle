@@ -6,55 +6,69 @@ BEETLE_DIR="$BASE_DIR/beetle_snapshots"
 USER_DIR="$BASE_DIR/user_snapshots"
 SOURCE_DIR="/etc/beetle"
 
-ID_FILE="$BASE_DIR/.snapshot_id"
 META_FILE="$BASE_DIR/.snapshot_meta"
 
 mkdir -p "$STORE_DIR" "$BEETLE_DIR" "$USER_DIR"
-touch "$ID_FILE" "$META_FILE"
+touch "$META_FILE"
 
 # ---------- HELP ----------
 show_help() {
     echo "Usage:"
-    echo "  beetle snapshot capture           (user snapshot)"
-    echo "  beetle snapshot capture main      (system snapshot - daemon only)"
+    echo "  beetle snapshot capture [--name <snapshot_name>]"
+    echo "  beetle snapshot capture main [--name <snapshot_name>]"
     echo "  beetle snapshot ls"
     echo "  beetle snapshot ls user"
     echo "  beetle snapshot ls beetle"
 }
 
-# ---------- ID GENERATOR ----------
-get_next_id() {
-    if [[ ! -s "$ID_FILE" ]]; then
-        echo 1 > "$ID_FILE"
-    fi
-
-    ID=$(cat "$ID_FILE")
-    NEXT_ID=$((ID + 1))
-    echo "$NEXT_ID" > "$ID_FILE"
-
-    echo "$ID"
+# ---------- ID ----------
+generate_id() {
+    date +"%Y%m%d%H%M%S"
 }
 
 # ---------- HASH ----------
 create_hash() {
-    tar -cf - "$SOURCE_DIR" 2>/dev/null | sha256sum | awk '{print $1}'
+    tar -czf - -C / etc/beetle 2>/dev/null | sha256sum | awk '{print $1}'
 }
 
 # ---------- CAPTURE ----------
 capture_snapshot() {
-    MODE=$1
+    MODE=""
+    CUSTOM_NAME=""
 
-    # ---------- DETERMINE TYPE ----------
+    # -------- ARG PARSING --------
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            main)
+                MODE="main"
+                shift
+                ;;
+            --name)
+                CUSTOM_NAME="$2"
+                shift 2
+                ;;
+            *)
+                echo "[!] Unknown argument: $1"
+                exit 1
+                ;;
+        esac
+    done
+
+    # TYPE
     if [[ -z "$MODE" ]]; then
         TYPE="user"
-    elif [[ "$MODE" == "main" ]]; then
-        TYPE="beetle"
     else
-        echo "[!] Invalid mode"
-        exit 1
+        TYPE="beetle"
     fi
 
-    # ---------- SECURITY CHECK ----------
+    # TARGET DIR
+    if [[ "$TYPE" == "user" ]]; then
+        TARGET_DIR="$USER_DIR"
+    else
+        TARGET_DIR="$BEETLE_DIR"
+    fi
+
+    # SECURITY CHECK
     if [[ "$TYPE" == "beetle" ]]; then
         if [[ "$EUID" -ne 0 ]]; then
             echo "[!] Permission denied: system snapshot requires root"
@@ -69,20 +83,16 @@ capture_snapshot() {
         fi
     fi
 
-    # ---------- CREATE HASH ----------
+    # HASH
     HASH=$(create_hash)
-
-    if [[ -z "$HASH" ]]; then
-        echo "[!] Failed to compute snapshot hash"
-        exit 1
-    fi
+    [[ -z "$HASH" ]] && { echo "[!] Failed to compute snapshot hash"; exit 1; }
 
     TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-    SNAP_ID=$(get_next_id)
+    SNAP_ID=$(generate_id)
 
     STORE_FILE="$STORE_DIR/$HASH.tar.gz"
 
-    # ---------- STORE SNAPSHOT (DEDUP) ----------
+    # DEDUP
     if [[ ! -f "$STORE_FILE" ]]; then
         tar -czf "$STORE_FILE" -C / etc/beetle
         echo "[+] New snapshot stored"
@@ -90,24 +100,64 @@ capture_snapshot() {
         echo "[=] Duplicate snapshot detected, reusing existing data"
     fi
 
-    # ---------- CREATE SYMLINK ----------
-    SNAP_NAME="snapshot_${SNAP_ID}_${TIMESTAMP}.tar.gz"
+    # ---------- NAME HANDLING ----------
+    if [[ -n "$CUSTOM_NAME" ]]; then
+        BASE_NAME="$CUSTOM_NAME"
+        SNAP_NAME="${BASE_NAME}.tar.gz"
 
-    if [[ "$TYPE" == "user" ]]; then
-        TARGET_DIR="$USER_DIR"
+        if [[ -e "$TARGET_DIR/$SNAP_NAME" ]]; then
+            while true; do
+                echo "[!] Snapshot name '$SNAP_NAME' already exists."
+                echo "Choose:"
+                echo "  1) Auto rename (add _1, _2...)"
+                echo "  2) Enter new name"
+                echo "  3) Cancel"
+                read -rp "Enter choice [1/2/3]: " choice
+
+                case "$choice" in
+                    1)
+                        COUNT=1
+                        while [[ -e "$TARGET_DIR/${BASE_NAME}_${COUNT}.tar.gz" ]]; do
+                            ((COUNT++))
+                        done
+                        SNAP_NAME="${BASE_NAME}_${COUNT}.tar.gz"
+                        break
+                        ;;
+                    2)
+                        read -rp "Enter new snapshot name: " NEW_NAME
+
+                        [[ -z "$NEW_NAME" ]] && { echo "[!] Name cannot be empty."; continue; }
+
+                        SNAP_NAME="${NEW_NAME}.tar.gz"
+
+                        if [[ -e "$TARGET_DIR/$SNAP_NAME" ]]; then
+                            echo "[!] Name already exists. Try again."
+                            continue
+                        fi
+                        break
+                        ;;
+                    3)
+                        echo "[!] Operation cancelled."
+                        exit 0
+                        ;;
+                    *)
+                        echo "[!] Invalid choice."
+                        ;;
+                esac
+            done
+        fi
     else
-        TARGET_DIR="$BEETLE_DIR"
+        SNAP_NAME="snapshot_${SNAP_ID}.tar.gz"
     fi
 
-    ln -s "$STORE_FILE" "$TARGET_DIR/$SNAP_NAME"
-
-    if [[ $? -ne 0 ]]; then
+    # ---------- SYMLINK ----------
+    ln -s "$STORE_FILE" "$TARGET_DIR/$SNAP_NAME" || {
         echo "[!] Failed to create snapshot link"
         exit 1
-    fi
+    }
 
-    # ---------- STORE METADATA ----------
-    echo "${SNAP_ID}|${SNAP_NAME}|${TIMESTAMP}|${TYPE}" >> "$META_FILE"
+    # ---------- METADATA ----------
+    echo "${SNAP_ID}|${SNAP_NAME}|${TIMESTAMP}|${TYPE}|${HASH}" >> "$META_FILE"
 
     echo "[+] Snapshot created:"
     echo "    ID   : $SNAP_ID"
@@ -119,14 +169,14 @@ capture_snapshot() {
 list_snapshots() {
     TYPE=$1
 
-    printf "\n%-5s | %-35s | %-20s | %-10s\n" "ID" "SNAPSHOT NAME" "CREATED" "TYPE"
-    printf -- "-------------------------------------------------------------------------------\n"
+    printf "\n%-15s | %-35s | %-20s | %-10s\n" "ID" "SNAPSHOT NAME" "CREATED" "TYPE"
+    printf -- "-------------------------------------------------------------------------------------------\n"
 
-    while IFS="|" read -r ID NAME TIME SNAP_TYPE; do
+    while IFS="|" read -r ID NAME TIME SNAP_TYPE HASH; do
         [[ -z "$ID" ]] && continue
 
         if [[ -z "$TYPE" || "$TYPE" == "$SNAP_TYPE" ]]; then
-            printf "%-5s | %-35s | %-20s | %-10s\n" "$ID" "$NAME" "$TIME" "$SNAP_TYPE"
+            printf "%-15s | %-35s | %-20s | %-10s\n" "$ID" "$NAME" "$TIME" "$SNAP_TYPE"
         fi
     done < "$META_FILE"
 
@@ -136,7 +186,8 @@ list_snapshots() {
 # ---------- MAIN ----------
 case "$1" in
     capture)
-        capture_snapshot "$2"
+        shift
+        capture_snapshot "$@"
         ;;
     ls)
         list_snapshots "$2"
