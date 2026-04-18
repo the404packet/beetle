@@ -49,12 +49,15 @@ run_check() {
         return
     fi
 
-    # ── Load this script's JSON into RAM ──
-    local json_file
-    json_file=$(find_module_json "$script")
+    # ── Find this script's JSON (returns "type::path" or "") ──
+    local module_json json_type json_file
+    module_json=$(find_module_json "$script")
 
-    if [ -n "$json_file" ]; then
-        load_json_permissions "$json_file" || {
+    if [ -n "$module_json" ]; then
+        json_type="${module_json%%::*}"
+        json_file="${module_json##*::}"
+
+        load_module_json "$json_type" "$json_file" || {
             printf "${RED}[FAIL]${RESET} %s  ${RED}JSON LOAD ERROR${RESET}\n" "$NAME"
             ((FAIL_COUNT++))
             return
@@ -64,6 +67,10 @@ run_check() {
     export DPKG_RAM_STORE
     export PERM_RAM_STORE
     export SEVERITY_RAM_STORE
+    export NETWORK_RAM_STORE
+    export SERVICES_RAM_STORE
+    export ACCESS_RAM_STORE
+    export FIREWALL_RAM_STORE
 
     TMP_FILE=$(mktemp)
     bash "$script" > "$TMP_FILE" 2>/dev/null &
@@ -75,7 +82,7 @@ run_check() {
     rm -f "$TMP_FILE"
 
     # ── Unload this script's JSON from RAM ──
-    [ -n "$json_file" ] && unload_json_permissions
+    [ -n "$module_json" ] && unload_module_json "$json_type"
 
     total_width=75
     name_length=${#NAME}
