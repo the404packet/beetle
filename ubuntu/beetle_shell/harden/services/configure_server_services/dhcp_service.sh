@@ -1,31 +1,46 @@
 #!/usr/bin/env bash
 
-NAME="ensure isc-dhcp-server is not installed or services are disabled"
-SEVERITY="basic"
+NAME="ensure dhcp server services are not in use"
 
 GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-output=""
+[ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
+[ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-# Check if package is installed
-if dpkg-query -s isc-dhcp-server &>/dev/null; then
+category="dhcp"
 
-    # Package exists — check IPv4 and IPv6 services
-    enabled=$(systemctl is-enabled isc-dhcp-server.service isc-dhcp-server6.service 2>/dev/null | grep enabled)
-    active=$(systemctl is-active isc-dhcp-server.service isc-dhcp-server6.service 2>/dev/null | grep '^active')
+while IFS= read -r pkg; do
+    restrict=$(get_svc "$category" "$pkg" "restrict")
+    version=$(get_svc "$category" "$pkg" "version")
 
-    if [[ -n "$enabled" ]] || [[ -n "$active" ]]; then
-        output="isc-dhcp-server is installed and one or more services are enabled/active"
+    if [[ "$restrict" == "true" ]]; then
+        if is_package_installed "$pkg"; then
+            while IFS= read -r svc; do
+                systemctl stop "$svc" 2>/dev/null
+                systemctl disable "$svc" 2>/dev/null
+            done < <(get_svc_services "$category" "$pkg")
+
+            apt-get remove --purge -y "$pkg" &>/dev/null
+            unset_package "$pkg"
+            if is_package_installed "$pkg"; then
+                echo -e "${RED}FAILED${RESET}"
+                exit 1
+            fi
+        fi
+    elif [[ "$restrict" == "false" ]]; then
+        if is_package_installed "$pkg"; then
+            if ! is_version_ok "$pkg" "$version"; then
+                apt-get upgrade -y "$pkg" &>/dev/null
+                if ! is_version_ok "$pkg" "$version"; then
+                    echo -e "${RED}FAILED${RESET}"
+                    exit 1
+                fi
+            fi
+        fi
     fi
-fi
+done < <(get_svc_packages "$category")
 
-if [[ -z "$output" ]]; then
-    echo -e "${GREEN}HARDENED${RESET}"
-else
-    echo -e "${RED}NOT HARDENED${RESET}"
-    echo "$output"
-fi
-
+echo -e "${GREEN}SUCCESS${RESET}"
 exit 0

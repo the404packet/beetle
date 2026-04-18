@@ -1,46 +1,97 @@
 {
-  "ftp": {
-    "vsftpd": true,
-    "proftpd": true,
-    "pure-ftpd": true
-  },
-  "web": {
-    "apache2": true,
-    "nginx": true,
-    "lighttpd": true,
-    "caddy": true,
-    "openlitespeed": true,
-    "h2o": true,
-    "tomcat10": true
-  },
-  "proxy": {
-    "squid": true,
-    "tinyproxy": true,
-    "privoxy": true,
-    "polipo": true,
-    "3proxy": true,
-    "dante-server": true,
-    "shadowsocks-libev": true,
-    "v2ray": true,
-    "haproxy": true,
-    "varnish": true,
-    "envoy": true,
-    "traefik": true
-  },
-  "fileshare": {
-    "samba": true
-  },
-  "mail": {
-    "postfix": true,
-    "exim4": true,
-    "sendmail": true
-  },
-  "client_services": {
-    "nis_client": true,
-    "rsh_client": true,
-    "talk_client": true,
-    "ldap_client": true,
-    "telnet_client": true,
-    "ftp_client": true
+  "server_services": {
+    "autofs": {
+      "autofs": { "restrict": true, "version": null, "services": ["autofs.service"] }
+    },
+    "avahi": {
+      "avahi-daemon": { "restrict": true, "version": null, "services": ["avahi-daemon.service", "avahi-daemon.socket"] }
+    },
+    "dhcp": {
+      "isc-dhcp-server": { "restrict": true, "version": null, "services": ["isc-dhcp-server.service", "isc-dhcp-server6.service"] },
+      "udhcpd": { "restrict": true, "version": null, "services": ["udhcpd.service"] },
+      "kea": { "restrict": true, "version": null, "services": ["kea-dhcp4.service", "kea-dhcp6.service"] }
+    },
+    "dns": {
+      "bind9": { "restrict": true, "version": null, "services": ["bind9.service", "named.service"] },
+      "unbound": { "restrict": true, "version": null, "services": ["unbound.service"] },
+      "powerdns": { "restrict": true, "version": null, "services": ["pdns.service"] }
+    },
+    "dnsmasq": {
+      "dnsmasq": { "restrict": true, "version": null, "services": ["dnsmasq.service"] }
+    },
+    "ftp": {
+      "vsftpd": { "restrict": true, "version": null, "services": ["vsftpd.service"] },
+      "proftpd": { "restrict": true, "version": null, "services": ["proftpd.service"] },
+      "pure-ftpd": { "restrict": true, "version": null, "services": ["pure-ftpd.service"] }
+    },
+    "ldap": {
+      "slapd": { "restrict": true, "version": null, "services": ["slapd.service"] },
+      "ldap-utils": { "restrict": true, "version": null, "services": [] }
+    },
+    "message_access": {
+      "dovecot-imapd": { "restrict": true, "version": null, "services": ["dovecot.service"] },
+      "dovecot-pop3d": { "restrict": true, "version": null, "services": ["dovecot.service"] },
+      "courier-imap": { "restrict": true, "version": null, "services": ["courier-imap.service"] },
+      "cyrus-imapd": { "restrict": true, "version": null, "services": ["cyrus-imapd.service"] }
+    },
+    "nfs": {
+      "nfs-kernel-server": { "restrict": true, "version": null, "services": ["nfs-server.service", "nfs-kernel-server.service"] },
+      "nfs-common": { "restrict": true, "version": null, "services": ["nfs-common.service"] }
+    },
+    "nis": {
+      "nis": { "restrict": true, "version": null, "services": ["nis.service", "ypbind.service"] },
+      "yp-tools": { "restrict": true, "version": null, "services": [] }
+    },
+    "print": {
+      "cups": { "restrict": true, "version": null, "services": ["cups.service"] },
+      "cups-browsed": { "restrict": true, "version": null, "services": ["cups-browsed.service"] }
+    },
+    "rpcbind": {
+      "rpcbind": { "restrict": true, "version": null, "services": ["rpcbind.service", "rpcbind.socket"] }
+    },
+    "rsync": {
+      "rsync": { "restrict": true, "version": null, "services": ["rsync.service"] }
+    },
+    "samba": {
+      "samba": { "restrict": false, "version": null, "services": ["smbd.service", "nmbd.service", "winbind.service"] },
+      "samba-common-bin": { "restrict": true, "version": null, "services": [] }
+    },
+    "snmp": {
+      "snmpd": { "restrict": true, "version": null, "services": ["snmpd.service"] },
+      "snmp": { "restrict": true, "version": null, "services": [] }
+    },
+    "tftp": {
+      "tftpd-hpa": { "restrict": true, "version": null, "services": ["tftpd-hpa.service"] },
+      "atftpd": { "restrict": true, "version": null, "services": ["atftpd.service"] }
+    },
+    "web_proxy": {
+      "squid": { "restrict": true, "version": null, "services": ["squid.service"] },
+      "tinyproxy": { "restrict": true, "version": null, "services": ["tinyproxy.service"] },
+      "privoxy": { "restrict": true, "version": null, "services": ["privoxy.service"] },
+      "haproxy": { "restrict": false, "version": "2.8.9", "services": ["haproxy.service"] },
+      "traefik": { "restrict": false, "version": "2.11.0", "services": ["traefik.service"] },
+      "varnish": { "restrict": false, "version": "7.5.0", "services": ["varnish.service"] }
+    },
+    "web": {
+      "apache2": { "restrict": true, "version": "2.4.62", "services": ["apache2.service"] },
+      "nginx": { "restrict": false, "version": "1.26.0", "services": ["nginx.service"] },
+      "lighttpd": { "restrict": false, "version": "1.4.76", "services": ["lighttpd.service"] },
+      "caddy": { "restrict": false, "version": "2.8.4", "services": ["caddy.service"] },
+      "tomcat10": { "restrict": false, "version": "10.1.28", "services": ["tomcat10.service"] },
+      "h2o": { "restrict": false, "version": "2.2.6", "services": ["h2o.service"] }
+    },
+    "xinetd": {
+      "xinetd": { "restrict": true, "version": null, "services": ["xinetd.service"] }
+    },
+    "xwindow": {
+      "xserver-xorg": { "restrict": true, "version": null, "services": ["display-manager.service"] },
+      "xorg": { "restrict": true, "version": null, "services": [] },
+      "x11-common": { "restrict": true, "version": null, "services": [] }
+    },
+    "mail": {
+      "postfix": { "restrict": false, "version": "3.8.6", "services": ["postfix.service"] },
+      "exim4": { "restrict": true, "version": null, "services": ["exim4.service"] },
+      "sendmail": { "restrict": true, "version": null, "services": ["sendmail.service"] }
+    }
   }
 }

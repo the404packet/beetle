@@ -1,31 +1,46 @@
 #!/usr/bin/env bash
 
-NAME="ensure snmpd is not installed or service is disabled"
-SEVERITY="basic"
+NAME="ensure snmp services are not in use"
 
 GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-output=""
+[ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
+[ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-# Check if snmpd package is installed
-if dpkg-query -s snmpd &>/dev/null; then
+category="snmp"
 
-    # Package exists — check snmpd service state
-    enabled=$(systemctl is-enabled snmpd.service 2>/dev/null | grep enabled)
-    active=$(systemctl is-active snmpd.service 2>/dev/null | grep '^active')
+while IFS= read -r pkg; do
+    restrict=$(get_svc "$category" "$pkg" "restrict")
+    version=$(get_svc "$category" "$pkg" "version")
 
-    if [[ -n "$enabled" ]] || [[ -n "$active" ]]; then
-        output="snmpd is installed and snmpd.service is enabled/active"
+    if [[ "$restrict" == "true" ]]; then
+        if is_package_installed "$pkg"; then
+            while IFS= read -r svc; do
+                systemctl stop "$svc" 2>/dev/null
+                systemctl disable "$svc" 2>/dev/null
+            done < <(get_svc_services "$category" "$pkg")
+
+            apt-get remove --purge -y "$pkg" &>/dev/null
+            unset_package "$pkg"
+            if is_package_installed "$pkg"; then
+                echo -e "${RED}FAILED${RESET}"
+                exit 1
+            fi
+        fi
+    elif [[ "$restrict" == "false" ]]; then
+        if is_package_installed "$pkg"; then
+            if ! is_version_ok "$pkg" "$version"; then
+                apt-get upgrade -y "$pkg" &>/dev/null
+                if ! is_version_ok "$pkg" "$version"; then
+                    echo -e "${RED}FAILED${RESET}"
+                    exit 1
+                fi
+            fi
+        fi
     fi
-fi
+done < <(get_svc_packages "$category")
 
-if [[ -z "$output" ]]; then
-    echo -e "${GREEN}HARDENED${RESET}"
-else
-    echo -e "${RED}NOT HARDENED${RESET}"
-    echo "$output"
-fi
-
+echo -e "${GREEN}SUCCESS${RESET}"
 exit 0
