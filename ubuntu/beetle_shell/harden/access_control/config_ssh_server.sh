@@ -3,32 +3,42 @@
 NAME='/etc/ssh/sshd_config file permission'
 SEVERITY='basic'
 
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
 
-perm_mask=0177
+[ -f "$SSH_RAM_STORE" ] && source "$SSH_RAM_STORE"
+
+EXPECTED_MASK=$(get_acc "sshd_config" perm_mask)
+EXPECTED_OWNER=$(get_acc "sshd_config" owner)
+EXPECTED_GROUP=$(get_acc "sshd_config" group)
+
+EXPECTED_MASK="${EXPECTED_MASK:-0177}"
+EXPECTED_OWNER="${EXPECTED_OWNER:-root}"
+EXPECTED_GROUP="${EXPECTED_GROUP:-root}"
+
+# Compute the target mode: strip all bits in the mask (600 safe default)
+TARGET_MODE=$(printf '%o' $(( ~EXPECTED_MASK & 0777 )))
+
 flag=1
 
-check_file(){
-    local file=$1
-    local mode owner group
-    read -r mode owner group < <(stat -Lc '%#a %U %G' "$file")
-    if (( $mode & perm_mask )) || [[ $owner != "root" || $group != "root" ]]; then
-        return 1 #file is not compliant
+fix_file() {
+    local file="$1"
+    if ! chmod "$TARGET_MODE" "$file" || ! chown "${EXPECTED_OWNER}:${EXPECTED_GROUP}" "$file"; then
+        return 1
     fi
-    return 0 #file is compliant
+    return 0
 }
 
-
-#sshd_config file
-if [[ -f /etc/ssh/sshd_config ]]; then 
-    if ! check_file /etc/ssh/sshd_config; then
+if [[ -f /etc/ssh/sshd_config ]]; then
+    if ! fix_file /etc/ssh/sshd_config; then
         flag=0
     fi
 fi
 
-#check if conf exist in sshd_config.d/
 if (( flag )) && [[ -d /etc/ssh/sshd_config.d ]]; then
     while IFS= read -r -d $'\0' file; do
-        if !check_file "$file"; then
+        if ! fix_file "$file"; then
             flag=0
             break
         fi
@@ -36,9 +46,10 @@ if (( flag )) && [[ -d /etc/ssh/sshd_config.d ]]; then
 fi
 
 if (( flag )); then
-    echo -e "${GREEN}HARDENED${RESET}"
+    echo -e "${GREEN}SUCCESS${RESET}"
 else
-    echo -e "${RED}NOT HARDENED${RESET}"
+    echo -e "${RED}FAILED${RESET}"
+    exit 1
 fi
 
 exit 0

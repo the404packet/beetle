@@ -1,49 +1,45 @@
 #!/usr/bin/env bash
 
-NAME='ssh login banner audit'
+NAME='ssh login banner'
 SEVERITY='basic'
 
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
+BANNER_FILE="/etc/issue.net"
+SSHD_CONFIG="/etc/ssh/sshd_config"
 flag=1
 
-#check if global banner file is set
-if ! sshd -T 2>/dev/null | grep -Pi -- '^banner\h+\/\H+'; then
-    flag=0
-fi
+# Write a safe banner that discloses no OS info
+cat > "$BANNER_FILE" <<'EOF'
+Authorized access only. All activity may be monitored and reported.
+EOF
+chmod 644 "$BANNER_FILE"
 
-
-#check if MATCH block exist
-if (( flag )) && \
-   grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
-
-    if ! sshd -T -C user="$USER" 2>/dev/null | \
-         grep -Pi -- '^banner\h+\/\H+'; then
-        flag=0
-    fi
-fi
-
-
-#check banner file exists
-if (( flag )); then
-    banner_file=$(sshd -T 2>/dev/null | awk '$1=="banner"{print $2}')
-    if [[ ! -e "$banner_file" ]]; then
-        flag=0
-    fi
-fi
-
-#ensure file does not disclose OS info  
-if (( flag )); then
-    os_id=$(grep '^ID=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')
-
-    if grep -Psi -- "(\\\v|\\\r|\\\m|\\\s|\b${os_id}\b)" "$banner_file" 2>/dev/null; then
-        flag=0
-    fi
-fi
-
-
-if (( flag )); then
-    echo -e "${GREEN}HARDENED${RESET}"
+# Set Banner directive in sshd_config (add or replace)
+if grep -Piq '^\s*Banner\b' "$SSHD_CONFIG" 2>/dev/null; then
+    sed -i "s|^\s*[Bb]anner\s.*|Banner $BANNER_FILE|" "$SSHD_CONFIG"
 else
-    echo -e "${RED}NOT HARDENED${RESET}"
+    echo "Banner $BANNER_FILE" >> "$SSHD_CONFIG"
+fi
+
+# Apply to drop-ins as well
+if [[ -d /etc/ssh/sshd_config.d ]]; then
+    while IFS= read -r -d $'\0' file; do
+        if grep -Piq '^\s*Banner\b' "$file" 2>/dev/null; then
+            sed -i "s|^\s*[Bb]anner\s.*|Banner $BANNER_FILE|" "$file"
+        fi
+    done < <(find /etc/ssh/sshd_config.d -type f -name "*.conf" -print0)
+fi
+
+# Validate
+banner_set=$(sshd -T 2>/dev/null | awk '$1=="banner"{print $2}')
+if [[ "$banner_set" == "$BANNER_FILE" && -f "$BANNER_FILE" ]]; then
+    echo -e "${GREEN}SUCCESS${RESET}"
+else
+    echo -e "${RED}FAILED${RESET}"
+    exit 1
 fi
 
 exit 0

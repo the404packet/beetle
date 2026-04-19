@@ -4,9 +4,9 @@
 DPKG_RAM_STORE="/dev/shm/beetle_dpkg.env"
 SEVERITY_RAM_STORE="/dev/shm/beetle_severity.env"
 PERM_RAM_STORE="/dev/shm/beetle_permissions.env"          # system_maintenance
+SSH_RAM_STORE="/dev/shm/beetle_ssh.env"
 NETWORK_RAM_STORE="/dev/shm/beetle_network.env"           # network
 SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
-ACCESS_RAM_STORE="/dev/shm/beetle_access_control.env"     # access_control
 FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
@@ -314,33 +314,7 @@ is_version_ok() {
     [ -z "$installed" ] && return 1
     printf '%s\n%s' "$required" "$installed" | sort -V | head -1 | grep -qx "$required"
 }
-# ─────────────────────────────────────────────
-# ACCESS CONTROL JSON loader/unloader/getter
-# ─────────────────────────────────────────────
-load_json_access_control() {
-    local json_file="$1"
-    [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-    rm -f "$ACCESS_RAM_STORE"
 
-    python3 - <<EOF > "$ACCESS_RAM_STORE"
-import json
-with open("$json_file") as f:
-    data = json.load(f)
-for entry in data.get("access_control", []):
-    key = entry["name"].replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    for field, val in entry.items():
-        if field == "name":
-            continue
-        print(f'ACC_{key}_{field}={val}')
-EOF
-
-    chmod 600 "$ACCESS_RAM_STORE"
-    source "$ACCESS_RAM_STORE"
-}
-
-unload_json_access_control() {
-    [ -f "$ACCESS_RAM_STORE" ] && shred -u "$ACCESS_RAM_STORE" 2>/dev/null || rm -f "$ACCESS_RAM_STORE"
-}
 
 get_acc() {
     local name="$1" field="$2"
@@ -452,6 +426,61 @@ unload_module_json() {
     fi
 }
 
+# ─────────────────────────────────────────────
+# SSH: Load access_control JSON into RAM
+# ─────────────────────────────────────────────
+
+load_json_access_control() {
+    local json_file="$1"
+
+    [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
+
+    rm -f "$SSH_RAM_STORE"
+
+    python3 - <<EOF > "$SSH_RAM_STORE"
+import json
+
+with open("$json_file") as f:
+    data = json.load(f)
+
+
+# private/public host key entries use key_name directly (not a file path)
+# already handled above since entry["file"] is set in json
+# if your json uses key_name as lookup instead, add:
+for key_name, entry in data.get("ssh_config_file_permissions", {}).items():
+    safe_key = key_name.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
+    print(f'ACC_{safe_key}_perm_mask={entry["perm_mask"]}')
+    print(f'ACC_{safe_key}_owner={entry["owner"]}')
+    print(f'ACC_{safe_key}_group={entry["group"]}')
+
+# sshd_settings
+for key, val in data.get("sshd_settings", {}).items():
+    safe = key.upper()
+    if isinstance(val, dict):
+        for field, fval in val.items():
+            if isinstance(fval, list):
+                joined = "|".join(str(v) for v in fval)
+                print(f'SSHD_{safe}_{field.upper()}="{joined}"')
+            else:
+                print(f'SSHD_{safe}_{field.upper()}={fval}')
+
+# weak lists
+for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
+    items = data.get(list_key, [])
+    if items:
+        pattern = "|".join(i.replace(".", "\\.") for i in items)
+        env_key = list_key.upper() + "_PATTERN"
+        print(f'{env_key}="{pattern}"')
+EOF
+
+    chmod 600 "$SSH_RAM_STORE"
+    source "$SSH_RAM_STORE"
+}
+
+unload_json_access_control() {
+    [ -f "$SSH_RAM_STORE" ] && shred -u "$SSH_RAM_STORE" 2>/dev/null || rm -f "$SSH_RAM_STORE"
+}
+
 unload_all() {
     unload_dpkg
     unload_json_system_maintenance
@@ -462,6 +491,16 @@ unload_all() {
     unload_severity
 }
 
+
+
+
+export -f load_dpkg
+export -f unload_dpkg
+export -f is_package_installed
+export -f load_severity
+export -f unload_severity
+export -f is_check_enabled
+export -f get_perm
 export -f load_module_json
 export -f unload_module_json
 export -f load_dpkg unload_dpkg is_package_installed get_installed_version unset_package
@@ -469,6 +508,12 @@ export -f load_severity unload_severity is_check_enabled
 export -f load_json_system_maintenance unload_json_system_maintenance get_perm
 export -f load_json_network unload_json_network get_net
 export -f load_json_services unload_json_services get_svc get_svc_services is_version_ok get_svc_packages
-export -f load_json_access_control  unload_json_access_control  get_acc
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
+export -f load_json_access_control unload_json_access_control get_acc
 export -f unload_all
+export SEVERITY_RAM_STORE
+export DPKG_RAM_STORE
+export PERM_RAM_STORE
+export SEVERITY_CONFIG_DIR
+export SSH_RAM_STORE
+

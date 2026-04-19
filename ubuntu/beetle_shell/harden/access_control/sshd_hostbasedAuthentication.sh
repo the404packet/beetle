@@ -1,28 +1,38 @@
 #!/usr/bin/env bash
 
-NAME='sshd hostbasedauthentication set to no'
-SEVERITY="basic"
+NAME='sshd HostbasedAuthentication set to no'
+SEVERITY='basic'
 
-flag=1
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
 
+[ -f "$SSH_RAM_STORE" ] && source "$SSH_RAM_STORE"
 
-#global config
-if  sshd -T 2>/dev/null | grep -Piq '^hostbasedauthentication\s+yes'; then
-    flag=0 # set wrong
-fi
-    
+EXPECTED="${SSHD_HOSTBASEDAUTHENTICATION_EXPECTED:-no}"
+SSHD_CONFIG="/etc/ssh/sshd_config"
 
-#if MATCH exists 
-if (( flag )) && grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
-    if ! sshd -T -C user="$USER" 2>/dev/null | grep -Piq '^hostbasedauthentication\s+yes'; then
-        flag=0
-    fi
-fi
-
-if (( flag )); then
-    echo -e "${GREEN}HARDENED${RESET}"
+if grep -Piq '^\s*HostbasedAuthentication\b' "$SSHD_CONFIG" 2>/dev/null; then
+    sed -i "s|^\s*[Hh]ostbased[Aa]uthentication\s.*|HostbasedAuthentication $EXPECTED|" "$SSHD_CONFIG"
 else
-    echo -e "${RED}NOT HARDENED${RESET}"
+    echo "HostbasedAuthentication $EXPECTED" >> "$SSHD_CONFIG"
+fi
+
+if [[ -d /etc/ssh/sshd_config.d ]]; then
+    while IFS= read -r -d $'\0' file; do
+        if grep -Piq '^\s*HostbasedAuthentication\b' "$file" 2>/dev/null; then
+            sed -i "s|^\s*[Hh]ostbased[Aa]uthentication\s.*|HostbasedAuthentication $EXPECTED|" "$file"
+        fi
+    done < <(find /etc/ssh/sshd_config.d -type f -name "*.conf" -print0)
+fi
+
+value=$(sshd -T 2>/dev/null | awk '/^hostbasedauthentication/ {print $2}')
+
+if [[ "$value" == "$EXPECTED" ]]; then
+    echo -e "${GREEN}SUCCESS${RESET}"
+else
+    echo -e "${RED}FAILED${RESET}"
+    exit 1
 fi
 
 exit 0

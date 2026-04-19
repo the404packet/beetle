@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 
-NAME='sshd permitEmptyPasswords config'
-SEVERITY="basic"
+NAME='sshd PermitEmptyPasswords config'
+SEVERITY='basic'
+
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
+[ -f "$SSH_RAM_STORE" ] && source "$SSH_RAM_STORE"
+
+EXPECTED="${SSHD_PERMITEMPTYPASSWORDS_EXPECTED:-no}"
 
 flag=1
 
-
-#global config
-if  sshd -T 2>/dev/null | grep -Piq '^permitemptypasswords\s+yes'; then
-    flag=0 # set wrong
+if sshd -T 2>/dev/null | grep -Piq "^permitemptypasswords\s+(?!${EXPECTED})"; then
+    flag=0
 fi
-    
 
-#if MATCH exists 
-if (( flag )) && grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
-    if ! sshd -T -C user="$USER" 2>/dev/null | grep -Piq '^permitemptypasswords\s+yes'; then
+if (( flag )) && \
+   grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
+    if sshd -T -C user="$USER" 2>/dev/null | \
+       grep -Piq "^permitemptypasswords\s+(?!${EXPECTED})"; then
         flag=0
     fi
 fi
