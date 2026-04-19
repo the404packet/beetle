@@ -138,13 +138,24 @@ load_json_network() {
 import json
 with open("$json_file") as f:
     data = json.load(f)
-# Adjust the key name below to match your actual network.json structure
-for entry in data.get("network_settings", []):
-    key = entry["name"].replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    for field, val in entry.items():
-        if field == "name":
-            continue
-        print(f'NET_{key}_{field}={val}')
+
+# ipv6
+ipv6 = data.get("network_services", {}).get("ipv6", {})
+print(f'NS_ipv6_status={ipv6.get("status", "enabled")}')
+keys = ipv6.get("disable_sysctl_keys", [])
+print(f'NS_ipv6_sysctl_count={len(keys)}')
+for idx, key in enumerate(keys):
+    print(f'NS_ipv6_sysctl_{idx}={key}')
+
+# wireless
+wireless = data.get("network_services", {}).get("wireless", {})
+print(f'NS_wireless_restrict={str(wireless.get("restrict", True)).lower()}')
+
+# bluetooth
+bluetooth = data.get("network_services", {}).get("bluetooth", {})
+print(f'NS_bluetooth_package={bluetooth.get("package", "")}')
+print(f'NS_bluetooth_service={bluetooth.get("service", "")}')
+print(f'NS_bluetooth_restrict={str(bluetooth.get("restrict", True)).lower()}')
 EOF
 
     chmod 600 "$NETWORK_RAM_STORE"

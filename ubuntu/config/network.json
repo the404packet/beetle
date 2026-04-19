@@ -1,10 +1,19 @@
 {
-    "kernel_modules" : {
-        "dccp" : true,
-        "tipc" : true,
-        "rds" : true,
-        "sctp" : true
-    }  
-    
-    
+  "network_services": {
+    "ipv6": {
+      "status": "enabled",
+      "disable_sysctl_keys": [
+        "net.ipv6.conf.all.disable_ipv6",
+        "net.ipv6.conf.default.disable_ipv6"
+      ]
+    },
+    "wireless": {
+      "restrict": true
+    },
+    "bluetooth": {
+      "package": "bluez",
+      "service": "bluetooth.service",
+      "restrict": true
+    }
+  }
 }
