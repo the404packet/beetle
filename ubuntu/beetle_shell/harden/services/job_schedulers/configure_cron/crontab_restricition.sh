@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME="ensure at is restricted to authorized users"
+NAME="ensure crontab is restricted to authorized users"
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -9,21 +9,21 @@ RESET="\e[0m"
 [ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
 [ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-if ! is_package_installed "at"; then
+if ! is_package_installed "cron"; then
     echo -e "${GREEN}SUCCESS${RESET}"
     exit 0
 fi
 
-allow_file="$JS_at_access_allow_file"
-deny_file="$JS_at_access_deny_file"
-req_mode="$JS_at_access_mode"
-req_owner="$JS_at_access_owner"
-group_count="$JS_at_access_group_count"
+allow_file="$JS_cron_access_allow_file"
+deny_file="$JS_cron_access_deny_file"
+req_mode="$JS_cron_access_mode"
+req_owner="$JS_cron_access_owner"
+group_count="$JS_cron_access_group_count"
 
-# pick group — daemon if exists else root
+# pick group — crontab if exists else root
 req_group="root"
 for ((i=0; i<group_count; i++)); do
-    var="JS_at_access_group_${i}"
+    var="JS_cron_access_group_${i}"
     grp="${!var}"
     if grep -Pq -- "^${grp}:" /etc/group 2>/dev/null; then
         req_group="$grp"
@@ -31,7 +31,6 @@ for ((i=0; i<group_count; i++)); do
     fi
 done
 
-# create at.allow if missing
 [ ! -f "$allow_file" ] && touch "$allow_file"
 
 chown "${req_owner}:${req_group}" "$allow_file"
@@ -42,7 +41,6 @@ if [ -f "$deny_file" ]; then
     chmod u-x,g-wx,o-rwx "$deny_file"
 fi
 
-# verify
 actual_mode=$(stat -Lc '%a' "$allow_file" 2>/dev/null)
 actual_owner=$(stat -Lc '%U' "$allow_file" 2>/dev/null)
 actual_group=$(stat -Lc '%G' "$allow_file" 2>/dev/null)

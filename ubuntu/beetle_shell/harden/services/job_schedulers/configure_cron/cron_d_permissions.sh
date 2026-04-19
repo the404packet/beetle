@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME="ensure permissions on /etc/crontab are configured"
+NAME="ensure permissions on /etc/cron.d are configured"
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -22,7 +22,7 @@ group=""
 dir_count="$JS_cron_dir_count"
 for ((i=0; i<dir_count; i++)); do
     file_var="JS_cron_dir_${i}_file"
-    if [[ "${!file_var}" == "/etc/crontab" ]]; then
+    if [[ "${!file_var}" == "/etc/cron.d" ]]; then
         file="${!file_var}"
         mode_var="JS_cron_dir_${i}_mode"
         owner_var="JS_cron_dir_${i}_owner"

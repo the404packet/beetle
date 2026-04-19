@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME="ensure at is restricted to authorized users"
+NAME="ensure crontab is restricted to authorized users"
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -9,17 +9,16 @@ RESET="\e[0m"
 [ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
 [ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-# skip if at is not installed
-if ! is_package_installed "at"; then
+if ! is_package_installed "cron"; then
     echo -e "${GREEN}HARDENED${RESET}"
     exit 0
 fi
 
-allow_file="$JS_at_access_allow_file"
-deny_file="$JS_at_access_deny_file"
-req_mode="$JS_at_access_mode"
-req_owner="$JS_at_access_owner"
-group_count="$JS_at_access_group_count"
+allow_file="$JS_cron_access_allow_file"
+deny_file="$JS_cron_access_deny_file"
+req_mode="$JS_cron_access_mode"
+req_owner="$JS_cron_access_owner"
+group_count="$JS_cron_access_group_count"
 
 check_file() {
     local file="$1"
@@ -32,7 +31,7 @@ check_file() {
 
     local group_ok=false
     for ((i=0; i<group_count; i++)); do
-        local var="JS_at_access_group_${i}"
+        local var="JS_cron_access_group_${i}"
         local allowed_group="${!var}"
         [ "$actual_group" == "$allowed_group" ] && group_ok=true && break
     done
@@ -42,7 +41,6 @@ check_file() {
     return 0
 }
 
-# at.allow must exist and be correctly configured
 if [ ! -f "$allow_file" ]; then
     echo -e "${RED}NOT HARDENED${RESET}"
     exit 0
@@ -53,7 +51,6 @@ if ! check_file "$allow_file"; then
     exit 0
 fi
 
-# at.deny if exists must be correctly configured
 if [ -f "$deny_file" ]; then
     if ! check_file "$deny_file"; then
         echo -e "${RED}NOT HARDENED${RESET}"

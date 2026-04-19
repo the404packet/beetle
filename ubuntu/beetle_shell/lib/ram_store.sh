@@ -190,6 +190,43 @@ for section in ["server_services", "client_services"]:
             print(f'SS_{cat_key}_{pkg_key}_svc_count={len(services)}')
             for svc_idx, svc in enumerate(services):
                 print(f'SS_{cat_key}_{pkg_key}_svc_{svc_idx}={svc}')
+
+job_service = data.get("job_service", {})
+daemons = job_service.get("daemons", [])
+print(f'JS_daemon_count={len(daemons)}')
+any_required = any(d.get("required", False) for d in daemons)
+print(f'JS_daemon_any_required={"true" if any_required else "false"}')
+for idx, daemon in enumerate(daemons):
+    name    = daemon.get("name", "")
+    package = daemon.get("package", "")
+    service = daemon.get("service", "")
+    required = daemon.get("required", False)
+    name_key = name.replace("-", "_").replace(".", "_")
+    print(f'JS_daemon_{idx}_name={name}')
+    print(f'JS_daemon_{idx}_package={package}')
+    print(f'JS_daemon_{idx}_service={service}')
+    print(f'JS_daemon_{idx}_required={str(required).lower()}')
+    print(f'JS_daemon_name_{name_key}_idx={idx}')
+
+cron_dirs = job_service.get("cron_dirs", [])
+print(f'JS_cron_dir_count={len(cron_dirs)}')
+for idx, entry in enumerate(cron_dirs):
+    print(f'JS_cron_dir_{idx}_file={entry.get("file", "")}')
+    print(f'JS_cron_dir_{idx}_mode={entry.get("mode", "")}')
+    print(f'JS_cron_dir_{idx}_owner={entry.get("owner", "")}')
+    print(f'JS_cron_dir_{idx}_group={entry.get("group", "")}')
+
+for section_key in ["cron_access", "at_access"]:
+    section = job_service.get(section_key, {})
+    sk = section_key
+    print(f'JS_{sk}_allow_file={section.get("allow_file", "")}')
+    print(f'JS_{sk}_deny_file={section.get("deny_file", "")}')
+    print(f'JS_{sk}_mode={section.get("mode", "")}')
+    print(f'JS_{sk}_owner={section.get("owner", "")}')
+    groups = section.get("groups", [])
+    print(f'JS_{sk}_group_count={len(groups)}')
+    for gidx, grp in enumerate(groups):
+        print(f'JS_{sk}_group_{gidx}={grp}')
 EOF
 
     chmod 600 "$SERVICES_RAM_STORE"

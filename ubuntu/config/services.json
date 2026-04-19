@@ -116,5 +116,44 @@
     "ftp": { "restrict": true, "version": null, "services": [] },
     "tnftp": { "restrict": true, "version": null, "services": [] }
   }
+  },
+
+  "job_service": {
+  "daemons": [
+    {
+      "name": "cron",
+      "package": "cron",
+      "service": "cron.service",
+      "required": true
+    },
+    {
+      "name": "at",
+      "package": "at",
+      "service": "atd.service",
+      "required": false
+    }
+  ],
+  "cron_dirs": [
+    { "file": "/etc/crontab", "mode": "600", "owner": "root", "group": "root" },
+    { "file": "/etc/cron.hourly", "mode": "700", "owner": "root", "group": "root" },
+    { "file": "/etc/cron.daily", "mode": "700", "owner": "root", "group": "root" },
+    { "file": "/etc/cron.weekly", "mode": "700", "owner": "root", "group": "root" },
+    { "file": "/etc/cron.monthly", "mode": "700", "owner": "root", "group": "root" },
+    { "file": "/etc/cron.d", "mode": "700", "owner": "root", "group": "root" }
+  ],
+  "cron_access": {
+    "allow_file": "/etc/cron.allow",
+    "deny_file": "/etc/cron.deny",
+    "mode": "640",
+    "owner": "root",
+    "groups": ["root", "crontab"]
+  },
+  "at_access": {
+    "allow_file": "/etc/at.allow",
+    "deny_file": "/etc/at.deny",
+    "mode": "640",
+    "owner": "root",
+    "groups": ["root", "daemon"]
   }
+}
 }

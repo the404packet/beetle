@@ -65,7 +65,13 @@
   "services/configure_server_services/tftp_service": true,
   "services/configure_server_services/xinetd_service": true,
   "services/configure_server_services/x_window_server_services": true,
-  "services/job_schedulers/configure_at/at_restriction": true,
+  "services/job_schedulers/configure_cron/cron_daemon": true,
+  "services/job_schedulers/configure_cron/cron_d_permissions": true,
+  "services/job_schedulers/configure_cron/cron_daily_permissions": true,
+  "services/job_schedulers/configure_cron/cron_hourly_permissions": true,
+  "services/job_schedulers/configure_cron/cron_monthly_permissions": true,
+  "services/job_schedulers/configure_cron/cron_weekly_permissions": true,
   "services/job_schedulers/configure_cron/crontab_permissions": true,
-  "services/job_schedulers/configure_cron/cron_daemon": true
+  "services/job_schedulers/configure_cron/crontab_restricition": true,
+  "services/job_schedulers/configure_at/at_restriction": true
 }
