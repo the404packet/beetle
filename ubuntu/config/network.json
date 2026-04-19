@@ -18,9 +18,10 @@
   },
 
   "kernel_modules": [
-  { "name": "dccp", "type": "net", "restrict": true },
-  { "name": "tipc", "type": "net", "restrict": true },
-  { "name": "rds",  "type": "net", "restrict": true },
-  { "name": "sctp", "type": "net", "restrict": true }
-]
+    { "name": "dccp", "type": "net", "restrict": true },
+    { "name": "tipc", "type": "net", "restrict": true },
+    { "name": "rds",  "type": "net", "restrict": true },
+    { "name": "sctp", "type": "net", "restrict": true }
+  ]
 }
+
