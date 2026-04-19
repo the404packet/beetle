@@ -79,5 +79,9 @@
   "services/configure_time_synchronization/timesyncd/timesyncd_enabled": true,
   "services/configure_time_synchronization/chrony/chrony_configured": true,
   "services/configure_time_synchronization/chrony/chrony_user": true,
-  "services/configure_time_synchronization/chrony/chrony_enabled": true
+  "services/configure_time_synchronization/chrony/chrony_enabled": true,
+
+  "network/configure_network_devices/ipv6_status" : true,
+  "network/configure_network_devices/wireless_status" : true,
+  "network/configure_network_devices/bluetooth_service" : true
 }
