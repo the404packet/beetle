@@ -227,6 +227,28 @@ for section_key in ["cron_access", "at_access"]:
     print(f'JS_{sk}_group_count={len(groups)}')
     for gidx, grp in enumerate(groups):
         print(f'JS_{sk}_group_{gidx}={grp}')
+
+time_sync = data.get("time_sync", {})
+ts_daemons = time_sync.get("daemons", [])
+ts_policy = time_sync.get("policy", "exactly_one")
+print(f'TS_policy={ts_policy}')
+print(f'TS_daemon_count={len(ts_daemons)}')
+for idx, daemon in enumerate(ts_daemons):
+    name_key = daemon.get("name","").replace("-","_").replace(".","_")
+    print(f'TS_daemon_{idx}_name={daemon.get("name","")}')
+    print(f'TS_daemon_{idx}_package={daemon.get("package","")}')
+    print(f'TS_daemon_{idx}_service={daemon.get("service","")}')
+    print(f'TS_daemon_{idx}_config_file={daemon.get("config_file","")}')
+    print(f'TS_daemon_{idx}_config_dir={daemon.get("config_dir","")}')
+    print(f'TS_daemon_{idx}_run_as_user={daemon.get("run_as_user","")}')
+    ntp = daemon.get("ntp_servers",[])
+    fallback = daemon.get("fallback_servers",[])
+    print(f'TS_daemon_{idx}_ntp_count={len(ntp)}')
+    for nidx, srv in enumerate(ntp):
+        print(f'TS_daemon_{idx}_ntp_{nidx}={srv}')
+    print(f'TS_daemon_{idx}_fallback_count={len(fallback)}')
+    for fidx, srv in enumerate(fallback):
+        print(f'TS_daemon_{idx}_fallback_{fidx}={srv}')
 EOF
 
     chmod 600 "$SERVICES_RAM_STORE"

@@ -155,5 +155,30 @@
     "owner": "root",
     "groups": ["root", "daemon"]
   }
+  },
+
+  "time_sync": {
+    "daemons": [
+      {
+        "name": "systemd-timesyncd",
+        "package": "systemd-timesyncd",
+        "service": "systemd-timesyncd.service",
+        "config_file": "/etc/systemd/timesyncd.conf",
+        "config_dir": "/etc/systemd/timesyncd.conf.d/",
+        "ntp_servers": ["time.nist.gov"],
+        "fallback_servers": ["time-a-g.nist.gov", "time-b-g.nist.gov", "time-c-g.nist.gov"]
+      },
+      {
+        "name": "chrony",
+        "package": "chrony",
+        "service": "chrony.service",
+        "config_file": "/etc/chrony/chrony.conf",
+        "config_dir": "/etc/chrony/sources.d/",
+        "run_as_user": "_chrony",
+        "ntp_servers": ["time.nist.gov"],
+        "fallback_servers": ["time-a-g.nist.gov", "time-b-g.nist.gov", "time-c-g.nist.gov"]
+      }
+    ],
+    "policy": "exactly_one"
   }
 }
