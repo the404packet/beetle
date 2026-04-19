@@ -73,5 +73,11 @@
   "services/job_schedulers/configure_cron/cron_weekly_permissions": true,
   "services/job_schedulers/configure_cron/crontab_permissions": true,
   "services/job_schedulers/configure_cron/crontab_restricition": true,
-  "services/job_schedulers/configure_at/at_restriction": true
+  "services/job_schedulers/configure_at/at_restriction": true,
+  "services/configure_time_synchronization/time_sync_single_daemon": true,
+  "services/configure_time_synchronization/timesyncd/timesyncd_configured": true,
+  "services/configure_time_synchronization/timesyncd/timesyncd_enabled": true,
+  "services/configure_time_synchronization/chrony/chrony_configured": true,
+  "services/configure_time_synchronization/chrony/chrony_user": true,
+  "services/configure_time_synchronization/chrony/chrony_enabled": true
 }
