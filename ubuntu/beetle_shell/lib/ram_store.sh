@@ -139,7 +139,6 @@ import json
 with open("$json_file") as f:
     data = json.load(f)
 
-# ipv6
 ipv6 = data.get("network_services", {}).get("ipv6", {})
 print(f'NS_ipv6_status={ipv6.get("status", "enabled")}')
 keys = ipv6.get("disable_sysctl_keys", [])
@@ -147,15 +146,20 @@ print(f'NS_ipv6_sysctl_count={len(keys)}')
 for idx, key in enumerate(keys):
     print(f'NS_ipv6_sysctl_{idx}={key}')
 
-# wireless
 wireless = data.get("network_services", {}).get("wireless", {})
 print(f'NS_wireless_restrict={str(wireless.get("restrict", True)).lower()}')
 
-# bluetooth
 bluetooth = data.get("network_services", {}).get("bluetooth", {})
 print(f'NS_bluetooth_package={bluetooth.get("package", "")}')
 print(f'NS_bluetooth_service={bluetooth.get("service", "")}')
 print(f'NS_bluetooth_restrict={str(bluetooth.get("restrict", True)).lower()}')
+
+modules = data.get("kernel_modules", [])
+print(f'KM_count={len(modules)}')
+for idx, mod in enumerate(modules):
+    print(f'KM_{idx}_name={mod.get("name", "")}')
+    print(f'KM_{idx}_type={mod.get("type", "")}')
+    print(f'KM_{idx}_restrict={str(mod.get("restrict", True)).lower()}')
 EOF
 
     chmod 600 "$NETWORK_RAM_STORE"
