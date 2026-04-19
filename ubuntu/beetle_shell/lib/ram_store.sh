@@ -158,8 +158,56 @@ get_perm() {
 unload_all() {
     unload_dpkg
     unload_json_permissions
+    unload_access_control_json 
     unload_severity
 }
+
+
+# ─────────────────────────────────────────────
+# SSH: Load access_control JSON into RAM
+# ─────────────────────────────────────────────
+SSH_RAM_STORE="/dev/shm/beetle_ssh.env"
+
+load_access_control_json() {
+    local json_file="$1"
+
+    [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
+
+    rm -f "$SSH_RAM_STORE"
+
+    python3 - <<EOF > "$SSH_RAM_STORE"
+import json
+
+with open("$json_file") as f:
+    data = json.load(f)
+
+# sshd_settings — flatten nested dicts into SSHD_<KEY>_<FIELD> vars
+for key, val in data.get("sshd_settings", {}).items():
+    safe = key.upper()
+    if isinstance(val, dict):
+        for field, fval in val.items():
+            if isinstance(fval, list):
+                print(f'SSHD_{safe}_{field.upper()}={"|".join(str(v) for v in fval)}')
+            else:
+                print(f'SSHD_{safe}_{field.upper()}={fval}')
+
+# weak lists — join into pipe-separated regex pattern strings
+for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
+    items = data.get(list_key, [])
+    if items:
+        pattern = "|".join(i.replace(".", "\\.") for i in items)
+        env_key = list_key.upper() + "_PATTERN"
+        print(f'{env_key}={pattern}')
+EOF
+
+    chmod 600 "$SSH_RAM_STORE"
+    source "$SSH_RAM_STORE"
+}
+
+unload_access_control_json() {
+    [ -f "$SSH_RAM_STORE" ] && shred -u "$SSH_RAM_STORE" 2>/dev/null || rm -f "$SSH_RAM_STORE"
+}
+
 
 export -f load_dpkg
 export -f unload_dpkg
@@ -169,9 +217,12 @@ export -f unload_severity
 export -f is_check_enabled
 export -f load_json_permissions
 export -f unload_json_permissions
+export -f load_access_control_json
+export -f unload_access_control_json
 export -f get_perm
 export -f unload_all
 export SEVERITY_RAM_STORE
 export DPKG_RAM_STORE
 export PERM_RAM_STORE
 export SEVERITY_CONFIG_DIR
+export SSH_RAM_STORE

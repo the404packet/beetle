@@ -1,39 +1,43 @@
 #!/usr/bin/env bash
 
-#!/usr/bin/env bash
-
 NAME='ssh_private_host_key_permission'
 SEVERITY='basic'
 
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
 
-perm_mask=0177
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+
+EXPECTED_MASK=$(get_perm "ssh_private_host_key" perm_mask)
+EXPECTED_OWNER=$(get_perm "ssh_private_host_key" owner)
+EXPECTED_GROUP=$(get_perm "ssh_private_host_key" group)
+
+EXPECTED_MASK="${EXPECTED_MASK:-0177}"
+EXPECTED_OWNER="${EXPECTED_OWNER:-root}"
+EXPECTED_GROUP="${EXPECTED_GROUP:-root}"
+
+TARGET_MODE=$(printf '%o' $(( ~EXPECTED_MASK & 0777 )))
 flag=1
-
-check_file(){
-    local file=$1
-    read -r mode owner group < <(stat -Lc '%#a %U %G' "$file")
-    if (( $mode & perm_mask )) || [[ $owner != "root" || $group != "root" ]]; then
-        return 1 #file is not compliant
-    fi
-    return 0 #file is compliant
-}
 
 if [[ -d /etc/ssh ]]; then
     while IFS= read -r -d $'\0' file; do
-    if ssh-keygen -lf "$file" &>/dev/null && file "$file" | grep -Piq -- '\bopenssh\h+([^#\n\r]+\h+)?private\h+key\b'; then
-        if ! check_file "$file"; then
-            flag=0
-            break
+        if ssh-keygen -lf "$file" &>/dev/null && \
+           file "$file" | grep -Piq -- '\bopenssh\h+([^#\n\r]+\h+)?private\h+key\b'; then
+            if ! chmod "$TARGET_MODE" "$file" || \
+               ! chown "${EXPECTED_OWNER}:${EXPECTED_GROUP}" "$file"; then
+                flag=0
+                break
+            fi
         fi
-    fi
     done < <(find /etc/ssh -xdev -type f -print0)
 fi
 
-
 if (( flag )); then
-    echo -e "${GREEN}HARDENED${RESET}"
+    echo -e "${GREEN}SUCCESS${RESET}"
 else
-    echo -e "${RED}NOT HARDENED${RESET}"
+    echo -e "${RED}FAILED${RESET}"
+    exit 1
 fi
 
 exit 0

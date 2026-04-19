@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
 
-NAME='sshd_disableforwarding'
+NAME='sshd DisableForwarding config'
 SEVERITY='basic'
+
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+
+EXPECTED="${SSHD_DISABLEFORWARDING_EXPECTED:-yes}"
 
 flag=1
 
-
-#global config
-if  sshd -T 2>/dev/null | grep -Piq '^disableforwarding\s+no'; then
-    flag=0 # set wrong
+# Fail if DisableForwarding is explicitly set to no
+if sshd -T 2>/dev/null | grep -Piq '^disableforwarding\s+no'; then
+    flag=0
 fi
-    
 
-#if MATCH exists 
-if (( flag )) && grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
-    if ! sshd -T -C user="$USER" 2>/dev/null | grep -Piq '^disableforwarding\s+no'; then
+# If Match blocks exist, ensure the effective value is not overriding to no
+if (( flag )) && \
+   grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
+    if sshd -T -C user="$USER" 2>/dev/null | grep -Piq '^disableforwarding\s+no'; then
         flag=0
     fi
 fi

@@ -3,14 +3,18 @@
 NAME='restrict ssh access using allow/deny list of user/grp'
 SEVERITY='strict'
 
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
 flag=1
 
-if ! sshd -T 2>/dev/null |  grep -Piq '^\h*(allow|deny)(users|groups)\h+\H+'; then
-    flag=0 # no list found
+# Check global config for any allow/deny user/group directive
+if ! sshd -T 2>/dev/null | grep -Piq '^\h*(allow|deny)(users|groups)\h+\H+'; then
+    flag=0
 fi
 
-
-# IF Match Block exists
+# Re-check with Match block context if present
 if (( flag )) && \
    grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
     if ! sshd -T -C user="$USER" 2>/dev/null | \
@@ -19,7 +23,6 @@ if (( flag )) && \
     fi
 fi
 
-
 if (( flag )); then
     echo -e "${GREEN}HARDENED${RESET}"
 else
@@ -27,5 +30,3 @@ else
 fi
 
 exit 0
-
-

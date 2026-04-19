@@ -1,0 +1,101 @@
+{
+  "ssh_config_file_permissions": {
+    "sshd_config": {
+      "file": "/etc/ssh/sshd_config",
+      "perm_mask": "0177",
+      "owner": "root",
+      "group": "root"
+    },
+    "private_host_key": {
+      "perm_mask": "0177",
+      "owner": "root",
+      "group": "root"
+    },
+    "public_host_key": {
+      "perm_mask": "0133",
+      "owner": "root",
+      "group": "root"
+    }
+  },
+  "sshd_settings": {
+    "loglevel": {
+      "allowed": ["INFO", "VERBOSE"]
+    },
+    "logingracetime": {
+      "min": 1,
+      "max": 60
+    },
+    "maxauthtries": {
+      "max": 4
+    },
+    "maxsessions": {
+      "max": 10
+    },
+    "maxstartups": {
+      "start_max": 10,
+      "rate_max": 30,
+      "full_max": 60,
+      "value": "10:30:60"
+    },
+    "clientaliveinterval": {
+      "min": 1
+    },
+    "clientalivecountmax": {
+      "min": 1
+    },
+    "permitrootlogin": {
+      "expected": "no"
+    },
+    "permitemptypasswords": {
+      "expected": "no"
+    },
+    "permituserenvironment": {
+      "expected": "no"
+    },
+    "gssapiauthentication": {
+      "expected": "no"
+    },
+    "hostbasedauthentication": {
+      "expected": "no"
+    },
+    "ignorerhosts": {
+      "expected": "yes"
+    },
+    "disableforwarding": {
+      "expected": "yes"
+    },
+    "usepam": {
+      "expected": "yes"
+    }
+  },
+  "sshd_weak_ciphers": [
+    "3des-cbc",
+    "blowfish-cbc",
+    "cast128-cbc",
+    "aes128-cbc",
+    "aes192-cbc",
+    "aes256-cbc",
+    "arcfour",
+    "arcfour128",
+    "arcfour256",
+    "rijndael-cbc@lysator.liu.se"
+  ],
+  "sshd_weak_macs": [
+    "hmac-md5",
+    "hmac-md5-96",
+    "hmac-ripemd160",
+    "hmac-sha1-96",
+    "umac-64@openssh.com",
+    "hmac-md5-etm@openssh.com",
+    "hmac-md5-96-etm@openssh.com",
+    "hmac-ripemd160-etm@openssh.com",
+    "hmac-sha1-96-etm@openssh.com",
+    "umac-64-etm@openssh.com",
+    "umac-128-etm@openssh.com"
+  ],
+  "sshd_weak_kex": [
+    "diffie-hellman-group1-sha1",
+    "diffie-hellman-group14-sha1",
+    "diffie-hellman-group-exchange-sha1"
+  ]
+}

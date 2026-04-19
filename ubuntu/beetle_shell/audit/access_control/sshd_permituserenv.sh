@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 
 NAME='sshd PermitUserEnvironment config'
-SEVERITY="basic"
+SEVERITY='basic'
 
-flag=1
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+
+EXPECTED="${SSHD_PERMITUSERENVIRONMENT_EXPECTED:-no}"
 
 value=$(sshd -T 2>/dev/null | awk '/^permituserenvironment/ {print $2}')
 
-if [[ "$value" != "no" ]]; then
-    flag=0
-fi
-
-if (( flag )); then
+if [[ "$value" == "$EXPECTED" ]]; then
     echo -e "${GREEN}HARDENED${RESET}"
 else
     echo -e "${RED}NOT HARDENED${RESET}"

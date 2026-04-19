@@ -1,28 +1,30 @@
 #!/usr/bin/env bash
 
-NAME="sshd kexalgorithm config"
-SEVERITY="basic"
+NAME='sshd kexalgorithm config'
+SEVERITY='basic'
+
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+
+WEAK_KEX_PATTERN="${SSHD_WEAK_KEX_PATTERN:-diffie-hellman-group1-sha1|diffie-hellman-group14-sha1|diffie-hellman-group-exchange-sha1}"
 
 flag=1
-# Check for weak ciphers
+
 if sshd -T 2>/dev/null | grep -Piq -- \
-'^kexalgorithms\h+([^#\n\r]+,)?(diffie-hellman-group1-sha1|diffie-hellman-group14-sha1|diffie-hellman-group-exchange-sha1)\b'; then
+   "^kexalgorithms\h+([^#\n\r]+,)?(${WEAK_KEX_PATTERN})\b"; then
     flag=0
 fi
 
-
-# If Match block exists
 if (( flag )) && \
    grep -Riq '^\s*Match\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>/dev/null; then
-
-    if sshd -T 2>/dev/null | grep -Piq -- \
-    '^kexalgorithms\h+([^#\n\r]+,)?(diffie-hellman-group1-sha1|diffie-hellman-group14-sha1|diffie-hellman-group-exchange-sha1)\b'; then
+    if sshd -T -C user="$USER" 2>/dev/null | grep -Piq -- \
+       "^kexalgorithms\h+([^#\n\r]+,)?(${WEAK_KEX_PATTERN})\b"; then
         flag=0
     fi
-
 fi
-
-
 
 if (( flag )); then
     echo -e "${GREEN}HARDENED${RESET}"

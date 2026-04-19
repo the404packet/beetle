@@ -3,32 +3,45 @@
 NAME='/etc/ssh/sshd_config file permission'
 SEVERITY='basic'
 
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
 
-perm_mask=0177
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+
+EXPECTED_MASK=$(get_perm "/etc/ssh/sshd_config" perm_mask)
+EXPECTED_OWNER=$(get_perm "/etc/ssh/sshd_config" owner)
+EXPECTED_GROUP=$(get_perm "/etc/ssh/sshd_config" group)
+
+# Fall back to defaults if JSON not loaded
+EXPECTED_MASK="${EXPECTED_MASK:-0177}"
+EXPECTED_OWNER="${EXPECTED_OWNER:-root}"
+EXPECTED_GROUP="${EXPECTED_GROUP:-root}"
+
+perm_mask=$(( EXPECTED_MASK ))
 flag=1
 
-check_file(){
-    local file=$1
+check_file() {
+    local file="$1"
     local mode owner group
     read -r mode owner group < <(stat -Lc '%#a %U %G' "$file")
-    if (( $mode & perm_mask )) || [[ $owner != "root" || $group != "root" ]]; then
-        return 1 #file is not compliant
+    if (( mode & perm_mask )) || [[ "$owner" != "$EXPECTED_OWNER" || "$group" != "$EXPECTED_GROUP" ]]; then
+        return 1
     fi
-    return 0 #file is compliant
+    return 0
 }
 
-
-#sshd_config file
-if [[ -f /etc/ssh/sshd_config ]]; then 
+# Check /etc/ssh/sshd_config
+if [[ -f /etc/ssh/sshd_config ]]; then
     if ! check_file /etc/ssh/sshd_config; then
         flag=0
     fi
 fi
 
-#check if conf exist in sshd_config.d/
+# Check drop-in configs in sshd_config.d/
 if (( flag )) && [[ -d /etc/ssh/sshd_config.d ]]; then
     while IFS= read -r -d $'\0' file; do
-        if !check_file "$file"; then
+        if ! check_file "$file"; then
             flag=0
             break
         fi
