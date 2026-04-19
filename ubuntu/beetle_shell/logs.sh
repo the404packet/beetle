@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 CONFIG_FILE="/etc/beetle/beetle.conf"
@@ -115,14 +114,12 @@ printf "%-19s | %-6s | %-10s | %-10s | %-8s | %-6s | %s\n" \
 printf "%s\n" "------------------------------------------------------------------------------------------------------"
 
 # ---------- OUTPUT (NO WRAP) ----------
-echo "$filtered_logs" | awk -v user_override="$(whoami)" '
+echo "$filtered_logs" | awk '
 {
-    # Extract timestamp
     ts = $1 " " $2
 
-    # Extract fields
     match($0, /pid=([^ ]+)/, p); pid = p[1]
-    match($0, /user=([^ ]+)/, u); user = user_override   # override root
+    match($0, /user=([^ ]+)/, u); user = u[1]
     match($0, /status=([^ ]+)/, s); status = s[1]
     match($0, /time=([^ ]+)/, t); time = t[1]
     match($0, /id=([^ ]+)/, i); id = substr(i[1], length(i[1])-5)

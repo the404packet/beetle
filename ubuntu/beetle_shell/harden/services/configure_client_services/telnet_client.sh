@@ -1,24 +1,31 @@
 #!/usr/bin/env bash
 
-NAME="ensure telnet and inetutils-telnet are not installed"
-SEVERITY="basic"
+NAME="ensure telnet client is not installed"
 
 GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-output=""
+[ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
+[ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-# Check if telnet packages are installed
-if dpkg-query -l | grep -E '^(ii)\s+(telnet|inetutils-telnet)\b' &>/dev/null; then
-    output="telnet or inetutils-telnet is installed"
-fi
+category="telnet_client"
 
-if [[ -z "$output" ]]; then
-    echo -e "${GREEN}HARDENED${RESET}"
-else
-    echo -e "${RED}NOT HARDENED${RESET}"
-    echo "$output"
-fi
+while IFS= read -r pkg; do
+    restrict=$(get_svc "$category" "$pkg" "restrict")
 
+    if [[ "$restrict" == "true" ]]; then
+        if is_package_installed "$pkg"; then
+            apt-get remove --purge -y "$pkg" &>/dev/null
+            unset_package "$pkg"
+
+            if is_package_installed "$pkg"; then
+                echo -e "${RED}FAILED${RESET}"
+                exit 1
+            fi
+        fi
+    fi
+done < <(get_svc_packages "$category")
+
+echo -e "${GREEN}SUCCESS${RESET}"
 exit 0

@@ -7,7 +7,7 @@ GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+[ -f "$SSH_RAM_STORE" ] && source "$SSH_RAM_STORE"
 
 # Allowed values from JSON: ["INFO","VERBOSE"] — stored as pipe-separated string
 ALLOWED_RAW="${SSHD_LOGLEVEL_ALLOWED:-INFO|VERBOSE}"

@@ -16,6 +16,7 @@
   "system_maintenance/system_file_permissions/gshadow_file_permissions": true,
   "system_maintenance/system_file_permissions/gshadow-_file_permissions": true,
   "system_maintenance/system_file_permissions/shells_file_permissions": true,
+
   "access_control/config_ssh_server": true,
   "access_control/sshd_access_config": true,
   "access_control/sshd_clientalive_interval_maxcount": true,
@@ -34,10 +35,12 @@
   "access_control/sshd_usePam": true,
   "access_control/ssh_private_host_key_perm": true,
   "access_control/ssh_public_host_key_perm": true,
+
   "host_based_firewall/configure_ufw/checkifufw": true,
   "host_based_firewall/configure_ufw/incomingcheck": true,
   "host_based_firewall/configure_ufw/outgoingcheck": true,
   "host_based_firewall/configure_ufw/status": true,
+  
   "services/configure_client_services/ftp_client": true,
   "services/configure_client_services/ldap_client": true,
   "services/configure_client_services/nis_client": true,
@@ -62,7 +65,13 @@
   "services/configure_server_services/tftp_service": true,
   "services/configure_server_services/xinetd_service": true,
   "services/configure_server_services/x_window_server_services": true,
-  "services/job_schedulers/configure_at/at_restriction": true,
+  "services/job_schedulers/configure_cron/cron_daemon": true,
+  "services/job_schedulers/configure_cron/cron_d_permissions": true,
+  "services/job_schedulers/configure_cron/cron_daily_permissions": true,
+  "services/job_schedulers/configure_cron/cron_hourly_permissions": true,
+  "services/job_schedulers/configure_cron/cron_monthly_permissions": true,
+  "services/job_schedulers/configure_cron/cron_weekly_permissions": true,
   "services/job_schedulers/configure_cron/crontab_permissions": true,
-  "services/job_schedulers/configure_cron/cron_daemon": true
+  "services/job_schedulers/configure_cron/crontab_restricition": true,
+  "services/job_schedulers/configure_at/at_restriction": true
 }

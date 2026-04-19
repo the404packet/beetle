@@ -7,7 +7,7 @@ GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+[ -f "$SSH_RAM_STORE" ] && source "$SSH_RAM_STORE"
 
 WEAK_KEX_PATTERN="${SSHD_WEAK_KEX_PATTERN:-diffie-hellman-group1-sha1|diffie-hellman-group14-sha1|diffie-hellman-group-exchange-sha1}"
 

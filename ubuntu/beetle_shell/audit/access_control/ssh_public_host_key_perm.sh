@@ -7,11 +7,11 @@ GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+[ -f "$SSH_RAM_STORE" ] && source "$SSH_RAM_STORE"
 
-EXPECTED_MASK=$(get_perm "ssh_public_host_key" perm_mask)
-EXPECTED_OWNER=$(get_perm "ssh_public_host_key" owner)
-EXPECTED_GROUP=$(get_perm "ssh_public_host_key" group)
+EXPECTED_MASK=$(get_acc "public_host_key" perm_mask)
+EXPECTED_OWNER=$(get_acc "public_host_key" owner)
+EXPECTED_GROUP=$(get_acc "public_host_key" group)
 
 EXPECTED_MASK="${EXPECTED_MASK:-0133}"
 EXPECTED_OWNER="${EXPECTED_OWNER:-root}"

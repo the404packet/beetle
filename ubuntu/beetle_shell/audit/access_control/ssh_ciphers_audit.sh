@@ -7,7 +7,7 @@ GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+[ -f "$SSH_RAM_STORE" ] && source "$SSH_RAM_STORE"
 
 # Load weak cipher list from RAM store (set by load_json_permissions for access_control.json)
 # Env var: SSHD_weak_ciphers (pipe-separated list built at load time)

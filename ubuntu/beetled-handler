@@ -5,7 +5,6 @@ set -euo pipefail
 BASE_DIR="/usr/local/bin/beetle_shell"
 LOG_FILE="/var/log/beetle.log"
 
-# ---------- LOG FUNCTION ----------
 log_command() {
     local user="$1"
     local cmd="$2"
@@ -18,32 +17,23 @@ log_command() {
         -1 "$cmd_id" "$pid" "$user" "$cmd" "$status" "$duration" >> "$LOG_FILE"
 }
 
-# ---------- READ INPUT ----------
 read -r input || {
     echo "Invalid command"
     exit 1
 }
 
-# ---------- PARSE INPUT ----------
-# Expected format: user=somanshu cmd="logs --type audit"
-
-user=$(echo "$input" | grep -o 'user=[^ ]*' | cut -d= -f2 || true)
 cmd=$(echo "$input" | grep -o 'cmd="[^"]*"' | cut -d'"' -f2 || true)
 
-# fallback safety
-user=${user:-unknown}
+user="${BEETLE_USER:-unknown}"
 cmd=${cmd:-""}
 
-# Split command into parts
 read -ra parts <<< "$cmd"
 command="${parts[0]:-}"
 
-# ---------- METADATA ----------
 pid="$$"
 cmd_id="$(date +%s%N)"
 start_time=$(date +%s%3N)
 
-# ---------- VALIDATION ----------
 if [[ -z "$command" ]]; then
     echo "Invalid command"
     end_time=$(date +%s%3N)
@@ -62,7 +52,6 @@ fi
 
 script="$BASE_DIR/${command}.sh"
 
-# ---------- EXECUTION ----------
 if [[ -x "$script" ]]; then
     set +e
 

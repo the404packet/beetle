@@ -7,7 +7,7 @@ GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+[ -f "$SSH_RAM_STORE" ] && source "$SSH_RAM_STORE"
 
 WEAK_CIPHER_PATTERN="${SSHD_WEAK_CIPHER_PATTERN:-3des-cbc|blowfish-cbc|cast128-cbc|aes128-cbc|aes192-cbc|aes256-cbc|arcfour(128|256)?|rijndael-cbc@lysator\.liu\.se}"
 

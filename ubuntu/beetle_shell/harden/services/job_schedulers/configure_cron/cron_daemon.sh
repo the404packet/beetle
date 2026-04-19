@@ -1,41 +1,48 @@
 #!/usr/bin/env bash
 
-NAME="Ensure cron service is enabled and active"
-SEVERITY="medium"
+NAME="ensure cron daemon is enabled and active"
 
 GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-fail_reasons=()
+[ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
+[ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-if ! dpkg-query -s cron &>/dev/null; then
-    echo -e "${GREEN}HARDENED${RESET}"
-    exit 0
-fi
+daemon_count="$JS_daemon_count"
 
-# Check if cron service is enabled
-enabled=$(systemctl list-unit-files | awk '$1~/^crond?\.service/{print $2}')
+for ((i=0; i<daemon_count; i++)); do
+    name_var="JS_daemon_${i}_name"
+    package_var="JS_daemon_${i}_package"
+    service_var="JS_daemon_${i}_service"
+    required_var="JS_daemon_${i}_required"
 
-if [[ "$enabled" != "enabled" ]]; then
-    fail_reasons+=("cron service is not enabled")
-fi
+    name="${!name_var}"
+    package="${!package_var}"
+    service="${!service_var}"
+    required="${!required_var}"
 
-# Check if cron service is active
-active=$(systemctl list-units | awk '$1~/^crond?\.service/{print $3}')
+    if [[ "$required" == "true" ]]; then
+        if ! is_package_installed "$package"; then
+            apt-get install -y "$package" &>/dev/null
+            if ! is_package_installed "$package"; then
+                echo -e "${RED}FAILED${RESET}"
+                exit 1
+            fi
+        fi
 
-if [[ "$active" != "active" ]]; then
-    fail_reasons+=("cron service is not active")
-fi
+        systemctl unmask "$service" 2>/dev/null
+        systemctl --now enable "$service" 2>/dev/null
 
-# Final Result
-if [[ ${#fail_reasons[@]} -eq 0 ]]; then
-    echo -e "${GREEN}HARDENED${RESET}"
-else
-    echo -e "${RED}NOT HARDENED${RESET}"
-    for reason in "${fail_reasons[@]}"; do
-        echo "$reason"
-    done
-fi
+        enabled=$(systemctl list-unit-files | awk -v svc="$service" '$1==svc{print $2}')
+        active=$(systemctl list-units | awk -v svc="$service" '$1==svc{print $3}')
 
+        if [[ "$enabled" != "enabled" ]] || [[ "$active" != "active" ]]; then
+            echo -e "${RED}FAILED${RESET}"
+            exit 1
+        fi
+    fi
+done
+
+echo -e "${GREEN}SUCCESS${RESET}"
 exit 0

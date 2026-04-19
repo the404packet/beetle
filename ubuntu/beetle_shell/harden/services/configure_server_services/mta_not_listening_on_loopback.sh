@@ -1,54 +1,58 @@
 #!/usr/bin/env bash
 
-NAME="ensure MTA is not listening on non-loopback interfaces"
-SEVERITY="basic"
+NAME="ensure mail transfer agent is configured for local only mode"
 
 GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-fail_reasons=()
+[ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
+[ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-# Ports commonly used by MTAs
-ports=("25" "465" "587")
+category="mail"
 
-# Check listening ports
-for port in "${ports[@]}"; do
-    if ss -plntu | grep -P -- ":$port\b" | \
-       grep -Pvq -- "\h+(127\.0\.0\.1|\[?::1\]?):$port\b"; then
-        fail_reasons+=("Port $port is listening on a non-loopback interface")
+while IFS= read -r pkg; do
+    restrict=$(get_svc "$category" "$pkg" "restrict")
+    version=$(get_svc "$category" "$pkg" "version")
+
+    if [[ "$restrict" == "true" ]]; then
+        if is_package_installed "$pkg"; then
+            while IFS= read -r svc; do
+                systemctl stop "$svc" 2>/dev/null
+                systemctl disable "$svc" 2>/dev/null
+            done < <(get_svc_services "$category" "$pkg")
+
+            apt-get remove --purge -y "$pkg" &>/dev/null
+            unset_package "$pkg"
+            if is_package_installed "$pkg"; then
+                echo -e "${RED}FAILED${RESET}"
+                exit 1
+            fi
+        fi
+    elif [[ "$restrict" == "false" ]]; then
+        if is_package_installed "$pkg"; then
+            if ! is_version_ok "$pkg" "$version"; then
+                apt-get upgrade -y "$pkg" &>/dev/null
+                if ! is_version_ok "$pkg" "$version"; then
+                    echo -e "${RED}FAILED${RESET}"
+                    exit 1
+                fi
+            fi
+
+            # enforce loopback only for postfix
+            if command -v postconf &>/dev/null; then
+                postconf -e "inet_interfaces = loopback-only" 2>/dev/null
+                systemctl restart postfix.service 2>/dev/null
+
+                interfaces=$(postconf -n inet_interfaces 2>/dev/null | awk '{print $3}')
+                if ! echo "$interfaces" | grep -Pqi '(loopback-only|127\.0\.0\.1|::1)'; then
+                    echo -e "${RED}FAILED${RESET}"
+                    exit 1
+                fi
+            fi
+        fi
     fi
-done
+done < <(get_svc_packages "$category")
 
-# Detect MTA configuration binding
-interfaces=""
-
-if command -v postconf &>/dev/null; then
-    interfaces=$(postconf -n inet_interfaces 2>/dev/null | awk '{print $3}')
-elif command -v exim &>/dev/null; then
-    interfaces=$(exim -bP local_interfaces 2>/dev/null)
-elif command -v sendmail &>/dev/null; then
-    interfaces=$(grep -i "DaemonPortOptions" /etc/mail/sendmail.cf 2>/dev/null | \
-                 grep -oP '(?<=Addr=)[^,]+')
-fi
-
-# Evaluate interface binding
-if [[ -n "$interfaces" ]]; then
-    if echo "$interfaces" | grep -Pqi '\ball\b'; then
-        fail_reasons+=("MTA is bound to all network interfaces")
-    elif ! echo "$interfaces" | grep -Pqi '(127\.0\.0\.1|::1|loopback-only|loopbackonly)'; then
-        fail_reasons+=("MTA is bound to non-loopback interface: $interfaces")
-    fi
-fi
-
-# Final result
-if [[ ${#fail_reasons[@]} -eq 0 ]]; then
-    echo -e "${GREEN}HARDENED${RESET}"
-else
-    echo -e "${RED}NOT HARDENED${RESET}"
-    for reason in "${fail_reasons[@]}"; do
-        echo "$reason"
-    done
-fi
-
+echo -e "${GREEN}SUCCESS${RESET}"
 exit 0
