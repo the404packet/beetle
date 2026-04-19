@@ -93,5 +93,28 @@
       "exim4": { "restrict": true, "version": null, "services": ["exim4.service"] },
       "sendmail": { "restrict": true, "version": null, "services": ["sendmail.service"] }
     }
+  },
+
+  "client_services": {
+  "nis_client": {
+    "nis": { "restrict": true, "version": null, "services": [] }
+  },
+  "rsh_client": {
+    "rsh-client": { "restrict": true, "version": null, "services": [] }
+  },
+  "talk_client": {
+    "talk": { "restrict": true, "version": null, "services": [] }
+  },
+  "telnet_client": {
+    "telnet": { "restrict": true, "version": null, "services": [] },
+    "inetutils-telnet": { "restrict": true, "version": null, "services": [] }
+  },
+  "ldap_client": {
+    "ldap-utils": { "restrict": true, "version": null, "services": [] }
+  },
+  "ftp_client": {
+    "ftp": { "restrict": true, "version": null, "services": [] },
+    "tnftp": { "restrict": true, "version": null, "services": [] }
+  }
   }
 }

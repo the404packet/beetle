@@ -175,20 +175,21 @@ import json
 with open("$json_file") as f:
     data = json.load(f)
 
-for category, packages in data.get("server_services", {}).items():
-    cat_key = category.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    print(f'SS_{cat_key}_pkg_count={len(packages)}')
-    for pkg_idx, (pkg_name, fields) in enumerate(packages.items()):
-        pkg_key = pkg_name.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-        restrict = fields.get("restrict", True)
-        version  = fields.get("version", "null")
-        services = fields.get("services", [])
-        print(f'SS_{cat_key}_pkg_{pkg_idx}={pkg_name}')
-        print(f'SS_{cat_key}_{pkg_key}_restrict={str(restrict).lower()}')
-        print(f'SS_{cat_key}_{pkg_key}_version={version if version else "null"}')
-        print(f'SS_{cat_key}_{pkg_key}_svc_count={len(services)}')
-        for svc_idx, svc in enumerate(services):
-            print(f'SS_{cat_key}_{pkg_key}_svc_{svc_idx}={svc}')
+for section in ["server_services", "client_services"]:
+    for category, packages in data.get(section, {}).items():
+        cat_key = category.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
+        print(f'SS_{cat_key}_pkg_count={len(packages)}')
+        for pkg_idx, (pkg_name, fields) in enumerate(packages.items()):
+            pkg_key = pkg_name.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
+            restrict = fields.get("restrict", True)
+            version  = fields.get("version", "null")
+            services = fields.get("services", [])
+            print(f'SS_{cat_key}_pkg_{pkg_idx}={pkg_name}')
+            print(f'SS_{cat_key}_{pkg_key}_restrict={str(restrict).lower()}')
+            print(f'SS_{cat_key}_{pkg_key}_version={version if version else "null"}')
+            print(f'SS_{cat_key}_{pkg_key}_svc_count={len(services)}')
+            for svc_idx, svc in enumerate(services):
+                print(f'SS_{cat_key}_{pkg_key}_svc_{svc_idx}={svc}')
 EOF
 
     chmod 600 "$SERVICES_RAM_STORE"

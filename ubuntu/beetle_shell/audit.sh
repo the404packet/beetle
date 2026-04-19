@@ -64,6 +64,13 @@ run_check() {
         }
     fi
 
+    export DPKG_RAM_STORE
+    export PERM_RAM_STORE
+    export SEVERITY_RAM_STORE
+    export NETWORK_RAM_STORE
+    export SERVICES_RAM_STORE
+    export ACCESS_RAM_STORE
+    export FIREWALL_RAM_STORE
 
     TMP_FILE=$(mktemp)
     bash "$script" > "$TMP_FILE" 2>/dev/null &
@@ -137,13 +144,6 @@ load_dpkg || { echo -e "${RED}Failed to load dpkg into RAM${RESET}"; unload_all;
 echo -e "${CYAN}Loading severity config into RAM...${RESET}\n"
 load_severity "$TARGET_LEVEL" || { echo -e "${RED}Failed to load severity config into RAM${RESET}"; unload_all; exit 1; }
 
-    export DPKG_RAM_STORE
-    export PERM_RAM_STORE
-    export SEVERITY_RAM_STORE
-    export NETWORK_RAM_STORE
-    export SERVICES_RAM_STORE
-    export ACCESS_RAM_STORE
-    export FIREWALL_RAM_STORE
 # ── Determine search path ──
 if [ -n "$TARGET_FOLDER" ]; then
     SEARCH_PATH="$BEETLE_SHELL_ROOT/audit/$TARGET_FOLDER"
@@ -158,7 +158,6 @@ mapfile -d '' scripts < <(
         -name "*.sh" \
         -print0
 )
-
 
 for script in "${scripts[@]}"; do
     run_check "$script"
