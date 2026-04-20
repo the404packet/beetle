@@ -106,45 +106,8 @@ capture_snapshot() {
         SNAP_NAME="${BASE_NAME}.tar.gz"
 
         if [[ -e "$TARGET_DIR/$SNAP_NAME" ]]; then
-            while true; do
-                echo "[!] Snapshot name '$SNAP_NAME' already exists."
-                echo "Choose:"
-                echo "  1) Auto rename (add _1, _2...)"
-                echo "  2) Enter new name"
-                echo "  3) Cancel"
-                read -rp "Enter choice [1/2/3]: " choice
-
-                case "$choice" in
-                    1)
-                        COUNT=1
-                        while [[ -e "$TARGET_DIR/${BASE_NAME}_${COUNT}.tar.gz" ]]; do
-                            ((COUNT++))
-                        done
-                        SNAP_NAME="${BASE_NAME}_${COUNT}.tar.gz"
-                        break
-                        ;;
-                    2)
-                        read -rp "Enter new snapshot name: " NEW_NAME
-
-                        [[ -z "$NEW_NAME" ]] && { echo "[!] Name cannot be empty."; continue; }
-
-                        SNAP_NAME="${NEW_NAME}.tar.gz"
-
-                        if [[ -e "$TARGET_DIR/$SNAP_NAME" ]]; then
-                            echo "[!] Name already exists. Try again."
-                            continue
-                        fi
-                        break
-                        ;;
-                    3)
-                        echo "[!] Operation cancelled."
-                        exit 0
-                        ;;
-                    *)
-                        echo "[!] Invalid choice."
-                        ;;
-                esac
-            done
+            echo "[!] Snapshot name '$CUSTOM_NAME' already exists. Use a different name."
+            exit 1
         fi
     else
         SNAP_NAME="snapshot_${SNAP_ID}.tar.gz"
