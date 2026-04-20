@@ -110,5 +110,8 @@
   "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_active":       true,
   "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_file_access":  true,
   "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_rotation":     true,
-  "logging_and_auditing/system_logging/configure_systemd_journal_service/single_logging_system": true
+  "logging_and_auditing/system_logging/configure_systemd_journal_service/single_logging_system": true,
+  "logging_and_auditing/6.1.2/audit_journald_forward_to_syslog": true,
+  "logging_and_auditing/6.1.2/audit_journald_compress":           true,
+  "logging_and_auditing/6.1.2/audit_journald_storage":            true
 }
