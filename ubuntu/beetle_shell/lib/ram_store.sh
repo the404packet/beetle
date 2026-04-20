@@ -8,11 +8,11 @@ NETWORK_RAM_STORE="/dev/shm/beetle_network.env"           # network
 SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
 ACCESS_RAM_STORE="/dev/shm/beetle_access_control.env"     # access_control
 FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
-LOGGING_RAM_STORE="/dev/shm/beetle_logging_store"
+LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
-       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE
+       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE LOGGING_RAM_STORE
 
 load_dpkg() {
     rm -f "$DPKG_RAM_STORE"
@@ -564,6 +564,27 @@ print('JP_count=' + str(len(jp)))
 for i,p in enumerate(jp):
     print(f'JP_{i}_key='   + p.get('key',''))
     print(f'JP_{i}_value=' + p.get('value',''))
+
+rs = data.get('rsyslog', {})
+print('RS_package='          + rs.get('package',''))
+print('RS_service='          + rs.get('service',''))
+print('RS_config_file='      + rs.get('config_file',''))
+print('RS_config_dir='       + rs.get('config_dir',''))
+print('RS_drop_file='        + rs.get('drop_file',''))
+print('RS_file_create_mode=' + rs.get('file_create_mode',''))
+print('RS_remote_port='      + rs.get('remote_port',''))
+print('RS_remote_protocol='  + rs.get('remote_protocol',''))
+print('RS_queue_type='       + rs.get('queue_type',''))
+print('RS_queue_size='       + rs.get('queue_size',''))
+print('RS_resume_retry='     + rs.get('resume_retry',''))
+print('RS_logrotate_config=' + rs.get('logrotate_config',''))
+print('RS_logrotate_dir='    + rs.get('logrotate_dir',''))
+rules = rs.get('logging_rules', [])
+print('RS_rules_count=' + str(len(rules)))
+for i,r in enumerate(rules):
+    print(f'RS_{i}_name=' + r.get('name',''))
+    print(f'RS_{i}_rule=' + r.get('rule',''))
+    print(f'RS_{i}_dest=' + r.get('dest',''))
 " > "$LOGGING_RAM_STORE"
     chmod 600 "$LOGGING_RAM_STORE"
     source "$LOGGING_RAM_STORE"
@@ -606,6 +627,7 @@ unload_all() {
     unload_json_services
     unload_json_access_control
     unload_json_host_based_firewall
+    unload_json_logging
     unload_severity
 }
 
@@ -619,6 +641,7 @@ export -f check_ipv6_disabled
 export -f network_audit_sysctl_param
 export -f network_audit_sysctl_file
 export -f network_harden_sysctl_param
+export -f load_json_logging unload_json_logging
 export -f load_json_services unload_json_services get_svc get_svc_services is_version_ok get_svc_packages
 export -f load_json_access_control  unload_json_access_control  get_acc
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw

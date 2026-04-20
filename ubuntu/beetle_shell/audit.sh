@@ -71,6 +71,7 @@ run_check() {
     export SERVICES_RAM_STORE
     export ACCESS_RAM_STORE
     export FIREWALL_RAM_STORE
+    export LOGGING_RAM_STORE
 
     TMP_FILE=$(mktemp)
     bash "$script" > "$TMP_FILE" 2>/dev/null &

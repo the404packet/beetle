@@ -18,6 +18,8 @@ find_module_json() {
         json_type="access_control"; json_file="$CONFIG_DIR/access_control.json"
     elif [[ "$rel_path" == audit/host_based_firewall/* || "$rel_path" == harden/host_based_firewall/* ]]; then
         json_type="host_based_firewall"; json_file="$CONFIG_DIR/host_based_firewall.json"
+    elif [[ "$rel_path" == audit/logging_and_auditing/* || "$rel_path" == harden/logging_and_auditing/* ]]; then
+        json_type="logging_and_auditing"; json_file="$CONFIG_DIR/logging_and_auditing.json"
     else
         echo ""; return 0
     fi

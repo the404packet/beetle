@@ -54,5 +54,30 @@
       "key": "Storage",
       "value": "persistent"
     }
+  ],
+  "rsyslog": {
+  "package":          "rsyslog",
+  "service":          "rsyslog.service",
+  "config_file":      "/etc/rsyslog.conf",
+  "config_dir":       "/etc/rsyslog.d",
+  "drop_file":        "60-cis-rsyslog.conf",
+  "file_create_mode": "0640",
+  "remote_port":      "514",
+  "remote_protocol":  "tcp",
+  "queue_type":       "LinkedList",
+  "queue_size":       "1000",
+  "resume_retry":     "100",
+  "logrotate_config": "/etc/logrotate.conf",
+  "logrotate_dir":    "/etc/logrotate.d",
+  "logging_rules": [
+    { "name": "auth",     "rule": "auth,authpriv.*"                          , "dest": "/var/log/secure"        },
+    { "name": "mail",     "rule": "mail.*"                                   , "dest": "-/var/log/mail"         },
+    { "name": "cron",     "rule": "cron.*"                                   , "dest": "/var/log/cron"          },
+    { "name": "warn",     "rule": "*.=warning;*.=err"                        , "dest": "-/var/log/warn"         },
+    { "name": "crit",     "rule": "*.crit"                                   , "dest": "/var/log/warn"          },
+    { "name": "messages", "rule": "*.*;mail.none;news.none"                  , "dest": "-/var/log/messages"     },
+    { "name": "emerg",    "rule": "*.emerg"                                  , "dest": ":omusrmsg:*"            },
+    { "name": "local",    "rule": "local0,local1,local2,local3,local4,local5,local6,local7.*", "dest": "-/var/log/localmessages" }
   ]
+}
 }
