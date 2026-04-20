@@ -140,21 +140,25 @@ import json
 with open("$json_file") as f:
     data = json.load(f)
 
-ipv6 = data.get("network_services", {}).get("ipv6", {})
+# ── network_services ──
+ns = data.get("network_services", {})
+
+ipv6 = ns.get("ipv6", {})
 print(f'NS_ipv6_status={ipv6.get("status", "enabled")}')
 keys = ipv6.get("disable_sysctl_keys", [])
 print(f'NS_ipv6_sysctl_count={len(keys)}')
 for idx, key in enumerate(keys):
     print(f'NS_ipv6_sysctl_{idx}={key}')
 
-wireless = data.get("network_services", {}).get("wireless", {})
+wireless = ns.get("wireless", {})
 print(f'NS_wireless_restrict={str(wireless.get("restrict", True)).lower()}')
 
-bluetooth = data.get("network_services", {}).get("bluetooth", {})
+bluetooth = ns.get("bluetooth", {})
 print(f'NS_bluetooth_package={bluetooth.get("package", "")}')
 print(f'NS_bluetooth_service={bluetooth.get("service", "")}')
 print(f'NS_bluetooth_restrict={str(bluetooth.get("restrict", True)).lower()}')
 
+# ── kernel_modules ──
 modules = data.get("kernel_modules", [])
 print(f'KM_count={len(modules)}')
 for idx, mod in enumerate(modules):
@@ -162,29 +166,34 @@ for idx, mod in enumerate(modules):
     print(f'KM_{idx}_type={mod.get("type", "")}')
     print(f'KM_{idx}_restrict={str(mod.get("restrict", True)).lower()}')
 
+# ── network_parameters ──
 net_params = data.get("network_parameters", {})
-
-sysctl_conf = net_params.get("sysctl_conf_file", "/etc/sysctl.d/60-netipv4_sysctl.conf")
-sysctl_conf_ipv6 = net_params.get("sysctl_conf_file_ipv6", "/etc/sysctl.d/60-netipv6_sysctl.conf")
-print(f'NP_sysctl_conf={sysctl_conf}')
-print(f'NP_sysctl_conf_ipv6={sysctl_conf_ipv6}')
+print(f'NP_sysctl_conf={net_params.get("sysctl_conf_file", "/etc/sysctl.d/60-netipv4_sysctl.conf")}')
+print(f'NP_sysctl_conf_ipv6={net_params.get("sysctl_conf_file_ipv6", "/etc/sysctl.d/60-netipv6_sysctl.conf")}')
 
 for section in ["ipv4", "ipv6"]:
     params = net_params.get(section, [])
     print(f'NP_{section}_count={len(params)}')
     for idx, param in enumerate(params):
-        name = param.get("name", "")
-        value = param.get("value", "")
-        flush = param.get("flush", "")
-        name_key = name.replace(".", "_")
-        print(f'NP_{section}_{idx}_name={name}')
-        print(f'NP_{section}_{idx}_value={value}')
-        print(f'NP_{section}_{idx}_flush={flush}')
-        print(f'NP_{section}_{idx}_key={name_key}')
+        print(f'NP_{section}_{idx}_name={param.get("name", "")}')
+        print(f'NP_{section}_{idx}_value={param.get("value", "")}')
+        print(f'NP_{section}_{idx}_flush={param.get("flush", "")}')
+        print(f'NP_{section}_{idx}_check={param.get("check", "")}')
 EOF
 
     chmod 600 "$NETWORK_RAM_STORE"
     source "$NETWORK_RAM_STORE"
+}
+
+unload_json_network() {
+    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || rm -f "$NETWORK_RAM_STORE"
+}
+
+get_net() {
+    local name="$1" field="$2"
+    local key; key=$(echo "$name" | sed 's|/|_|g; s|-|_|g; s|\.|_|g; s|^_||')
+    local var="NET_${key}_${field}"
+    echo "${!var}"
 }
 
 unload_json_network() {
@@ -645,6 +654,10 @@ export -f load_dpkg unload_dpkg is_package_installed get_installed_version unset
 export -f load_severity unload_severity is_check_enabled
 export -f load_json_system_maintenance unload_json_system_maintenance get_perm
 export -f load_json_network unload_json_network get_net
+export -f check_ipv6_disabled
+export -f network_audit_sysctl_param
+export -f network_audit_sysctl_file
+export -f network_harden_sysctl_param
 export -f load_json_services unload_json_services get_svc get_svc_services is_version_ok get_svc_packages
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
 export -f load_json_access_control unload_json_access_control get_acc
