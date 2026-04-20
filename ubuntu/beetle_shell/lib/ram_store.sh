@@ -160,6 +160,26 @@ for idx, mod in enumerate(modules):
     print(f'KM_{idx}_name={mod.get("name", "")}')
     print(f'KM_{idx}_type={mod.get("type", "")}')
     print(f'KM_{idx}_restrict={str(mod.get("restrict", True)).lower()}')
+
+net_params = data.get("network_parameters", {})
+
+sysctl_conf = net_params.get("sysctl_conf_file", "/etc/sysctl.d/60-netipv4_sysctl.conf")
+sysctl_conf_ipv6 = net_params.get("sysctl_conf_file_ipv6", "/etc/sysctl.d/60-netipv6_sysctl.conf")
+print(f'NP_sysctl_conf={sysctl_conf}')
+print(f'NP_sysctl_conf_ipv6={sysctl_conf_ipv6}')
+
+for section in ["ipv4", "ipv6"]:
+    params = net_params.get(section, [])
+    print(f'NP_{section}_count={len(params)}')
+    for idx, param in enumerate(params):
+        name = param.get("name", "")
+        value = param.get("value", "")
+        flush = param.get("flush", "")
+        name_key = name.replace(".", "_")
+        print(f'NP_{section}_{idx}_name={name}')
+        print(f'NP_{section}_{idx}_value={value}')
+        print(f'NP_{section}_{idx}_flush={flush}')
+        print(f'NP_{section}_{idx}_key={name_key}')
 EOF
 
     chmod 600 "$NETWORK_RAM_STORE"
@@ -168,6 +188,76 @@ EOF
 
 unload_json_network() {
     [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || rm -f "$NETWORK_RAM_STORE"
+}
+
+check_ipv6_disabled() {
+    if grep -Pqs -- '^\h*0\b' /sys/module/ipv6/parameters/disable; then
+        echo "no"
+        return
+    fi
+    if sysctl net.ipv6.conf.all.disable_ipv6 2>/dev/null | \
+       grep -Pqs -- '^\h*net\.ipv6\.conf\.all\.disable_ipv6\h*=\h*1\b' && \
+       sysctl net.ipv6.conf.default.disable_ipv6 2>/dev/null | \
+       grep -Pqs -- '^\h*net\.ipv6\.conf\.default\.disable_ipv6\h*=\h*1\b'; then
+        echo "yes"
+        return
+    fi
+    echo "no"
+}
+
+network_audit_sysctl_param() {
+    local name="$1" value="$2"
+    local actual
+    actual=$(sysctl "$name" 2>/dev/null | awk -F= '{print $2}' | xargs)
+    [ "$actual" == "$value" ] && return 0 || return 1
+}
+
+network_audit_sysctl_file() {
+    local name="$1" value="$2"
+    local l_systemdsysctl
+    l_systemdsysctl="$(readlink -f /lib/systemd/systemd-sysctl)"
+    local l_ufwscf
+    l_ufwscf="$([ -f /etc/default/ufw ] && \
+        awk -F= '/^\s*IPT_SYSCTL=/{print $2}' /etc/default/ufw)"
+
+    local found=false
+    while read -r l_out; do
+        [ -z "$l_out" ] && continue
+        if [[ "$l_out" =~ ^\s*# ]]; then
+            l_file="${l_out//# /}"
+        else
+            l_kpar="$(awk -F= '{print $1}' <<< "$l_out" | xargs)"
+            if [ "$l_kpar" == "$name" ]; then
+                l_val="$(awk -F= '{print $2}' <<< "$l_out" | xargs)"
+                [ "$l_val" == "$value" ] && found=true
+            fi
+        fi
+    done < <("$l_systemdsysctl" --cat-config 2>/dev/null | \
+        grep -Po '^\h*([^#\n\r]+|#\h*\/[^#\n\r\h]+\.conf\b)')
+
+    if [ -n "$l_ufwscf" ]; then
+        l_kpar="$(grep -Po "^\h*$name\b" "$l_ufwscf" 2>/dev/null | xargs)"
+        l_kpar="${l_kpar//\//.}"
+        if [ "$l_kpar" == "$name" ]; then
+            l_val="$(grep -Po "^\h*$name\h*=\h*\K\H+" "$l_ufwscf" 2>/dev/null | xargs)"
+            [ "$l_val" == "$value" ] && found=true
+        fi
+    fi
+
+    $found && return 0 || return 1
+}
+
+network_harden_sysctl_param() {
+    local name="$1" value="$2" flush="$3" conf_file="$4"
+
+    sysctl -w "${name}=${value}" &>/dev/null
+    [ -n "$flush" ] && sysctl -w "${flush}=1" &>/dev/null
+
+    if grep -Pq "^\s*${name}\s*=" "$conf_file" 2>/dev/null; then
+        sed -i "s|^\s*${name}\s*=.*|${name} = ${value}|" "$conf_file"
+    else
+        echo "${name} = ${value}" >> "$conf_file"
+    fi
 }
 
 get_net() {
