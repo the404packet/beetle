@@ -527,7 +527,7 @@ get_perm() {
     echo "${!var}"
 }
 
-load_json_logging() {
+load_json_logging_and_auditing() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: logging JSON not found: $json_file"; return 1; }
     python3 -c "
@@ -590,7 +590,7 @@ for i,r in enumerate(rules):
     source "$LOGGING_RAM_STORE"
 }
 
-unload_json_logging() {
+unload_json_logging_and_auditing() {
     rm -f "$LOGGING_RAM_STORE"
     unset $(compgen -v | grep '^LJ_')
 }
@@ -627,7 +627,7 @@ unload_all() {
     unload_json_services
     unload_json_access_control
     unload_json_host_based_firewall
-    unload_json_logging
+    unload_json_logging_and_auditing
     unload_severity
 }
 
@@ -641,7 +641,7 @@ export -f check_ipv6_disabled
 export -f network_audit_sysctl_param
 export -f network_audit_sysctl_file
 export -f network_harden_sysctl_param
-export -f load_json_logging unload_json_logging
+export -f load_json_logging_and_auditing unload_json_logging_and_auditing
 export -f load_json_services unload_json_services get_svc get_svc_services is_version_ok get_svc_packages
 export -f load_json_access_control  unload_json_access_control  get_acc
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
