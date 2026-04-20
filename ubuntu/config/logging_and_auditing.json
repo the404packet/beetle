@@ -1,0 +1,17 @@
+{
+  "journald": {
+    "service": "systemd-journald",
+    "config_file": "/etc/systemd/journald.conf",
+    "config_drop_dir": "/etc/systemd/journald.conf.d",
+    "tmpfiles_config": "/etc/tmpfiles.d/systemd.conf",
+    "tmpfiles_source": "/usr/lib/tmpfiles.d/systemd.conf",
+
+    "rotation_params": [
+      { "key": "SystemMaxUse",    "value": "1G" },
+      { "key": "SystemKeepFree",  "value": "500M" },
+      { "key": "RuntimeMaxUse",   "value": "200M" },
+      { "key": "RuntimeKeepFree", "value": "50M" },
+      { "key": "MaxFileSec",      "value": "1month" }
+    ]
+  }
+}

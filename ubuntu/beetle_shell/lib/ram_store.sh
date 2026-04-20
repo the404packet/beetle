@@ -8,6 +8,7 @@ NETWORK_RAM_STORE="/dev/shm/beetle_network.env"           # network
 SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
 ACCESS_RAM_STORE="/dev/shm/beetle_access_control.env"     # access_control
 FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
+LOGGING_RAM_STORE="/dev/shm/beetle_logging_store"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
@@ -515,6 +516,34 @@ get_perm() {
     key=$(echo "$file" | sed 's|/|_|g; s|-|_|g; s|\.|_|g; s|^_||')
     local var="PERM_${key}_${field}"
     echo "${!var}"
+}
+
+load_json_logging() {
+    local json_file="$1"
+    [ -f "$json_file" ] || { echo "ERROR: logging JSON not found: $json_file"; return 1; }
+    python3 -c "
+import json
+with open('$json_file') as f:
+    data = json.load(f)
+jd = data.get('journald', {})
+print('LJ_service='       + jd.get('service',''))
+print('LJ_config_file='   + jd.get('config_file',''))
+print('LJ_config_drop_dir=' + jd.get('config_drop_dir',''))
+print('LJ_tmpfiles_config=' + jd.get('tmpfiles_config',''))
+print('LJ_tmpfiles_source=' + jd.get('tmpfiles_source',''))
+rp = jd.get('rotation_params', [])
+print('LJ_rot_count=' + str(len(rp)))
+for i,p in enumerate(rp):
+    print(f'LJ_rot_{i}_key='   + p.get('key',''))
+    print(f'LJ_rot_{i}_value=' + p.get('value',''))
+" > "$LOGGING_RAM_STORE"
+    chmod 600 "$LOGGING_RAM_STORE"
+    source "$LOGGING_RAM_STORE"
+}
+
+unload_json_logging() {
+    rm -f "$LOGGING_RAM_STORE"
+    unset $(compgen -v | grep '^LJ_')
 }
 
 # ─────────────────────────────────────────────

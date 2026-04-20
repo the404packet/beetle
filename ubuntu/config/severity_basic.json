@@ -87,5 +87,10 @@
   "network/configure_network_kernel_modules/dccp" : true,
   "network/configure_network_kernel_modules/tipc" : true,
   "network/configure_network_kernel_modules/rds" : true,
-  "network/configure_network_kernel_modules/sctp" : true
+  "network/configure_network_kernel_modules/sctp" : true,
+
+  "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_active":       true,
+  "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_file_access":  true,
+  "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_rotation":     true,
+  "logging_and_auditing/system_logging/configure_systemd_journal_service/single_logging_system": true
 }
