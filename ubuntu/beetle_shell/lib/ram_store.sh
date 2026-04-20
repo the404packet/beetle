@@ -525,9 +525,10 @@ load_json_logging() {
 import json
 with open('$json_file') as f:
     data = json.load(f)
+
 jd = data.get('journald', {})
-print('LJ_service='       + jd.get('service',''))
-print('LJ_config_file='   + jd.get('config_file',''))
+print('LJ_service='         + jd.get('service',''))
+print('LJ_config_file='     + jd.get('config_file',''))
 print('LJ_config_drop_dir=' + jd.get('config_drop_dir',''))
 print('LJ_tmpfiles_config=' + jd.get('tmpfiles_config',''))
 print('LJ_tmpfiles_source=' + jd.get('tmpfiles_source',''))
@@ -536,6 +537,24 @@ print('LJ_rot_count=' + str(len(rp)))
 for i,p in enumerate(rp):
     print(f'LJ_rot_{i}_key='   + p.get('key',''))
     print(f'LJ_rot_{i}_value=' + p.get('value',''))
+
+jr = jd.get('journal_remote', {})
+print('JR_package='          + jr.get('package',''))
+print('JR_upload_svc='       + jr.get('upload_svc',''))
+print('JR_remote_svc='       + jr.get('remote_svc',''))
+print('JR_remote_sock='      + jr.get('remote_sock',''))
+print('JR_upload_conf_dir='  + jr.get('upload_conf_dir',''))
+print('JR_upload_drop_file=' + jr.get('upload_drop_file',''))
+jr_auth = jr.get('upload_auth', {})
+print('JR_server_key='    + jr_auth.get('server_key',''))
+print('JR_server_cert='   + jr_auth.get('server_cert',''))
+print('JR_trusted_cert='  + jr_auth.get('trusted_cert',''))
+
+jp = data.get('journald_params', [])
+print('JP_count=' + str(len(jp)))
+for i,p in enumerate(jp):
+    print(f'JP_{i}_key='   + p.get('key',''))
+    print(f'JP_{i}_value=' + p.get('value',''))
 " > "$LOGGING_RAM_STORE"
     chmod 600 "$LOGGING_RAM_STORE"
     source "$LOGGING_RAM_STORE"
