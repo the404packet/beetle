@@ -8,6 +8,7 @@ SSH_RAM_STORE="/dev/shm/beetle_ssh.env"
 NETWORK_RAM_STORE="/dev/shm/beetle_network.env"           # network
 SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
 FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
+LOGGING_RAM_STORE="/dev/shm/beetle_logging_store"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
@@ -160,6 +161,26 @@ for idx, mod in enumerate(modules):
     print(f'KM_{idx}_name={mod.get("name", "")}')
     print(f'KM_{idx}_type={mod.get("type", "")}')
     print(f'KM_{idx}_restrict={str(mod.get("restrict", True)).lower()}')
+
+net_params = data.get("network_parameters", {})
+
+sysctl_conf = net_params.get("sysctl_conf_file", "/etc/sysctl.d/60-netipv4_sysctl.conf")
+sysctl_conf_ipv6 = net_params.get("sysctl_conf_file_ipv6", "/etc/sysctl.d/60-netipv6_sysctl.conf")
+print(f'NP_sysctl_conf={sysctl_conf}')
+print(f'NP_sysctl_conf_ipv6={sysctl_conf_ipv6}')
+
+for section in ["ipv4", "ipv6"]:
+    params = net_params.get(section, [])
+    print(f'NP_{section}_count={len(params)}')
+    for idx, param in enumerate(params):
+        name = param.get("name", "")
+        value = param.get("value", "")
+        flush = param.get("flush", "")
+        name_key = name.replace(".", "_")
+        print(f'NP_{section}_{idx}_name={name}')
+        print(f'NP_{section}_{idx}_value={value}')
+        print(f'NP_{section}_{idx}_flush={flush}')
+        print(f'NP_{section}_{idx}_key={name_key}')
 EOF
 
     chmod 600 "$NETWORK_RAM_STORE"
@@ -168,6 +189,76 @@ EOF
 
 unload_json_network() {
     [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || rm -f "$NETWORK_RAM_STORE"
+}
+
+check_ipv6_disabled() {
+    if grep -Pqs -- '^\h*0\b' /sys/module/ipv6/parameters/disable; then
+        echo "no"
+        return
+    fi
+    if sysctl net.ipv6.conf.all.disable_ipv6 2>/dev/null | \
+       grep -Pqs -- '^\h*net\.ipv6\.conf\.all\.disable_ipv6\h*=\h*1\b' && \
+       sysctl net.ipv6.conf.default.disable_ipv6 2>/dev/null | \
+       grep -Pqs -- '^\h*net\.ipv6\.conf\.default\.disable_ipv6\h*=\h*1\b'; then
+        echo "yes"
+        return
+    fi
+    echo "no"
+}
+
+network_audit_sysctl_param() {
+    local name="$1" value="$2"
+    local actual
+    actual=$(sysctl "$name" 2>/dev/null | awk -F= '{print $2}' | xargs)
+    [ "$actual" == "$value" ] && return 0 || return 1
+}
+
+network_audit_sysctl_file() {
+    local name="$1" value="$2"
+    local l_systemdsysctl
+    l_systemdsysctl="$(readlink -f /lib/systemd/systemd-sysctl)"
+    local l_ufwscf
+    l_ufwscf="$([ -f /etc/default/ufw ] && \
+        awk -F= '/^\s*IPT_SYSCTL=/{print $2}' /etc/default/ufw)"
+
+    local found=false
+    while read -r l_out; do
+        [ -z "$l_out" ] && continue
+        if [[ "$l_out" =~ ^\s*# ]]; then
+            l_file="${l_out//# /}"
+        else
+            l_kpar="$(awk -F= '{print $1}' <<< "$l_out" | xargs)"
+            if [ "$l_kpar" == "$name" ]; then
+                l_val="$(awk -F= '{print $2}' <<< "$l_out" | xargs)"
+                [ "$l_val" == "$value" ] && found=true
+            fi
+        fi
+    done < <("$l_systemdsysctl" --cat-config 2>/dev/null | \
+        grep -Po '^\h*([^#\n\r]+|#\h*\/[^#\n\r\h]+\.conf\b)')
+
+    if [ -n "$l_ufwscf" ]; then
+        l_kpar="$(grep -Po "^\h*$name\b" "$l_ufwscf" 2>/dev/null | xargs)"
+        l_kpar="${l_kpar//\//.}"
+        if [ "$l_kpar" == "$name" ]; then
+            l_val="$(grep -Po "^\h*$name\h*=\h*\K\H+" "$l_ufwscf" 2>/dev/null | xargs)"
+            [ "$l_val" == "$value" ] && found=true
+        fi
+    fi
+
+    $found && return 0 || return 1
+}
+
+network_harden_sysctl_param() {
+    local name="$1" value="$2" flush="$3" conf_file="$4"
+
+    sysctl -w "${name}=${value}" &>/dev/null
+    [ -n "$flush" ] && sysctl -w "${flush}=1" &>/dev/null
+
+    if grep -Pq "^\s*${name}\s*=" "$conf_file" 2>/dev/null; then
+        sed -i "s|^\s*${name}\s*=.*|${name} = ${value}|" "$conf_file"
+    else
+        echo "${name} = ${value}" >> "$conf_file"
+    fi
 }
 
 get_net() {
@@ -399,6 +490,53 @@ get_perm() {
     key=$(echo "$file" | sed 's|/|_|g; s|-|_|g; s|\.|_|g; s|^_||')
     local var="PERM_${key}_${field}"
     echo "${!var}"
+}
+
+load_json_logging() {
+    local json_file="$1"
+    [ -f "$json_file" ] || { echo "ERROR: logging JSON not found: $json_file"; return 1; }
+    python3 -c "
+import json
+with open('$json_file') as f:
+    data = json.load(f)
+
+jd = data.get('journald', {})
+print('LJ_service='         + jd.get('service',''))
+print('LJ_config_file='     + jd.get('config_file',''))
+print('LJ_config_drop_dir=' + jd.get('config_drop_dir',''))
+print('LJ_tmpfiles_config=' + jd.get('tmpfiles_config',''))
+print('LJ_tmpfiles_source=' + jd.get('tmpfiles_source',''))
+rp = jd.get('rotation_params', [])
+print('LJ_rot_count=' + str(len(rp)))
+for i,p in enumerate(rp):
+    print(f'LJ_rot_{i}_key='   + p.get('key',''))
+    print(f'LJ_rot_{i}_value=' + p.get('value',''))
+
+jr = jd.get('journal_remote', {})
+print('JR_package='          + jr.get('package',''))
+print('JR_upload_svc='       + jr.get('upload_svc',''))
+print('JR_remote_svc='       + jr.get('remote_svc',''))
+print('JR_remote_sock='      + jr.get('remote_sock',''))
+print('JR_upload_conf_dir='  + jr.get('upload_conf_dir',''))
+print('JR_upload_drop_file=' + jr.get('upload_drop_file',''))
+jr_auth = jr.get('upload_auth', {})
+print('JR_server_key='    + jr_auth.get('server_key',''))
+print('JR_server_cert='   + jr_auth.get('server_cert',''))
+print('JR_trusted_cert='  + jr_auth.get('trusted_cert',''))
+
+jp = data.get('journald_params', [])
+print('JP_count=' + str(len(jp)))
+for i,p in enumerate(jp):
+    print(f'JP_{i}_key='   + p.get('key',''))
+    print(f'JP_{i}_value=' + p.get('value',''))
+" > "$LOGGING_RAM_STORE"
+    chmod 600 "$LOGGING_RAM_STORE"
+    source "$LOGGING_RAM_STORE"
+}
+
+unload_json_logging() {
+    rm -f "$LOGGING_RAM_STORE"
+    unset $(compgen -v | grep '^LJ_')
 }
 
 # ─────────────────────────────────────────────

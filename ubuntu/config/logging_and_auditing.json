@@ -1,0 +1,58 @@
+{
+  "journald": {
+    "service": "systemd-journald",
+    "config_file": "/etc/systemd/journald.conf",
+    "config_drop_dir": "/etc/systemd/journald.conf.d",
+    "tmpfiles_config": "/etc/tmpfiles.d/systemd.conf",
+    "tmpfiles_source": "/usr/lib/tmpfiles.d/systemd.conf",
+    "rotation_params": [
+      {
+        "key": "SystemMaxUse",
+        "value": "1G"
+      },
+      {
+        "key": "SystemKeepFree",
+        "value": "500M"
+      },
+      {
+        "key": "RuntimeMaxUse",
+        "value": "200M"
+      },
+      {
+        "key": "RuntimeKeepFree",
+        "value": "50M"
+      },
+      {
+        "key": "MaxFileSec",
+        "value": "1month"
+      }
+    ]
+  },
+  "journal_remote": {
+    "package": "systemd-journal-remote",
+    "upload_svc": "systemd-journal-upload.service",
+    "remote_svc": "systemd-journal-remote.service",
+    "remote_sock": "systemd-journal-remote.socket",
+    "upload_conf_dir": "/etc/systemd/journal-upload.conf.d",
+    "upload_drop_file": "60-cis-upload.conf",
+    "upload_auth": {
+      "server_key": "/etc/ssl/private/journal-upload.pem",
+      "server_cert": "/etc/ssl/certs/journal-upload.pem",
+      "trusted_cert": "/etc/ssl/ca/trusted.pem"
+    }
+  },
+  "journald_params": [
+    {
+      "key": "ForwardToSyslog",
+      "value": "no"
+    },
+    {
+      "key": "Compress",
+      "value": "yes"
+    },
+    {
+      "key": "Storage",
+      "value": "persistent"
+    }
+  ]
+}
