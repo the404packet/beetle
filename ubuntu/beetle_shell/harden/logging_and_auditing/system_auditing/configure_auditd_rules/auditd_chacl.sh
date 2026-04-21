@@ -14,7 +14,7 @@ key_var="AR_${idx}_key";   key="${!key_var}"
 rule="-a always,exit -F path=${path} -F perm=x -F auid>=${UID_MIN} -F auid!=unset -k ${key}"
 grep -qF -- "$rule" "$rules_file" 2>/dev/null || echo "$rule" >> "$rules_file"
 
-augenrules --load 2>/dev/null; ar_check_reboot
+augenrules --load 2>/dev/null; 
 
 grep -qrF -- "path=${path}" "$AR_rules_dir"/ 2>/dev/null \
     && echo -e "${GREEN}SUCCESS${RESET}" \

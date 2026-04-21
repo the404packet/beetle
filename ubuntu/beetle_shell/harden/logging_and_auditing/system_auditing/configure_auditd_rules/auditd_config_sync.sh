@@ -12,7 +12,6 @@ read -r response
 [ "$response" = "no" ] && { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
 augenrules --load 2>/dev/null
-ar_check_reboot
 
 augenrules --check 2>/dev/null | grep -q "No change" \
     && echo -e "${GREEN}SUCCESS${RESET}" \

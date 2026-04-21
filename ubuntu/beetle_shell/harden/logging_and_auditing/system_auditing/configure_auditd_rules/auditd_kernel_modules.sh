@@ -18,7 +18,7 @@ for rule in "${rules[@]}"; do
     grep -qF -- "$rule" "$rules_file" 2>/dev/null || echo "$rule" >> "$rules_file"
 done
 
-augenrules --load 2>/dev/null; ar_check_reboot
+augenrules --load 2>/dev/null; 
 
 syscalls=$(awk '/init_module/' "$AR_rules_dir"/*.rules 2>/dev/null)
 kmod=$(grep -r '/usr/bin/kmod' "$AR_rules_dir"/ 2>/dev/null)

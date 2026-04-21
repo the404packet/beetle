@@ -9,7 +9,7 @@ file_var="AR_${idx}_file"; rules_file="${AR_rules_dir}/${!file_var}"
 grep -qP '^\s*-e\s+2\b' "$rules_file" 2>/dev/null \
     || printf '\n%s\n' "-e 2" >> "$rules_file"
 
-augenrules --load 2>/dev/null; ar_check_reboot
+augenrules --load 2>/dev/null; 
 
 result=$(grep -Ph -- '^\s*-e\s+2\b' "$AR_rules_dir"/*.rules 2>/dev/null | tail -1)
 [ -n "$result" ] \
