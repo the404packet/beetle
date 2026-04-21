@@ -530,69 +530,77 @@ get_perm() {
 load_json_logging_and_auditing() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: logging JSON not found: $json_file"; return 1; }
-    python3 -c "
-import json
-with open('$json_file') as f:
+
+    local py_script
+    py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
+
+    cat > "$py_script" << 'PYEOF'
+import json, sys
+
+def q(v):
+    return "'" + str(v).replace("'", "'\\''") + "'"
+
+with open(sys.argv[1]) as f:
     data = json.load(f)
 
 jd = data.get('journald', {})
-print('LJ_service='         + jd.get('service',''))
-print('LJ_config_file='     + jd.get('config_file',''))
-print('LJ_config_drop_dir=' + jd.get('config_drop_dir',''))
-print('LJ_tmpfiles_config=' + jd.get('tmpfiles_config',''))
-print('LJ_tmpfiles_source=' + jd.get('tmpfiles_source',''))
+print('LJ_service='         + q(jd.get('service','')))
+print('LJ_config_file='     + q(jd.get('config_file','')))
+print('LJ_config_drop_dir=' + q(jd.get('config_drop_dir','')))
+print('LJ_tmpfiles_config=' + q(jd.get('tmpfiles_config','')))
+print('LJ_tmpfiles_source=' + q(jd.get('tmpfiles_source','')))
 rp = jd.get('rotation_params', [])
-print('LJ_rot_count=' + str(len(rp)))
+print('LJ_rot_count=' + q(len(rp)))
 for i,p in enumerate(rp):
-    print(f'LJ_rot_{i}_key='   + p.get('key',''))
-    print(f'LJ_rot_{i}_value=' + p.get('value',''))
+    print(f'LJ_rot_{i}_key='   + q(p.get('key','')))
+    print(f'LJ_rot_{i}_value=' + q(p.get('value','')))
 
 jr = jd.get('journal_remote', {})
-print('JR_package='          + jr.get('package',''))
-print('JR_upload_svc='       + jr.get('upload_svc',''))
-print('JR_remote_svc='       + jr.get('remote_svc',''))
-print('JR_remote_sock='      + jr.get('remote_sock',''))
-print('JR_upload_conf_dir='  + jr.get('upload_conf_dir',''))
-print('JR_upload_drop_file=' + jr.get('upload_drop_file',''))
+print('JR_package='          + q(jr.get('package','')))
+print('JR_upload_svc='       + q(jr.get('upload_svc','')))
+print('JR_remote_svc='       + q(jr.get('remote_svc','')))
+print('JR_remote_sock='      + q(jr.get('remote_sock','')))
+print('JR_upload_conf_dir='  + q(jr.get('upload_conf_dir','')))
+print('JR_upload_drop_file=' + q(jr.get('upload_drop_file','')))
 jr_auth = jr.get('upload_auth', {})
-print('JR_server_key='    + jr_auth.get('server_key',''))
-print('JR_server_cert='   + jr_auth.get('server_cert',''))
-print('JR_trusted_cert='  + jr_auth.get('trusted_cert',''))
-
-jp = data.get('journald_params', [])
-print('JP_count=' + str(len(jp)))
-for i,p in enumerate(jp):
-    print(f'JP_{i}_key='   + p.get('key',''))
-    print(f'JP_{i}_value=' + p.get('value',''))
+print('JR_server_key='   + q(jr_auth.get('server_key','')))
+print('JR_server_cert='  + q(jr_auth.get('server_cert','')))
+print('JR_trusted_cert=' + q(jr_auth.get('trusted_cert','')))
 
 rs = data.get('rsyslog', {})
-print('RS_package='          + rs.get('package',''))
-print('RS_service='          + rs.get('service',''))
-print('RS_config_file='      + rs.get('config_file',''))
-print('RS_config_dir='       + rs.get('config_dir',''))
-print('RS_drop_file='        + rs.get('drop_file',''))
-print('RS_file_create_mode=' + rs.get('file_create_mode',''))
-print('RS_remote_port='      + rs.get('remote_port',''))
-print('RS_remote_protocol='  + rs.get('remote_protocol',''))
-print('RS_queue_type='       + rs.get('queue_type',''))
-print('RS_queue_size='       + rs.get('queue_size',''))
-print('RS_resume_retry='     + rs.get('resume_retry',''))
-print('RS_logrotate_config=' + rs.get('logrotate_config',''))
-print('RS_logrotate_dir='    + rs.get('logrotate_dir',''))
+print('RS_package='          + q(rs.get('package','')))
+print('RS_service='          + q(rs.get('service','')))
+print('RS_config_file='      + q(rs.get('config_file','')))
+print('RS_config_dir='       + q(rs.get('config_dir','')))
+print('RS_drop_file='        + q(rs.get('drop_file','')))
+print('RS_file_create_mode=' + q(rs.get('file_create_mode','')))
+print('RS_remote_port='      + q(rs.get('remote_port','')))
+print('RS_remote_protocol='  + q(rs.get('remote_protocol','')))
+print('RS_queue_type='       + q(rs.get('queue_type','')))
+print('RS_queue_size='       + q(rs.get('queue_size','')))
+print('RS_resume_retry='     + q(rs.get('resume_retry','')))
+print('RS_logrotate_config=' + q(rs.get('logrotate_config','')))
+print('RS_logrotate_dir='    + q(rs.get('logrotate_dir','')))
 rules = rs.get('logging_rules', [])
-print('RS_rules_count=' + str(len(rules)))
+print('RS_rules_count=' + q(len(rules)))
 for i,r in enumerate(rules):
-    print(f'RS_{i}_name=' + r.get('name',''))
-    print(f'RS_{i}_rule=' + r.get('rule',''))
-    print(f'RS_{i}_dest=' + r.get('dest',''))
-" > "$LOGGING_RAM_STORE"
+    print(f'RS_{i}_name=' + q(r.get('name','')))
+    print(f'RS_{i}_rule=' + q(r.get('rule','')))
+    print(f'RS_{i}_dest=' + q(r.get('dest','')))
+PYEOF
+
+    python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"
+    local exit_code=$?
+    rm -f "$py_script"
+
+    [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
     chmod 600 "$LOGGING_RAM_STORE"
     source "$LOGGING_RAM_STORE"
 }
 
 unload_json_logging_and_auditing() {
     rm -f "$LOGGING_RAM_STORE"
-    unset $(compgen -v | grep '^LJ_')
+    unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_)')
 }
 
 # ─────────────────────────────────────────────
