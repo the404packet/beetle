@@ -9,6 +9,7 @@ SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
 ACCESS_RAM_STORE="/dev/shm/beetle_access_control.env"     # access_control
 FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
 LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
+INITIAL_SETUP_RAM_STORE="/dev/shm/beetle_initial_setup_store.env"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
@@ -127,6 +128,53 @@ is_check_enabled() {
     [ "$val" == "true" ]
 }
 
+load_json_initial_setup() {
+    local json_file="$1"
+    [ -f "$json_file" ] || { echo "ERROR: initial_setup JSON not found: $json_file"; return 1; }
+
+    local py_script
+    py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
+    cat > "$py_script" << 'PYEOF'
+import json, sys
+
+def q(v):
+    return "'" + str(v).replace("'", "'\\''") + "'"
+
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+
+aa = data.get('apparmor', {})
+print('AA_grub_config='      + q(aa.get('grub_config','')))
+print('AA_grub_cfg='         + q(aa.get('grub_cfg','')))
+print('AA_grub_cmdline_key=' + q(aa.get('grub_cmdline_key','')))
+print('AA_profiles_dir='     + q(aa.get('profiles_dir','')))
+print('AA_enforce_mode='     + q(aa.get('enforce_mode','')))
+print('AA_complain_mode='    + q(aa.get('complain_mode','')))
+
+pkgs = aa.get('packages', [])
+print('AA_pkg_count=' + q(len(pkgs)))
+for i,p in enumerate(pkgs):
+    print(f'AA_pkg_{i}_name=' + q(p.get('name','')))
+
+gp = aa.get('grub_params', [])
+print('AA_grub_param_count=' + q(len(gp)))
+for i,p in enumerate(gp):
+    print(f'AA_grub_{i}_name='  + q(p.get('name','')))
+    print(f'AA_grub_{i}_value=' + q(p.get('value','')))
+PYEOF
+
+    python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
+    local exit_code=$?
+    rm -f "$py_script"
+    [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
+    chmod 600 "$INITIAL_SETUP_RAM_STORE"
+    source "$INITIAL_SETUP_RAM_STORE"
+}
+
+unload_json_initial_setup() {
+    rm -f "$INITIAL_SETUP_RAM_STORE"
+    unset $(compgen -v | grep '^AA_')
+}
 # ─────────────────────────────────────────────
 # NETWORK JSON loader/unloader/getter
 # ─────────────────────────────────────────────
@@ -711,6 +759,7 @@ unload_module_json() {
 
 unload_all() {
     unload_dpkg
+    unload_json_initial_setup
     unload_json_system_maintenance
     unload_json_network
     unload_json_services
@@ -724,6 +773,7 @@ export -f load_module_json
 export -f unload_module_json
 export -f load_dpkg unload_dpkg is_package_installed get_installed_version unset_package
 export -f load_severity unload_severity is_check_enabled
+export -f load_json_initial_setup unload_json_initial_setup
 export -f load_json_system_maintenance unload_json_system_maintenance get_perm
 export -f load_json_network unload_json_network get_net
 export -f check_ipv6_disabled
