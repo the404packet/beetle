@@ -587,6 +587,19 @@ for i,r in enumerate(rules):
     print(f'RS_{i}_name=' + q(r.get('name','')))
     print(f'RS_{i}_rule=' + q(r.get('rule','')))
     print(f'RS_{i}_dest=' + q(r.get('dest','')))
+
+lp = data.get('logfile_permissions', {})
+print('LP_search_dir=' + q(lp.get('search_dir','')))
+lp_rules = lp.get('rules', [])
+print('LP_rules_count=' + q(len(lp_rules)))
+for i,r in enumerate(lp_rules):
+    print(f'LP_{i}_match_type=' + q(r.get('match_type','')))
+    print(f'LP_{i}_pattern='    + q(r.get('pattern','')))
+    print(f'LP_{i}_perm_mask='  + q(r.get('perm_mask','')))
+    print(f'LP_{i}_rperms='     + q(r.get('rperms','')))
+    print(f'LP_{i}_owner='      + q(r.get('owner','')))
+    print(f'LP_{i}_group='      + q(r.get('group','')))
+    print(f'LP_{i}_fix_group='  + q(r.get('fix_group','')))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"
@@ -600,7 +613,7 @@ PYEOF
 
 unload_json_logging_and_auditing() {
     rm -f "$LOGGING_RAM_STORE"
-    unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_)')
+    unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_|LP_)')
 }
 
 # ─────────────────────────────────────────────
