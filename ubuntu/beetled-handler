@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+BASE_DIR="/usr/local/bin/beetle_shell"
+LOG_FILE="/var/log/beetle.log"
+
+log_command() {
+    local user="$1"
+    local cmd="$2"
+    local status="$3"
+    local duration="$4"
+    local pid="$5"
+    local cmd_id="$6"
+
+    printf "%(%Y-%m-%d %H:%M:%S)T | id=%s | pid=%s | user=%s | cmd=\"%s\" | status=%s | time=%sms\n" \
+        -1 "$cmd_id" "$pid" "$user" "$cmd" "$status" "$duration" >> "$LOG_FILE"
+}
+
+read -r input || {
+    echo "Invalid command"
+    exit 1
+}
+
+cmd=$(echo "$input" | grep -o 'cmd="[^"]*"' | cut -d'"' -f2 || true)
+
+user="${BEETLE_USER:-unknown}"
+cmd=${cmd:-""}
+
+read -ra parts <<< "$cmd"
+command="${parts[0]:-}"
+
+pid="$$"
+cmd_id="$(date +%s%N)"
+start_time=$(date +%s%3N)
+
+if [[ -z "$command" ]]; then
+    echo "Invalid command"
+    end_time=$(date +%s%3N)
+    duration=$((end_time - start_time))
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
+    exit 1
+fi
+
+if [[ ! "$command" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Invalid command"
+    end_time=$(date +%s%3N)
+    duration=$((end_time - start_time))
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
+    exit 1
+fi
+
+script="$BASE_DIR/${command}.sh"
+
+if [[ -x "$script" ]]; then
+    set +e
+
+    "$script" "${parts[@]:1}"
+    status_code=$?
+
+    set -e
+
+    end_time=$(date +%s%3N)
+    duration=$((end_time - start_time))
+
+    if [[ $status_code -eq 0 ]]; then
+        log_command "$user" "$cmd" "SUCCESS" "$duration" "$pid" "$cmd_id"
+    else
+        log_command "$user" "$cmd" "FAIL($status_code)" "$duration" "$pid" "$cmd_id"
+    fi
+
+    exit $status_code
+else
+    echo "Unknown command"
+
+    end_time=$(date +%s%3N)
+    duration=$((end_time - start_time))
+
+    log_command "$user" "$cmd" "FAIL" "$duration" "$pid" "$cmd_id"
+    exit 1
+fi

@@ -5,10 +5,8 @@ SEVERITY="basic"
 
 FILE="/etc/passwd"
 
-# File must exist
 [ -f "$FILE" ] || exit 2
 
-# Run awk check
 output=$(awk -F: '($2 != "x") { print "User: \"" $1 "\" is not set to shadowed passwords" }' "$FILE")
 
 if [[ -z "$output" ]]; then

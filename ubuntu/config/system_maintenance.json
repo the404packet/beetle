@@ -1,0 +1,70 @@
+{
+  "system_file_permissions": [
+    {
+      "file": "/etc/passwd",
+      "mode": "644",
+      "owner": "root",
+      "group": "root"
+    },
+    {
+      "file": "/etc/passwd-",
+      "mode": "644",
+      "owner": "root",
+      "group": "root"
+    },
+    {
+      "file": "/etc/group",
+      "mode": "644",
+      "owner": "root",
+      "group": "root"
+    },
+    {
+      "file": "/etc/group-",
+      "mode": "644",
+      "owner": "root",
+      "group": "root"
+    },
+    {
+      "file": "/etc/shadow",
+      "mode": "640",
+      "owner": "root",
+      "group": "shadow"
+    },
+    {
+      "file": "/etc/shadow-",
+      "mode": "640",
+      "owner": "root",
+      "group": "shadow"
+    },
+    {
+      "file": "/etc/gshadow",
+      "mode": "640",
+      "owner": "root",
+      "group": "shadow"
+    },
+    {
+      "file": "/etc/gshadow-",
+      "mode": "640",
+      "owner": "root",
+      "group": "shadow"
+    },
+    {
+      "file": "/etc/shells",
+      "mode": "644",
+      "owner": "root",
+      "group": "root"
+    },
+    {
+      "file": "/etc/security/opasswd",
+      "mode": "600",
+      "owner": "root",
+      "group": "root"
+    },
+    {
+      "file": "/etc/security/opasswd.old",
+      "mode": "600",
+      "owner": "root",
+      "group": "root"
+    }
+  ]
+}

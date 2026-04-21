@@ -1,72 +1,65 @@
 #!/usr/bin/env bash
 
-NAME="Ensure at access control files are properly configured"
-SEVERITY="medium"
+NAME="ensure at is restricted to authorized users"
 
 GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 
-fail_reasons=()
+[ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
+[ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-# Check if at is installed
-if ! dpkg-query -s at &>/dev/null; then
+# skip if at is not installed
+if ! is_package_installed "at"; then
     echo -e "${GREEN}HARDENED${RESET}"
     exit 0
 fi
 
-# -----------------------------
-# Check /etc/at.allow
-# -----------------------------
-if [[ ! -e /etc/at.allow ]]; then
-    fail_reasons+=("/etc/at.allow does not exist")
-else
-    mode=$(stat -Lc '%a' /etc/at.allow)
-    owner=$(stat -Lc '%U' /etc/at.allow)
-    group=$(stat -Lc '%G' /etc/at.allow)
+allow_file="$JS_at_access_allow_file"
+deny_file="$JS_at_access_deny_file"
+req_mode="$JS_at_access_mode"
+req_owner="$JS_at_access_owner"
+group_count="$JS_at_access_group_count"
 
-    if (( mode > 640 )); then
-        fail_reasons+=("/etc/at.allow has mode $mode (should be 640 or more restrictive)")
-    fi
+check_file() {
+    local file="$1"
+    local actual_mode actual_owner actual_group
+    actual_mode=$(stat -Lc '%a' "$file" 2>/dev/null)
+    actual_owner=$(stat -Lc '%U' "$file" 2>/dev/null)
+    actual_group=$(stat -Lc '%G' "$file" 2>/dev/null)
 
-    [[ "$owner" != "root" ]] && \
-        fail_reasons+=("/etc/at.allow owner is $owner (should be root)")
+    [ "$actual_owner" != "$req_owner" ] && return 1
 
-    if [[ "$group" != "root" && "$group" != "daemon" ]]; then
-        fail_reasons+=("/etc/at.allow group is $group (should be root or daemon)")
-    fi
-fi
-
-# -----------------------------
-# Check /etc/at.deny
-# -----------------------------
-if [[ -e /etc/at.deny ]]; then
-    mode=$(stat -Lc '%a' /etc/at.deny)
-    owner=$(stat -Lc '%U' /etc/at.deny)
-    group=$(stat -Lc '%G' /etc/at.deny)
-
-    if (( mode > 640 )); then
-        fail_reasons+=("/etc/at.deny has mode $mode (should be 640 or more restrictive)")
-    fi
-
-    [[ "$owner" != "root" ]] && \
-        fail_reasons+=("/etc/at.deny owner is $owner (should be root)")
-
-    if [[ "$group" != "root" && "$group" != "daemon" ]]; then
-        fail_reasons+=("/etc/at.deny group is $group (should be root or daemon)")
-    fi
-fi
-
-# -----------------------------
-# Final Result
-# -----------------------------
-if [[ ${#fail_reasons[@]} -eq 0 ]]; then
-    echo -e "${GREEN}HARDENED${RESET}"
-else
-    echo -e "${RED}NOT HARDENED${RESET}"
-    for reason in "${fail_reasons[@]}"; do
-        echo "$reason"
+    local group_ok=false
+    for ((i=0; i<group_count; i++)); do
+        local var="JS_at_access_group_${i}"
+        local allowed_group="${!var}"
+        [ "$actual_group" == "$allowed_group" ] && group_ok=true && break
     done
+    $group_ok || return 1
+
+    [ "$actual_mode" -le "$req_mode" ] 2>/dev/null || return 1
+    return 0
+}
+
+# at.allow must exist and be correctly configured
+if [ ! -f "$allow_file" ]; then
+    echo -e "${RED}NOT HARDENED${RESET}"
+    exit 0
 fi
 
+if ! check_file "$allow_file"; then
+    echo -e "${RED}NOT HARDENED${RESET}"
+    exit 0
+fi
+
+# at.deny if exists must be correctly configured
+if [ -f "$deny_file" ]; then
+    if ! check_file "$deny_file"; then
+        echo -e "${RED}NOT HARDENED${RESET}"
+        exit 0
+    fi
+fi
+
+echo -e "${GREEN}HARDENED${RESET}"
 exit 0

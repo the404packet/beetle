@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+NAME="ensure bluetooth services are not in use"
+
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
+[ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
+[ -f "$NETWORK_RAM_STORE" ] && source "$NETWORK_RAM_STORE"
+
+pkg="$NS_bluetooth_package"
+svc="$NS_bluetooth_service"
+restrict="$NS_bluetooth_restrict"
+
+if [[ "$restrict" != "true" ]]; then
+    echo -e "${GREEN}HARDENED${RESET}"
+    exit 0
+fi
+
+if ! is_package_installed "$pkg"; then
+    echo -e "${GREEN}HARDENED${RESET}"
+    exit 0
+fi
+
+enabled=$(systemctl is-enabled "$svc" 2>/dev/null)
+active=$(systemctl is-active "$svc" 2>/dev/null)
+
+if [[ "$enabled" == "enabled" ]] || [[ "$active" == "active" ]]; then
+    echo -e "${RED}NOT HARDENED${RESET}"
+else
+    echo -e "${RED}NOT HARDENED${RESET}"
+fi
+
+exit 0

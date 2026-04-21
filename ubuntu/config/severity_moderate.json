@@ -1,0 +1,15 @@
+{
+  "system_maintenance/system_file_permissions/opasswd_file_permissions": true,
+  "system_maintenance/system_file_permissions/opasswd_old_file_permissions": true,
+
+  "access_control/sshd_macs_config": true,
+  "access_control/ssh_banner_audit": true,
+  "access_control/ssh_ciphers_audit": true,
+  "access_control/ssh_kexalgorithm": true,
+
+  "host_based_firewall/configure_ufw/routedcheck": true,
+  
+  "services/configure_server_services/dns_service": true,
+  "services/configure_server_services/web_proxy_server_service": true,
+  "services/configure_server_services/web_server_service": true
+}

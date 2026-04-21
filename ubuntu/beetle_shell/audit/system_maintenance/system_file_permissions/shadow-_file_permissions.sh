@@ -3,16 +3,26 @@
 NAME="/etc/shadow- backup file permissions"
 SEVERITY="critical"
 
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+
 FILE="/etc/shadow-"
+
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE"
+
+EXPECTED_MODE=$(get_perm "$FILE" mode)
+EXPECTED_OWNER=$(get_perm "$FILE" owner)
+EXPECTED_GROUP=$(get_perm "$FILE" group)
 
 [ -e "$FILE" ] || exit 0
 [ -f "$FILE" ] || exit 2
 
 mode=$(stat -Lc '%a' "$FILE" 2>/dev/null) || exit 2
-uid=$(stat -Lc '%u' "$FILE" 2>/dev/null) || exit 2
-gid_name=$(stat -Lc '%G' "$FILE" 2>/dev/null) || exit 2
+owner=$(stat -Lc '%U' "$FILE" 2>/dev/null) || exit 2
+group=$(stat -Lc '%G' "$FILE" 2>/dev/null) || exit 2
 
-if [[ "$uid" -eq 0 && "$mode" -le 640 && ( "$gid_name" = "root" || "$gid_name" = "shadow" ) ]]; then
+if [[ "$owner" == "$EXPECTED_OWNER" && "$mode" -le "$EXPECTED_MODE" && ( "$group" == "$EXPECTED_GROUP" || "$group" == "root" ) ]]; then
     echo -e "${GREEN}HARDENED${RESET}"
 else
     echo -e "${RED}NOT HARDENED${RESET}"
