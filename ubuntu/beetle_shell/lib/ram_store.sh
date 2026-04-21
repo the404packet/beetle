@@ -633,6 +633,10 @@ for i,g in enumerate(groups):
     print(f'AR_{i}_rule_count=' + q(len(rules)))
     for j,r in enumerate(rules):
         print(f'AR_{i}_{j}_rule=' + q(r))
+    paths = g.get('paths', [])
+    print(f'AR_{i}_path_count=' + q(len(paths)))
+    for k,p in enumerate(paths):
+        print(f'AR_{i}_path_{k}=' + q(p))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"

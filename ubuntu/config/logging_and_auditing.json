@@ -343,6 +343,43 @@
     "-w /etc/apparmor/ -p wa -k MAC-policy",
     "-w /etc/apparmor.d/ -p wa -k MAC-policy"
   ]
+},
+{
+  "name": "perm_chng",
+  "file": "50-perm_chng.rules",
+  "key":  "perm_chng",
+  "rules": [],
+  "uid_min_dynamic": true,
+  "paths": [
+    "/usr/bin/chcon",
+    "/usr/bin/setfacl",
+    "/usr/bin/chacl"
+  ]
+},
+{
+  "name": "usermod",
+  "file": "50-usermod.rules",
+  "key":  "usermod",
+  "rules": [],
+  "uid_min_dynamic": true,
+  "paths": [
+    "/usr/sbin/usermod"
+  ]
+},
+{
+  "name": "kernel_modules",
+  "file": "50-kernel_modules.rules",
+  "key":  "kernel_modules",
+  "rules": [],
+  "uid_min_dynamic": true
+},
+{
+  "name": "immutable",
+  "file": "99-finalize.rules",
+  "key":  "immutable",
+  "rules": [
+    "-e 2"
+  ]
 }
   ]
 }
