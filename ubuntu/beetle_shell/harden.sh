@@ -70,6 +70,8 @@ run_harden() {
     export SERVICES_RAM_STORE
     export ACCESS_RAM_STORE
     export FIREWALL_RAM_STORE
+    export LOGGING_RAM_STORE
+    export INITIAL_SETUP_RAM_STORE
 
     TMP_FILE=$(mktemp)
     bash "$script" > "$TMP_FILE" 2>/dev/null &

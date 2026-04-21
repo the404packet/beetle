@@ -4,9 +4,9 @@
 DPKG_RAM_STORE="/dev/shm/beetle_dpkg.env"
 SEVERITY_RAM_STORE="/dev/shm/beetle_severity.env"
 PERM_RAM_STORE="/dev/shm/beetle_permissions.env"          # system_maintenance
-SSH_RAM_STORE="/dev/shm/beetle_ssh.env"
 NETWORK_RAM_STORE="/dev/shm/beetle_network.env"           # network
 SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
+ACCESS_RAM_STORE="/dev/shm/beetle_access_control.env"     # access_control
 FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
 LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
 INITIAL_SETUP_RAM_STORE="/dev/shm/beetle_initial_setup_store.env"
@@ -168,22 +168,6 @@ print('FM_count=' + q(len(mods)))
 for i,m in enumerate(mods):
     print(f'FM_{i}_name=' + q(m.get('name','')))
     print(f'FM_{i}_type=' + q(m.get('type','')))
-fp = data.get('filesystem_partitions', {})
-parts = fp.get('partitions', [])
-print('FP_count=' + q(len(parts)))
-for i, p in enumerate(parts):
-    mount = p.get('mount', '')
-    mount_key = mount.replace('/', '_').lstrip('_')
-    print(f'FP_{i}_mount=' + q(mount))
-    print(f'FP_{i}_mount_key=' + q(mount_key))
-    print(f'FP_{i}_required=' + q(str(p.get('required', False)).lower()))
-    print(f'FP_{i}_systemd_unit=' + q(p.get('systemd_unit') or ''))
-    opts = p.get('options', [])
-    print(f'FP_{i}_opt_count=' + q(len(opts)))
-    for j, opt in enumerate(opts):
-        print(f'FP_{i}_opt_{j}=' + q(opt))
-    # also store mount->idx mapping for easy lookup
-    print(f'FP_idx_{mount_key}=' + q(i))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
@@ -192,23 +176,6 @@ PYEOF
     [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
     chmod 600 "$INITIAL_SETUP_RAM_STORE"
     source "$INITIAL_SETUP_RAM_STORE"
-}
-
-get_partition_idx() {
-    local mount="$1"
-    local key; key=$(echo "$mount" | sed 's|/|_|g; s|^_||')
-    local var="FP_idx_${key}"
-    echo "${!var}"
-}
-
-is_partition_mounted() {
-    local mount="$1"
-    findmnt -kn "$mount" &>/dev/null
-}
-
-partition_has_option() {
-    local mount="$1" option="$2"
-    findmnt -kn "$mount" | grep -qv "$option" && return 1 || return 0
 }
 
 unload_json_initial_setup() {
@@ -554,7 +521,33 @@ is_version_ok() {
     [ -z "$installed" ] && return 1
     printf '%s\n%s' "$required" "$installed" | sort -V | head -1 | grep -qx "$required"
 }
+# ─────────────────────────────────────────────
+# ACCESS CONTROL JSON loader/unloader/getter
+# ─────────────────────────────────────────────
+load_json_access_control() {
+    local json_file="$1"
+    [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
+    rm -f "$ACCESS_RAM_STORE"
 
+    python3 - <<EOF > "$ACCESS_RAM_STORE"
+import json
+with open("$json_file") as f:
+    data = json.load(f)
+for entry in data.get("access_control", []):
+    key = entry["name"].replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
+    for field, val in entry.items():
+        if field == "name":
+            continue
+        print(f'ACC_{key}_{field}={val}')
+EOF
+
+    chmod 600 "$ACCESS_RAM_STORE"
+    source "$ACCESS_RAM_STORE"
+}
+
+unload_json_access_control() {
+    [ -f "$ACCESS_RAM_STORE" ] && shred -u "$ACCESS_RAM_STORE" 2>/dev/null || rm -f "$ACCESS_RAM_STORE"
+}
 
 get_acc() {
     local name="$1" field="$2"
@@ -823,61 +816,6 @@ unload_module_json() {
     fi
 }
 
-# ─────────────────────────────────────────────
-# SSH: Load access_control JSON into RAM
-# ─────────────────────────────────────────────
-
-load_json_access_control() {
-    local json_file="$1"
-
-    [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-
-    rm -f "$SSH_RAM_STORE"
-
-    python3 - <<EOF > "$SSH_RAM_STORE"
-import json
-
-with open("$json_file") as f:
-    data = json.load(f)
-
-
-# private/public host key entries use key_name directly (not a file path)
-# already handled above since entry["file"] is set in json
-# if your json uses key_name as lookup instead, add:
-for key_name, entry in data.get("ssh_config_file_permissions", {}).items():
-    safe_key = key_name.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    print(f'ACC_{safe_key}_perm_mask={entry["perm_mask"]}')
-    print(f'ACC_{safe_key}_owner={entry["owner"]}')
-    print(f'ACC_{safe_key}_group={entry["group"]}')
-
-# sshd_settings
-for key, val in data.get("sshd_settings", {}).items():
-    safe = key.upper()
-    if isinstance(val, dict):
-        for field, fval in val.items():
-            if isinstance(fval, list):
-                joined = "|".join(str(v) for v in fval)
-                print(f'SSHD_{safe}_{field.upper()}="{joined}"')
-            else:
-                print(f'SSHD_{safe}_{field.upper()}={fval}')
-
-# weak lists
-for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
-    items = data.get(list_key, [])
-    if items:
-        pattern = "|".join(i.replace(".", "\\.") for i in items)
-        env_key = list_key.upper() + "_PATTERN"
-        print(f'{env_key}="{pattern}"')
-EOF
-
-    chmod 600 "$SSH_RAM_STORE"
-    source "$SSH_RAM_STORE"
-}
-
-unload_json_access_control() {
-    [ -f "$SSH_RAM_STORE" ] && shred -u "$SSH_RAM_STORE" 2>/dev/null || rm -f "$SSH_RAM_STORE"
-}
-
 unload_all() {
     unload_dpkg
     unload_json_initial_setup
@@ -890,23 +828,12 @@ unload_all() {
     unload_severity
 }
 
-
-
-
-export -f load_dpkg
-export -f unload_dpkg
-export -f is_package_installed
-export -f load_severity
-export -f unload_severity
-export -f is_check_enabled
-export -f get_perm
 export -f load_module_json
 export -f unload_module_json
 export -f load_dpkg unload_dpkg is_package_installed get_installed_version unset_package
 export -f load_severity unload_severity is_check_enabled
 export -f load_json_initial_setup unload_json_initial_setup 
 export -f beetle_module_audit beetle_module_harden
-export -f get_partition_idx is_partition_mounted partition_has_option
 export -f load_json_system_maintenance unload_json_system_maintenance get_perm
 export -f load_json_network unload_json_network get_net
 export -f check_ipv6_disabled
@@ -915,12 +842,6 @@ export -f network_audit_sysctl_file
 export -f network_harden_sysctl_param
 export -f load_json_logging_and_auditing unload_json_logging_and_auditing get_ar_group_index
 export -f load_json_services unload_json_services get_svc get_svc_services is_version_ok get_svc_packages
+export -f load_json_access_control  unload_json_access_control  get_acc
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
-export -f load_json_access_control unload_json_access_control get_acc
 export -f unload_all
-export SEVERITY_RAM_STORE
-export DPKG_RAM_STORE
-export PERM_RAM_STORE
-export SEVERITY_CONFIG_DIR
-export SSH_RAM_STORE
-
