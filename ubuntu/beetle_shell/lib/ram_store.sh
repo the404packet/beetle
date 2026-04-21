@@ -8,11 +8,11 @@ SSH_RAM_STORE="/dev/shm/beetle_ssh.env"
 NETWORK_RAM_STORE="/dev/shm/beetle_network.env"           # network
 SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
 FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
-LOGGING_RAM_STORE="/dev/shm/beetle_logging_store"
+LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
-       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE
+       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE LOGGING_RAM_STORE
 
 load_dpkg() {
     rm -f "$DPKG_RAM_STORE"
@@ -501,53 +501,163 @@ get_perm() {
     echo "${!var}"
 }
 
-load_json_logging() {
+load_json_logging_and_auditing() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: logging JSON not found: $json_file"; return 1; }
-    python3 -c "
-import json
-with open('$json_file') as f:
+
+    local py_script
+    py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
+
+    cat > "$py_script" << 'PYEOF'
+import json, sys
+
+def q(v):
+    return "'" + str(v).replace("'", "'\\''") + "'"
+
+with open(sys.argv[1]) as f:
     data = json.load(f)
 
 jd = data.get('journald', {})
-print('LJ_service='         + jd.get('service',''))
-print('LJ_config_file='     + jd.get('config_file',''))
-print('LJ_config_drop_dir=' + jd.get('config_drop_dir',''))
-print('LJ_tmpfiles_config=' + jd.get('tmpfiles_config',''))
-print('LJ_tmpfiles_source=' + jd.get('tmpfiles_source',''))
+print('LJ_service='         + q(jd.get('service','')))
+print('LJ_config_file='     + q(jd.get('config_file','')))
+print('LJ_config_drop_dir=' + q(jd.get('config_drop_dir','')))
+print('LJ_tmpfiles_config=' + q(jd.get('tmpfiles_config','')))
+print('LJ_tmpfiles_source=' + q(jd.get('tmpfiles_source','')))
 rp = jd.get('rotation_params', [])
-print('LJ_rot_count=' + str(len(rp)))
+print('LJ_rot_count=' + q(len(rp)))
 for i,p in enumerate(rp):
-    print(f'LJ_rot_{i}_key='   + p.get('key',''))
-    print(f'LJ_rot_{i}_value=' + p.get('value',''))
+    print(f'LJ_rot_{i}_key='   + q(p.get('key','')))
+    print(f'LJ_rot_{i}_value=' + q(p.get('value','')))
 
 jr = jd.get('journal_remote', {})
-print('JR_package='          + jr.get('package',''))
-print('JR_upload_svc='       + jr.get('upload_svc',''))
-print('JR_remote_svc='       + jr.get('remote_svc',''))
-print('JR_remote_sock='      + jr.get('remote_sock',''))
-print('JR_upload_conf_dir='  + jr.get('upload_conf_dir',''))
-print('JR_upload_drop_file=' + jr.get('upload_drop_file',''))
+print('JR_package='          + q(jr.get('package','')))
+print('JR_upload_svc='       + q(jr.get('upload_svc','')))
+print('JR_remote_svc='       + q(jr.get('remote_svc','')))
+print('JR_remote_sock='      + q(jr.get('remote_sock','')))
+print('JR_upload_conf_dir='  + q(jr.get('upload_conf_dir','')))
+print('JR_upload_drop_file=' + q(jr.get('upload_drop_file','')))
 jr_auth = jr.get('upload_auth', {})
-print('JR_server_key='    + jr_auth.get('server_key',''))
-print('JR_server_cert='   + jr_auth.get('server_cert',''))
-print('JR_trusted_cert='  + jr_auth.get('trusted_cert',''))
+print('JR_server_key='   + q(jr_auth.get('server_key','')))
+print('JR_server_cert='  + q(jr_auth.get('server_cert','')))
+print('JR_trusted_cert=' + q(jr_auth.get('trusted_cert','')))
 
-jp = data.get('journald_params', [])
-print('JP_count=' + str(len(jp)))
-for i,p in enumerate(jp):
-    print(f'JP_{i}_key='   + p.get('key',''))
-    print(f'JP_{i}_value=' + p.get('value',''))
-" > "$LOGGING_RAM_STORE"
+rs = data.get('rsyslog', {})
+print('RS_package='          + q(rs.get('package','')))
+print('RS_service='          + q(rs.get('service','')))
+print('RS_config_file='      + q(rs.get('config_file','')))
+print('RS_config_dir='       + q(rs.get('config_dir','')))
+print('RS_drop_file='        + q(rs.get('drop_file','')))
+print('RS_file_create_mode=' + q(rs.get('file_create_mode','')))
+print('RS_remote_port='      + q(rs.get('remote_port','')))
+print('RS_remote_protocol='  + q(rs.get('remote_protocol','')))
+print('RS_queue_type='       + q(rs.get('queue_type','')))
+print('RS_queue_size='       + q(rs.get('queue_size','')))
+print('RS_resume_retry='     + q(rs.get('resume_retry','')))
+print('RS_logrotate_config=' + q(rs.get('logrotate_config','')))
+print('RS_logrotate_dir='    + q(rs.get('logrotate_dir','')))
+rules = rs.get('logging_rules', [])
+print('RS_rules_count=' + q(len(rules)))
+for i,r in enumerate(rules):
+    print(f'RS_{i}_name=' + q(r.get('name','')))
+    print(f'RS_{i}_rule=' + q(r.get('rule','')))
+    print(f'RS_{i}_dest=' + q(r.get('dest','')))
+
+lp = data.get('logfile_permissions', {})
+print('LP_search_dir=' + q(lp.get('search_dir','')))
+lp_rules = lp.get('rules', [])
+print('LP_rules_count=' + q(len(lp_rules)))
+for i,r in enumerate(lp_rules):
+    print(f'LP_{i}_match_type=' + q(r.get('match_type','')))
+    print(f'LP_{i}_pattern='    + q(r.get('pattern','')))
+    print(f'LP_{i}_perm_mask='  + q(r.get('perm_mask','')))
+    print(f'LP_{i}_rperms='     + q(r.get('rperms','')))
+    print(f'LP_{i}_owner='      + q(r.get('owner','')))
+    print(f'LP_{i}_group='      + q(r.get('group','')))
+    print(f'LP_{i}_fix_group='  + q(r.get('fix_group','')))
+ad = data.get('auditd', {})
+print('AD_service='          + q(ad.get('service','')))
+print('AD_grub_config='      + q(ad.get('grub_config','')))
+print('AD_grub_cmdline_key=' + q(ad.get('grub_cmdline_key','')))
+pkgs = ad.get('packages', [])
+print('AD_pkg_count=' + q(len(pkgs)))
+for i,p in enumerate(pkgs):
+    print(f'AD_pkg_{i}_name=' + q(p.get('name','')))
+gp = ad.get('grub_params', [])
+print('AD_grub_param_count=' + q(len(gp)))
+for i,p in enumerate(gp):
+    print(f'AD_grub_{i}_name='  + q(p.get('name','')))
+    print(f'AD_grub_{i}_value=' + q(p.get('value','')))
+ac = data.get('auditd_config', {})
+print('AC_config_file=' + q(ac.get('config_file','')))
+ac_params = ac.get('params', [])
+print('AC_count=' + q(len(ac_params)))
+for i,p in enumerate(ac_params):
+    print(f'AC_{i}_name='         + q(p.get('name','')))
+    print(f'AC_{i}_value='        + q(p.get('value','')))
+    print(f'AC_{i}_valid_values=' + q(p.get('valid_values','')))
+ar = data.get('audit_rules', {})
+print('AR_rules_dir=' + q(ar.get('rules_dir','')))
+groups = ar.get('rule_groups', [])
+print('AR_group_count=' + q(len(groups)))
+for i,g in enumerate(groups):
+    print(f'AR_{i}_name=' + q(g.get('name','')))
+    print(f'AR_{i}_file=' + q(g.get('file','')))
+    print(f'AR_{i}_key='  + q(g.get('key','')))
+    rules = g.get('rules', [])
+    print(f'AR_{i}_rule_count=' + q(len(rules)))
+    for j,r in enumerate(rules):
+        print(f'AR_{i}_{j}_rule=' + q(r))
+    paths = g.get('paths', [])
+    print(f'AR_{i}_path_count=' + q(len(paths)))
+    for k,p in enumerate(paths):
+        print(f'AR_{i}_path_{k}=' + q(p))
+print('AC_log_file_perm_mask=' + q(ac.get('log_file_perm_mask','')))
+print('AC_log_dir_perm_mask='  + q(ac.get('log_dir_perm_mask','')))
+print('AC_log_group='          + q(ac.get('log_group','')))
+print('AC_conf_perm_mask='     + q(ac.get('conf_perm_mask','')))
+print('AC_tools_perm_mask='    + q(ac.get('tools_perm_mask','')))
+tools = ac.get('tools', [])
+print('AC_tools_count=' + q(len(tools)))
+for i,t in enumerate(tools):
+    print(f'AC_tool_{i}=' + q(t))
+ai = data.get('aide', {})
+print('AI_db_init='           + q(ai.get('db_init','')))
+print('AI_db_active='         + q(ai.get('db_active','')))
+print('AI_conf_file='         + q(ai.get('conf_file','')))
+print('AI_timer='             + q(ai.get('timer','')))
+print('AI_service='           + q(ai.get('service','')))
+print('AI_integrity_options=' + q(ai.get('integrity_options','')))
+ai_pkgs = ai.get('packages', [])
+print('AI_pkg_count=' + q(len(ai_pkgs)))
+for i,p in enumerate(ai_pkgs):
+    print(f'AI_pkg_{i}_name=' + q(p.get('name','')))
+ai_tools = ai.get('audit_tools', [])
+print('AI_tools_count=' + q(len(ai_tools)))
+for i,t in enumerate(ai_tools):
+    print(f'AI_tool_{i}=' + q(t))
+PYEOF
+
+    python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"
+    local exit_code=$?
+    rm -f "$py_script"
+
+    [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
     chmod 600 "$LOGGING_RAM_STORE"
     source "$LOGGING_RAM_STORE"
 }
 
-unload_json_logging() {
+unload_json_logging_and_auditing() {
     rm -f "$LOGGING_RAM_STORE"
-    unset $(compgen -v | grep '^LJ_')
+    unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_|LP_|AD_|AC_|AR_|AI_)')
 }
 
+get_ar_group_index() {
+    local target="$1"
+    for ((i=0; i<AR_group_count; i++)); do
+        n_var="AR_${i}_name"; [ "${!n_var}" = "$target" ] && { echo $i; return 0; }
+    done
+    echo -1; return 1
+}
 # ─────────────────────────────────────────────
 # GENERIC DISPATCHER — audit.sh calls only these
 # json_tag is the part before :: from find_module_json
@@ -635,6 +745,7 @@ unload_all() {
     unload_json_services
     unload_json_access_control
     unload_json_host_based_firewall
+    unload_json_logging_and_auditing
     unload_severity
 }
 
@@ -658,6 +769,7 @@ export -f check_ipv6_disabled
 export -f network_audit_sysctl_param
 export -f network_audit_sysctl_file
 export -f network_harden_sysctl_param
+export -f load_json_logging_and_auditing unload_json_logging_and_auditing get_ar_group_index
 export -f load_json_services unload_json_services get_svc get_svc_services is_version_ok get_svc_packages
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
 export -f load_json_access_control unload_json_access_control get_acc
