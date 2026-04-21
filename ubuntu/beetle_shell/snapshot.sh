@@ -128,6 +128,63 @@ capture_snapshot() {
     echo "    Type : $TYPE"
 }
 
+# ---------- REMOVE ----------
+# ---------- REMOVE ----------
+remove_snapshot() {
+    local INPUT="$1"
+
+    [[ -z "$INPUT" ]] && { echo "[!] Usage: beetle snapshot rm <id|name>"; exit 1; }
+
+    # ---- FIND META ENTRY ----
+    MATCH=$(grep -E "^${INPUT}\|" "$META_FILE")
+    [[ -z "$MATCH" ]] && MATCH=$(grep -E "\|${INPUT}\|" "$META_FILE")
+    [[ -z "$MATCH" ]] && MATCH=$(grep -E "\|${INPUT}\.tar\.gz\|" "$META_FILE")
+
+    if [[ -z "$MATCH" ]]; then
+        echo "[!] No snapshot found for: $INPUT"
+        exit 1
+    fi
+
+    # ---- PARSE ----
+    SNAP_ID=$(echo "$MATCH"   | cut -d'|' -f1)
+    SNAP_NAME=$(echo "$MATCH" | cut -d'|' -f2)
+    SNAP_TYPE=$(echo "$MATCH" | cut -d'|' -f4)
+    SNAP_HASH=$(echo "$MATCH" | cut -d'|' -f5)
+
+    # ---- LOCATE SYMLINK ----
+    if [[ "$SNAP_TYPE" == "beetle" ]]; then
+        SNAP_LINK="$BEETLE_DIR/$SNAP_NAME"
+    else
+        SNAP_LINK="$USER_DIR/$SNAP_NAME"
+    fi
+
+    if [[ ! -L "$SNAP_LINK" ]]; then
+        echo "[!] Symlink not found: $SNAP_LINK"
+        echo "    Removing metadata entry only"
+    else
+        rm "$SNAP_LINK"
+        echo "[+] Removed snapshot link: $SNAP_NAME"
+    fi
+
+    # ---- REMOVE META ENTRY ----
+    sed -i "/^${SNAP_ID}|/d" "$META_FILE"
+    echo "[+] Removed metadata entry for ID: $SNAP_ID"
+
+    # ---- DEDUP CHECK ----
+    STORE_FILE="$STORE_DIR/$SNAP_HASH.tar.gz"
+
+    if [[ -f "$STORE_FILE" ]]; then
+        REF_COUNT=$(find "$BEETLE_DIR" "$USER_DIR" -type l | while read -r link; do
+            target=$(readlink -f "$link" 2>/dev/null)
+            [[ "$target" == "$STORE_FILE" ]] && echo "ref"
+        done | wc -l)
+
+        if [[ "$REF_COUNT" -eq 0 ]]; then
+            rm "$STORE_FILE"
+        fi
+    fi
+}
+
 # ---------- LIST ----------
 list_snapshots() {
     TYPE=$1
@@ -154,6 +211,9 @@ case "$1" in
         ;;
     ls)
         list_snapshots "$2"
+        ;;
+    rm)
+        remove_snapshot "$2"
         ;;
     *)
         show_help
