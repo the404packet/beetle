@@ -272,7 +272,78 @@
       "file": "50-privileged.rules",
       "key":  "privileged",
       "rules": []
-    }
+    },
+    {
+  "name": "access",
+  "file": "50-access.rules",
+  "key":  "access",
+  "rules": [],
+  "uid_min_dynamic": true
+},
+{
+  "name": "identity",
+  "file": "50-identity.rules",
+  "key":  "identity",
+  "rules": [
+    "-w /etc/group -p wa -k identity",
+    "-w /etc/passwd -p wa -k identity",
+    "-w /etc/gshadow -p wa -k identity",
+    "-w /etc/shadow -p wa -k identity",
+    "-w /etc/security/opasswd -p wa -k identity",
+    "-w /etc/nsswitch.conf -p wa -k identity",
+    "-w /etc/pam.conf -p wa -k identity",
+    "-w /etc/pam.d -p wa -k identity"
+  ]
+},
+{
+  "name": "perm_mod",
+  "file": "50-perm_mod.rules",
+  "key":  "perm_mod",
+  "rules": [],
+  "uid_min_dynamic": true
+},
+{
+  "name": "mounts",
+  "file": "50-mounts.rules",
+  "key":  "mounts",
+  "rules": [],
+  "uid_min_dynamic": true
+},
+{
+  "name": "session",
+  "file": "50-session.rules",
+  "key":  "session",
+  "rules": [
+    "-w /var/run/utmp -p wa -k session",
+    "-w /var/log/wtmp -p wa -k session",
+    "-w /var/log/btmp -p wa -k session"
+  ]
+},
+{
+  "name": "logins",
+  "file": "50-login.rules",
+  "key":  "logins",
+  "rules": [
+    "-w /var/log/lastlog -p wa -k logins",
+    "-w /var/run/faillock -p wa -k logins"
+  ]
+},
+{
+  "name": "delete",
+  "file": "50-delete.rules",
+  "key":  "delete",
+  "rules": [],
+  "uid_min_dynamic": true
+},
+{
+  "name": "MAC_policy",
+  "file": "50-MAC-policy.rules",
+  "key":  "MAC-policy",
+  "rules": [
+    "-w /etc/apparmor/ -p wa -k MAC-policy",
+    "-w /etc/apparmor.d/ -p wa -k MAC-policy"
+  ]
+}
   ]
 }
 }
