@@ -1,0 +1,68 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #f0f2f5;
+  --surface:      #ffffff;
+  --surface-2:    #f4f5f8;
+  --border:       #dde1ea;
+  --text-1:       #0d1117;
+  --text-2:       #4a5168;
+  --text-3:       #8a90a2;
+  --accent:       #1a56db;
+  --accent-light: #eef3fd;
+  --accent-ring:  #b8cefc;
+  --green:        #0a6636;
+  --green-bg:     #edf7f2;
+  --green-ring:   #9dd6b8;
+  --green-stroke: #16a34a;
+  --red:          #991b1b;
+  --red-bg:       #fef2f2;
+  --red-ring:     #fca5a5;
+  --red-stroke:   #dc2626;
+
+  /* Formal: sharp corners */
+  --radius-sm:    3px;
+  --radius-md:    4px;
+  --radius-lg:    6px;
+
+  --shadow-sm:    0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
+  --shadow-md:    0 2px 8px rgba(0,0,0,.08);
+  --shadow-lg:    0 8px 24px rgba(0,0,0,.14);
+  --transition:   130ms ease;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13.5px;
+  color: var(--text-1);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+button { font-family: inherit; cursor: pointer; }
+input  { font-family: inherit; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeSlide 180ms ease; }
+
+@keyframes shimmer { to { background-position: -200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, #e6e8ef 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius-sm);
+}

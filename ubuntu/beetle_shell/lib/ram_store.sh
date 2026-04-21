@@ -725,7 +725,7 @@ for key, val in data.get("sshd_settings", {}).items():
 for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
     items = data.get(list_key, [])
     if items:
-        pattern = "|".join(i.replace(".", "\\.") for i in items)
+        pattern = "|".join(i.replace(".", r"\.") for i in items)
         env_key = list_key.upper() + "_PATTERN"
         print(f'{env_key}="{pattern}"')
 EOF
