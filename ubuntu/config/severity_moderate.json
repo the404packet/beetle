@@ -4,6 +4,7 @@
 
 
   "access_control/configure_priviledge_escalation/sudo_nopasswd": true,
+  "access_control/configure_pam/pam_faillock_root": true,
 
   "host_based_firewall/configure_ufw/routedcheck": true,
   

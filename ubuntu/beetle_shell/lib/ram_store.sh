@@ -615,7 +615,7 @@ for key, val in data.get("sshd_settings", {}).items():
 for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
     items = data.get(list_key, [])
     if items:
-        pattern = "|".join(i.replace(".", "\\.") for i in items)
+        pattern = "|".join(i.replace(".", r"\.") for i in items)
         env_key = list_key.upper() + "_PATTERN"
         print(f'{env_key}="{pattern}"')
 
@@ -625,6 +625,50 @@ for key, val in data.get("sudo_settings", {}).items():
     if isinstance(val, dict):
         for field, fval in val.items():
             print(f'SUDO_{safe}_{field.upper()}={fval}')
+            
+# pam_settings — flatten into PAM_ prefixed vars
+for section, vals in data.get("pam_settings", {}).items():
+    safe_section = section.upper()
+    if isinstance(vals, dict):
+        for field, fval in vals.items():
+            print(f'PAM_{safe_section}_{field.upper()}={fval}')
+
+ld = data.get("login_defs", {})
+print(f'LD_file={ld.get("file", "/etc/login.defs")}')
+
+pmd = ld.get("pass_max_days", {})
+print(f'LD_pass_max_days_max={pmd.get("max", 365)}')
+
+pmind = ld.get("pass_min_days", {})
+print(f'LD_pass_min_days_min={pmind.get("min", 1)}')
+
+pwa = ld.get("pass_warn_age", {})
+print(f'LD_pass_warn_age_min={pwa.get("min", 7)}')
+
+em = ld.get("encrypt_method", {})
+allowed_algos = em.get("allowed", ["SHA512", "YESCRYPT"])
+print(f'LD_encrypt_method_allowed="{"|".join(allowed_algos)}"')
+
+inact = ld.get("inactive", {})
+print(f'LD_inactive_max={inact.get("max", 45)}')
+
+# ── user_env ──
+ue = data.get("user_env", {})
+
+tmout = ue.get("tmout", {})
+print(f'UE_tmout_max={tmout.get("max", 900)}')
+print(f'UE_tmout_profile_d_file={tmout.get("profile_d_file", "/etc/profile.d/50-systemwide_tmout.sh")}')
+
+umask_cfg = ue.get("umask", {})
+print(f'UE_umask_value={umask_cfg.get("value", "027")}')
+print(f'UE_umask_profile_d_file={umask_cfg.get("profile_d_file", "/etc/profile.d/50-systemwide_umask.sh")}')
+
+root_umask = ue.get("root_umask", {})
+root_umask_files = root_umask.get("files", ["/root/.bash_profile", "/root/.bashrc"])
+print(f'UE_root_umask_file_count={len(root_umask_files)}')
+for idx, rf in enumerate(root_umask_files):
+    print(f'UE_root_umask_file_{idx}={rf}')
+
 EOF
 
     chmod 600 "$SSH_RAM_STORE"
