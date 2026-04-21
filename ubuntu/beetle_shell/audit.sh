@@ -43,13 +43,11 @@ run_check() {
     NAME=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
     [ -z "$NAME" ] && NAME="$(basename "$script")"
 
-    # ── Check severity config — skip if disabled ──
     if ! is_check_enabled "$script"; then
         ((SKIPPED_COUNT++))
         return
     fi
 
-    # ── Find this script's JSON (returns "type::path" or "") ──
     local module_json json_type json_file
     module_json=$(find_module_json "$script")
 
@@ -71,6 +69,8 @@ run_check() {
     export SERVICES_RAM_STORE
     export ACCESS_RAM_STORE
     export FIREWALL_RAM_STORE
+    export LOGGING_RAM_STORE
+    export INITIAL_SETUP_RAM_STORE
 
     TMP_FILE=$(mktemp)
     bash "$script" > "$TMP_FILE" 2>/dev/null &
@@ -117,7 +117,6 @@ if [ ! -d "$BEETLE_SHELL_ROOT" ]; then
     exit 1
 fi
 
-# ── Parse arguments ──
 TARGET_FOLDER=""
 TARGET_LEVEL=""
 
@@ -129,22 +128,20 @@ for arg in "$@"; do
     fi
 done
 
-# ── Fall back to DEFAULT_SEVERITY from beetle.conf ──
 if [ -z "$TARGET_LEVEL" ]; then
     TARGET_LEVEL="${DEFAULT_SEVERITY:-basic}"
 fi
 
+TARGET_LEVEL=${TARGET_LEVEL^^}
+
 echo -e "${CYAN}Severity level : ${YELLOW}${TARGET_LEVEL}${RESET}\n"
 
-# ── Load dpkg into RAM once — persists entire run ──
-echo -e "${CYAN}Loading package database into RAM...${RESET}\n"
-load_dpkg || { echo -e "${RED}Failed to load dpkg into RAM${RESET}"; unload_all; exit 1; }
+echo -e "${CYAN}Loading packages......${RESET}"
+load_dpkg || { echo -e "${RED}Failed to load dpkg${RESET}"; unload_all; exit 1; }
 
-# ── Load severity config into RAM once — persists entire run ──
-echo -e "${CYAN}Loading severity config into RAM...${RESET}\n"
-load_severity "$TARGET_LEVEL" || { echo -e "${RED}Failed to load severity config into RAM${RESET}"; unload_all; exit 1; }
+echo -e "${CYAN}Loading severity configuration.......${RESET}\n"
+load_severity "$TARGET_LEVEL" || { echo -e "${RED}Failed to load severity configuration${RESET}"; unload_all; exit 1; }
 
-# ── Determine search path ──
 if [ -n "$TARGET_FOLDER" ]; then
     SEARCH_PATH="$BEETLE_SHELL_ROOT/audit/$TARGET_FOLDER"
 else

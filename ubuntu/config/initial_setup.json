@@ -1,0 +1,77 @@
+{ 
+  "filesystem_modules": {
+  "modprobe_dir": "/etc/modprobe.d",
+  "modules": [
+    { "name": "cramfs",      "type": "fs"      },
+    { "name": "freevxfs",    "type": "fs"      },
+    { "name": "hfs",         "type": "fs"      },
+    { "name": "hfsplus",     "type": "fs"      },
+    { "name": "jffs2",       "type": "fs"      },
+    { "name": "overlayfs",   "type": "fs"      },
+    { "name": "squashfs",    "type": "fs"      },
+    { "name": "udf",         "type": "fs"      },
+    { "name": "usb-storage", "type": "drivers" }
+  ]
+},"filesystem_partitions": {
+  "partitions": [
+    {
+      "mount": "/tmp",
+      "required": true,
+      "systemd_unit": "tmp.mount",
+      "options": ["nodev", "nosuid", "noexec"]
+    },
+    {
+      "mount": "/dev/shm",
+      "required": true,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid", "noexec"]
+    },
+    {
+      "mount": "/home",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid"]
+    },
+    {
+      "mount": "/var",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid"]
+    },
+    {
+      "mount": "/var/tmp",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid", "noexec"]
+    },
+    {
+      "mount": "/var/log",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid", "noexec"]
+    },
+    {
+      "mount": "/var/log/audit",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid", "noexec"]
+    }
+  ]
+},
+  "apparmor": {
+    "packages": [
+      { "name": "apparmor"       },
+      { "name": "apparmor-utils" }
+    ],
+    "grub_config":     "/etc/default/grub",
+    "grub_cfg":        "/boot/grub/grub.cfg",
+    "grub_cmdline_key": "GRUB_CMDLINE_LINUX",
+    "grub_params": [
+      { "name": "apparmor",  "value": "1"         },
+      { "name": "security",  "value": "apparmor"  }
+    ],
+    "profiles_dir":    "/etc/apparmor.d",
+    "enforce_mode":    "enforce",
+    "complain_mode":   "complain"
+  }
+}

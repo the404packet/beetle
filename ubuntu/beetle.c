@@ -55,18 +55,32 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    char request[BUFFER_SIZE];
-    snprintf(request, sizeof(request),
-             "user=%s cmd=\"%s\"\n",
-             user, cmd);
-
-    // Send request
-    if (write(sock, request, strlen(request)) < 0)
-    {
-        perror("write");
+    int needed = snprintf(NULL, 0, "user=%s cmd=\"%s\"\n", user, cmd);
+    if (needed < 0) {
+        perror("snprintf");
         close(sock);
         return 1;
     }
+
+    char *request = malloc(needed + 1);
+    if (!request) {
+        perror("malloc");
+        close(sock);
+        return 1;
+    }
+
+    snprintf(request, needed + 1,
+            "user=%s cmd=\"%s\"\n",
+            user, cmd);
+
+    if (write(sock, request, strlen(request)) < 0) {
+        perror("write");
+        free(request);
+        close(sock);
+        return 1;
+    }
+
+    free(request);
 
     int n;
     while ((n = read(sock, buffer, BUFFER_SIZE - 1)) > 0)

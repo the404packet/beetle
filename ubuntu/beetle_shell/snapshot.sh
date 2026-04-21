@@ -106,45 +106,8 @@ capture_snapshot() {
         SNAP_NAME="${BASE_NAME}.tar.gz"
 
         if [[ -e "$TARGET_DIR/$SNAP_NAME" ]]; then
-            while true; do
-                echo "[!] Snapshot name '$SNAP_NAME' already exists."
-                echo "Choose:"
-                echo "  1) Auto rename (add _1, _2...)"
-                echo "  2) Enter new name"
-                echo "  3) Cancel"
-                read -rp "Enter choice [1/2/3]: " choice
-
-                case "$choice" in
-                    1)
-                        COUNT=1
-                        while [[ -e "$TARGET_DIR/${BASE_NAME}_${COUNT}.tar.gz" ]]; do
-                            ((COUNT++))
-                        done
-                        SNAP_NAME="${BASE_NAME}_${COUNT}.tar.gz"
-                        break
-                        ;;
-                    2)
-                        read -rp "Enter new snapshot name: " NEW_NAME
-
-                        [[ -z "$NEW_NAME" ]] && { echo "[!] Name cannot be empty."; continue; }
-
-                        SNAP_NAME="${NEW_NAME}.tar.gz"
-
-                        if [[ -e "$TARGET_DIR/$SNAP_NAME" ]]; then
-                            echo "[!] Name already exists. Try again."
-                            continue
-                        fi
-                        break
-                        ;;
-                    3)
-                        echo "[!] Operation cancelled."
-                        exit 0
-                        ;;
-                    *)
-                        echo "[!] Invalid choice."
-                        ;;
-                esac
-            done
+            echo "[!] Snapshot name '$CUSTOM_NAME' already exists. Use a different name."
+            exit 1
         fi
     else
         SNAP_NAME="snapshot_${SNAP_ID}.tar.gz"
@@ -163,6 +126,63 @@ capture_snapshot() {
     echo "    ID   : $SNAP_ID"
     echo "    Name : $SNAP_NAME"
     echo "    Type : $TYPE"
+}
+
+# ---------- REMOVE ----------
+# ---------- REMOVE ----------
+remove_snapshot() {
+    local INPUT="$1"
+
+    [[ -z "$INPUT" ]] && { echo "[!] Usage: beetle snapshot rm <id|name>"; exit 1; }
+
+    # ---- FIND META ENTRY ----
+    MATCH=$(grep -E "^${INPUT}\|" "$META_FILE")
+    [[ -z "$MATCH" ]] && MATCH=$(grep -E "\|${INPUT}\|" "$META_FILE")
+    [[ -z "$MATCH" ]] && MATCH=$(grep -E "\|${INPUT}\.tar\.gz\|" "$META_FILE")
+
+    if [[ -z "$MATCH" ]]; then
+        echo "[!] No snapshot found for: $INPUT"
+        exit 1
+    fi
+
+    # ---- PARSE ----
+    SNAP_ID=$(echo "$MATCH"   | cut -d'|' -f1)
+    SNAP_NAME=$(echo "$MATCH" | cut -d'|' -f2)
+    SNAP_TYPE=$(echo "$MATCH" | cut -d'|' -f4)
+    SNAP_HASH=$(echo "$MATCH" | cut -d'|' -f5)
+
+    # ---- LOCATE SYMLINK ----
+    if [[ "$SNAP_TYPE" == "beetle" ]]; then
+        SNAP_LINK="$BEETLE_DIR/$SNAP_NAME"
+    else
+        SNAP_LINK="$USER_DIR/$SNAP_NAME"
+    fi
+
+    if [[ ! -L "$SNAP_LINK" ]]; then
+        echo "[!] Symlink not found: $SNAP_LINK"
+        echo "    Removing metadata entry only"
+    else
+        rm "$SNAP_LINK"
+        echo "[+] Removed snapshot link: $SNAP_NAME"
+    fi
+
+    # ---- REMOVE META ENTRY ----
+    sed -i "/^${SNAP_ID}|/d" "$META_FILE"
+    echo "[+] Removed metadata entry for ID: $SNAP_ID"
+
+    # ---- DEDUP CHECK ----
+    STORE_FILE="$STORE_DIR/$SNAP_HASH.tar.gz"
+
+    if [[ -f "$STORE_FILE" ]]; then
+        REF_COUNT=$(find "$BEETLE_DIR" "$USER_DIR" -type l | while read -r link; do
+            target=$(readlink -f "$link" 2>/dev/null)
+            [[ "$target" == "$STORE_FILE" ]] && echo "ref"
+        done | wc -l)
+
+        if [[ "$REF_COUNT" -eq 0 ]]; then
+            rm "$STORE_FILE"
+        fi
+    fi
 }
 
 # ---------- LIST ----------
@@ -191,6 +211,9 @@ case "$1" in
         ;;
     ls)
         list_snapshots "$2"
+        ;;
+    rm)
+        remove_snapshot "$2"
         ;;
     *)
         show_help
