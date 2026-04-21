@@ -188,5 +188,91 @@
         "fix_group": "adm"
       }
     ]
-  }
+  },
+  "auditd": {
+  "packages": [
+    { "name": "auditd"          },
+    { "name": "audispd-plugins" }
+  ],
+  "service":        "auditd",
+  "grub_config":    "/etc/default/grub",
+  "grub_cmdline_key": "GRUB_CMDLINE_LINUX",
+  "grub_params": [
+    { "name": "audit",               "value": "1"    },
+    { "name": "audit_backlog_limit", "value": "8192" }
+  ]
+},
+"auditd_config": {
+  "config_file": "/etc/audit/auditd.conf",
+  "params": [
+    { "name": "max_log_file",          "value": "8",         "valid_values": ""                    },
+    { "name": "max_log_file_action",   "value": "keep_logs", "valid_values": "keep_logs"           },
+    { "name": "disk_full_action",      "value": "halt",      "valid_values": "halt|single"         },
+    { "name": "disk_error_action",     "value": "halt",      "valid_values": "syslog|single|halt"  },
+    { "name": "space_left_action",     "value": "email",     "valid_values": "email|exec|single|halt" },
+    { "name": "admin_space_left_action", "value": "single",  "valid_values": "single|halt"         }
+  ]
+},
+"audit_rules": {
+  "rules_dir": "/etc/audit/rules.d",
+  "rule_groups": [
+    {
+      "name": "scope",
+      "file": "50-scope.rules",
+      "key":  "scope",
+      "rules": [
+        "-w /etc/sudoers -p wa -k scope",
+        "-w /etc/sudoers.d -p wa -k scope"
+      ]
+    },
+    {
+      "name": "user_emulation",
+      "file": "50-user_emulation.rules",
+      "key":  "user_emulation",
+      "rules": [
+        "-a always,exit -F arch=b64 -C euid!=uid -F auid!=unset -S execve -k user_emulation",
+        "-a always,exit -F arch=b32 -C euid!=uid -F auid!=unset -S execve -k user_emulation"
+      ]
+    },
+    {
+      "name": "sudo_log_file",
+      "file": "50-sudo.rules",
+      "key":  "sudo_log_file",
+      "rules": []
+    },
+    {
+      "name": "time_change",
+      "file": "50-time-change.rules",
+      "key":  "time-change",
+      "rules": [
+        "-a always,exit -F arch=b64 -S adjtimex,settimeofday -k time-change",
+        "-a always,exit -F arch=b32 -S adjtimex,settimeofday -k time-change",
+        "-a always,exit -F arch=b64 -S clock_settime -F a0=0x0 -k time-change",
+        "-a always,exit -F arch=b32 -S clock_settime -F a0=0x0 -k time-change",
+        "-w /etc/localtime -p wa -k time-change"
+      ]
+    },
+    {
+      "name": "system_locale",
+      "file": "50-system_locale.rules",
+      "key":  "system-locale",
+      "rules": [
+        "-a always,exit -F arch=b64 -S sethostname,setdomainname -k system-locale",
+        "-a always,exit -F arch=b32 -S sethostname,setdomainname -k system-locale",
+        "-w /etc/issue -p wa -k system-locale",
+        "-w /etc/issue.net -p wa -k system-locale",
+        "-w /etc/hosts -p wa -k system-locale",
+        "-w /etc/networks -p wa -k system-locale",
+        "-w /etc/network -p wa -k system-locale",
+        "-w /etc/netplan -p wa -k system-locale"
+      ]
+    },
+    {
+      "name": "privileged",
+      "file": "50-privileged.rules",
+      "key":  "privileged",
+      "rules": []
+    }
+  ]
+}
 }

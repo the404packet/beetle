@@ -118,6 +118,7 @@
   "logging_and_auditing/system_logging/configure_rsyslog/rsyslog_logging_rules": true,
   "logging_and_auditing/system_logging/configure_rsyslog/rsyslog_remote_host": true,
   "logging_and_auditing/system_logging/configure_rsyslog/rsyslog_no_remote_receive": true,
-  "logging_and_auditing/system_logging/configure_rsyslog/rsyslog_logrotate": true
+  "logging_and_auditing/system_logging/configure_rsyslog/rsyslog_logrotate": true,
+  "logging_and_auditing/system_logging/configure_logsfiles/logfiles_permissions": true
   
 }

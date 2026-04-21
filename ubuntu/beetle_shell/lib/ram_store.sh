@@ -600,6 +600,39 @@ for i,r in enumerate(lp_rules):
     print(f'LP_{i}_owner='      + q(r.get('owner','')))
     print(f'LP_{i}_group='      + q(r.get('group','')))
     print(f'LP_{i}_fix_group='  + q(r.get('fix_group','')))
+ad = data.get('auditd', {})
+print('AD_service='          + q(ad.get('service','')))
+print('AD_grub_config='      + q(ad.get('grub_config','')))
+print('AD_grub_cmdline_key=' + q(ad.get('grub_cmdline_key','')))
+pkgs = ad.get('packages', [])
+print('AD_pkg_count=' + q(len(pkgs)))
+for i,p in enumerate(pkgs):
+    print(f'AD_pkg_{i}_name=' + q(p.get('name','')))
+gp = ad.get('grub_params', [])
+print('AD_grub_param_count=' + q(len(gp)))
+for i,p in enumerate(gp):
+    print(f'AD_grub_{i}_name='  + q(p.get('name','')))
+    print(f'AD_grub_{i}_value=' + q(p.get('value','')))
+ac = data.get('auditd_config', {})
+print('AC_config_file=' + q(ac.get('config_file','')))
+ac_params = ac.get('params', [])
+print('AC_count=' + q(len(ac_params)))
+for i,p in enumerate(ac_params):
+    print(f'AC_{i}_name='         + q(p.get('name','')))
+    print(f'AC_{i}_value='        + q(p.get('value','')))
+    print(f'AC_{i}_valid_values=' + q(p.get('valid_values','')))
+ar = data.get('audit_rules', {})
+print('AR_rules_dir=' + q(ar.get('rules_dir','')))
+groups = ar.get('rule_groups', [])
+print('AR_group_count=' + q(len(groups)))
+for i,g in enumerate(groups):
+    print(f'AR_{i}_name=' + q(g.get('name','')))
+    print(f'AR_{i}_file=' + q(g.get('file','')))
+    print(f'AR_{i}_key='  + q(g.get('key','')))
+    rules = g.get('rules', [])
+    print(f'AR_{i}_rule_count=' + q(len(rules)))
+    for j,r in enumerate(rules):
+        print(f'AR_{i}_{j}_rule=' + q(r))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"
@@ -613,9 +646,16 @@ PYEOF
 
 unload_json_logging_and_auditing() {
     rm -f "$LOGGING_RAM_STORE"
-    unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_|LP_)')
+    unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_|LP_|AD_|AC_|AR_)')
 }
 
+get_ar_group_index() {
+    local target="$1"
+    for ((i=0; i<AR_group_count; i++)); do
+        n_var="AR_${i}_name"; [ "${!n_var}" = "$target" ] && { echo $i; return 0; }
+    done
+    echo -1; return 1
+}
 # ─────────────────────────────────────────────
 # GENERIC DISPATCHER — audit.sh calls only these
 # json_tag is the part before :: from find_module_json
@@ -662,7 +702,7 @@ export -f check_ipv6_disabled
 export -f network_audit_sysctl_param
 export -f network_audit_sysctl_file
 export -f network_harden_sysctl_param
-export -f load_json_logging_and_auditing unload_json_logging_and_auditing
+export -f load_json_logging_and_auditing unload_json_logging_and_auditing get_ar_group_index
 export -f load_json_services unload_json_services get_svc get_svc_services is_version_ok get_svc_packages
 export -f load_json_access_control  unload_json_access_control  get_acc
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
