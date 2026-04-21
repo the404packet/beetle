@@ -637,6 +637,30 @@ for i,g in enumerate(groups):
     print(f'AR_{i}_path_count=' + q(len(paths)))
     for k,p in enumerate(paths):
         print(f'AR_{i}_path_{k}=' + q(p))
+print('AC_log_file_perm_mask=' + q(ac.get('log_file_perm_mask','')))
+print('AC_log_dir_perm_mask='  + q(ac.get('log_dir_perm_mask','')))
+print('AC_log_group='          + q(ac.get('log_group','')))
+print('AC_conf_perm_mask='     + q(ac.get('conf_perm_mask','')))
+print('AC_tools_perm_mask='    + q(ac.get('tools_perm_mask','')))
+tools = ac.get('tools', [])
+print('AC_tools_count=' + q(len(tools)))
+for i,t in enumerate(tools):
+    print(f'AC_tool_{i}=' + q(t))
+ai = data.get('aide', {})
+print('AI_db_init='           + q(ai.get('db_init','')))
+print('AI_db_active='         + q(ai.get('db_active','')))
+print('AI_conf_file='         + q(ai.get('conf_file','')))
+print('AI_timer='             + q(ai.get('timer','')))
+print('AI_service='           + q(ai.get('service','')))
+print('AI_integrity_options=' + q(ai.get('integrity_options','')))
+ai_pkgs = ai.get('packages', [])
+print('AI_pkg_count=' + q(len(ai_pkgs)))
+for i,p in enumerate(ai_pkgs):
+    print(f'AI_pkg_{i}_name=' + q(p.get('name','')))
+ai_tools = ai.get('audit_tools', [])
+print('AI_tools_count=' + q(len(ai_tools)))
+for i,t in enumerate(ai_tools):
+    print(f'AI_tool_{i}=' + q(t))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"
@@ -650,7 +674,7 @@ PYEOF
 
 unload_json_logging_and_auditing() {
     rm -f "$LOGGING_RAM_STORE"
-    unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_|LP_|AD_|AC_|AR_)')
+    unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_|LP_|AD_|AC_|AR_|AI_)')
 }
 
 get_ar_group_index() {

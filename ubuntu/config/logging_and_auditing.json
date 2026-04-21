@@ -211,7 +211,20 @@
     { "name": "disk_error_action",     "value": "halt",      "valid_values": "syslog|single|halt"  },
     { "name": "space_left_action",     "value": "email",     "valid_values": "email|exec|single|halt" },
     { "name": "admin_space_left_action", "value": "single",  "valid_values": "single|halt"         }
-  ]
+  ],
+  "log_file_perm_mask":  "0137",
+"log_dir_perm_mask":   "0027",
+"log_group":           "adm",
+"conf_perm_mask":      "0137",
+"tools_perm_mask":     "0022",
+"tools": [
+  "/sbin/auditctl",
+  "/sbin/aureport",
+  "/sbin/ausearch",
+  "/sbin/autrace",
+  "/sbin/auditd",
+  "/sbin/augenrules"
+]
 },
 "audit_rules": {
   "rules_dir": "/etc/audit/rules.d",
@@ -381,6 +394,26 @@
     "-e 2"
   ]
 }
+  ]
+},
+"aide": {
+  "packages": [
+    { "name": "aide"        },
+    { "name": "aide-common" }
+  ],
+  "db_init":      "/var/lib/aide/aide.db.new",
+  "db_active":    "/var/lib/aide/aide.db",
+  "conf_file":    "/etc/aide/aide.conf",
+  "timer":        "dailyaidecheck.timer",
+  "service":      "dailyaidecheck.service",
+  "integrity_options": "p+i+n+u+g+s+b+acl+xattrs+sha512",
+  "audit_tools": [
+    "/sbin/auditctl",
+    "/sbin/auditd",
+    "/sbin/ausearch",
+    "/sbin/aureport",
+    "/sbin/autrace",
+    "/sbin/augenrules"
   ]
 }
 }
