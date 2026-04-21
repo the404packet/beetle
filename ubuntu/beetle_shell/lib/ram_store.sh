@@ -12,7 +12,7 @@ LOGGING_RAM_STORE="/dev/shm/beetle_logging_store"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
-       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE
+       NETWORK_RAM_STORE SERVICES_RAM_STORE SSH_RAM_STORE FIREWALL_RAM_STORE
 
 load_dpkg() {
     rm -f "$DPKG_RAM_STORE"
@@ -618,6 +618,13 @@ for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
         pattern = "|".join(i.replace(".", "\\.") for i in items)
         env_key = list_key.upper() + "_PATTERN"
         print(f'{env_key}="{pattern}"')
+
+# sudo_settings
+for key, val in data.get("sudo_settings", {}).items():
+    safe = key.upper()
+    if isinstance(val, dict):
+        for field, fval in val.items():
+            print(f'SUDO_{safe}_{field.upper()}={fval}')
 EOF
 
     chmod 600 "$SSH_RAM_STORE"

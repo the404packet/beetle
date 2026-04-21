@@ -97,5 +97,17 @@
     "diffie-hellman-group1-sha1",
     "diffie-hellman-group14-sha1",
     "diffie-hellman-group-exchange-sha1"
-  ]
+  ],
+  "sudo_settings": {
+      "timestamp_timeout": {
+          "max": 15
+      },
+      "logfile": {
+          "path": "/var/log/sudo.log"
+      },
+      "su_restrict_group": {
+          "name": "sugroup"
+      }
+  }
 }
+

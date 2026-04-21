@@ -1,2 +1,3 @@
 {
+    "access_control/configure_ssh_server/sshd_access_config": true
 }
