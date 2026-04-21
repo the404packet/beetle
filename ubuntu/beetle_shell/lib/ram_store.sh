@@ -168,6 +168,22 @@ print('FM_count=' + q(len(mods)))
 for i,m in enumerate(mods):
     print(f'FM_{i}_name=' + q(m.get('name','')))
     print(f'FM_{i}_type=' + q(m.get('type','')))
+fp = data.get('filesystem_partitions', {})
+parts = fp.get('partitions', [])
+print('FP_count=' + q(len(parts)))
+for i, p in enumerate(parts):
+    mount = p.get('mount', '')
+    mount_key = mount.replace('/', '_').lstrip('_')
+    print(f'FP_{i}_mount=' + q(mount))
+    print(f'FP_{i}_mount_key=' + q(mount_key))
+    print(f'FP_{i}_required=' + q(str(p.get('required', False)).lower()))
+    print(f'FP_{i}_systemd_unit=' + q(p.get('systemd_unit') or ''))
+    opts = p.get('options', [])
+    print(f'FP_{i}_opt_count=' + q(len(opts)))
+    for j, opt in enumerate(opts):
+        print(f'FP_{i}_opt_{j}=' + q(opt))
+    # also store mount->idx mapping for easy lookup
+    print(f'FP_idx_{mount_key}=' + q(i))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
@@ -176,6 +192,23 @@ PYEOF
     [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
     chmod 600 "$INITIAL_SETUP_RAM_STORE"
     source "$INITIAL_SETUP_RAM_STORE"
+}
+
+get_partition_idx() {
+    local mount="$1"
+    local key; key=$(echo "$mount" | sed 's|/|_|g; s|^_||')
+    local var="FP_idx_${key}"
+    echo "${!var}"
+}
+
+is_partition_mounted() {
+    local mount="$1"
+    findmnt -kn "$mount" &>/dev/null
+}
+
+partition_has_option() {
+    local mount="$1" option="$2"
+    findmnt -kn "$mount" | grep -qv "$option" && return 1 || return 0
 }
 
 unload_json_initial_setup() {
@@ -834,6 +867,7 @@ export -f load_dpkg unload_dpkg is_package_installed get_installed_version unset
 export -f load_severity unload_severity is_check_enabled
 export -f load_json_initial_setup unload_json_initial_setup 
 export -f beetle_module_audit beetle_module_harden
+export -f get_partition_idx is_partition_mounted partition_has_option
 export -f load_json_system_maintenance unload_json_system_maintenance get_perm
 export -f load_json_network unload_json_network get_net
 export -f check_ipv6_disabled

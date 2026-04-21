@@ -12,6 +12,51 @@
     { "name": "udf",         "type": "fs"      },
     { "name": "usb-storage", "type": "drivers" }
   ]
+},"filesystem_partitions": {
+  "partitions": [
+    {
+      "mount": "/tmp",
+      "required": true,
+      "systemd_unit": "tmp.mount",
+      "options": ["nodev", "nosuid", "noexec"]
+    },
+    {
+      "mount": "/dev/shm",
+      "required": true,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid", "noexec"]
+    },
+    {
+      "mount": "/home",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid"]
+    },
+    {
+      "mount": "/var",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid"]
+    },
+    {
+      "mount": "/var/tmp",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid", "noexec"]
+    },
+    {
+      "mount": "/var/log",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid", "noexec"]
+    },
+    {
+      "mount": "/var/log/audit",
+      "required": false,
+      "systemd_unit": null,
+      "options": ["nodev", "nosuid", "noexec"]
+    }
+  ]
 },
   "apparmor": {
     "packages": [
