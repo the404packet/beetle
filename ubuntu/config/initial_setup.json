@@ -1,4 +1,18 @@
-{
+{ 
+  "filesystem_modules": {
+  "modprobe_dir": "/etc/modprobe.d",
+  "modules": [
+    { "name": "cramfs",      "type": "fs"      },
+    { "name": "freevxfs",    "type": "fs"      },
+    { "name": "hfs",         "type": "fs"      },
+    { "name": "hfsplus",     "type": "fs"      },
+    { "name": "jffs2",       "type": "fs"      },
+    { "name": "overlayfs",   "type": "fs"      },
+    { "name": "squashfs",    "type": "fs"      },
+    { "name": "udf",         "type": "fs"      },
+    { "name": "usb-storage", "type": "drivers" }
+  ]
+},
   "apparmor": {
     "packages": [
       { "name": "apparmor"       },
