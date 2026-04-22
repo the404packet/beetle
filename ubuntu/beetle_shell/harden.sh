@@ -158,6 +158,19 @@ mapfile -d '' scripts < <(
         -print0
 )
 
+echo -e "${CYAN}Capturing pre-harden snapshot...${RESET}"
+
+SNAP_RESPONSE=$(beetle snapshot capture main 2>&1)
+
+if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
+    echo -e "${GREEN}Snapshot captured${RESET}\n"
+else
+    echo -e "${RED}Snapshot failed — aborting${RESET}"
+    echo "$SNAP_RESPONSE"
+    unload_all
+    exit 1
+fi
+
 for script in "${scripts[@]}"; do
     run_harden "$script"
 done

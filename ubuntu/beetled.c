@@ -134,7 +134,23 @@ int main()
             continue;
         }
 
-        handle_client(client_fd);
+        pid_t pid = fork();
+        if (pid == 0)
+        {
+            close(server_fd);
+            handle_client(client_fd);
+            exit(0);
+        }
+        else if (pid > 0)
+        {
+            close(client_fd);
+            waitpid(-1, NULL, WNOHANG);
+        }
+        else
+        {
+            perror("fork failed");
+            close(client_fd);
+        }
     }
 
     close(server_fd);

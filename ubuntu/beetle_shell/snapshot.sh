@@ -12,7 +12,8 @@ STATE_SCRIPT="/usr/local/bin/beetle_shell/lib/state_snapshot.sh"
 
 mkdir -p "$STORE_DIR" "$BEETLE_DIR" "$USER_DIR"
 touch "$META_FILE"
-
+# temporarily add this at the top of snapshot capture in snapshot.sh
+echo "[DEBUG] PPID=$PPID, beetled PID=$(pgrep -x beetled)"
 # ---------- HELP ----------
 show_help() {
     echo "Usage:"

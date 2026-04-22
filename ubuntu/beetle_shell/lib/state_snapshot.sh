@@ -161,24 +161,35 @@ result["files"] = files
 
 # -------- DIRECTORIES --------
 dirs = []
+EXPECTED_FLAGS = {"nodev", "noexec", "nosuid"}
+
 for d in data.get("directories", []):
     try:
         out = subprocess.check_output(["findmnt","-no","OPTIONS",d], stderr=subprocess.DEVNULL).decode().strip()
+        options = out.split(",")
+        present = EXPECTED_FLAGS & set(options)
+        missing = EXPECTED_FLAGS - set(options)
         dirs.append({
             "path": d,
             "mounted": True,
-            "options": out.split(",")
+            "options": options,
+            "nodev":   "nodev"   in options,
+            "noexec":  "noexec"  in options,
+            "nosuid":  "nosuid"  in options,
+            "missing_flags": sorted(missing)
         })
     except:
         dirs.append({
             "path": d,
             "mounted": False,
-            "options": []
+            "options": [],
+            "nodev":   False,
+            "noexec":  False,
+            "nosuid":  False,
+            "missing_flags": sorted(EXPECTED_FLAGS)
         })
 
 result["directories"] = dirs
-
-print(json.dumps(result))
 EOF
 )
 
