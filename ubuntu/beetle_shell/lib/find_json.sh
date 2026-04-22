@@ -8,7 +8,7 @@ find_module_json() {
     local json_type=""
     local json_file=""
 
-    if [[ "$rel_path" == audit/system_maintenance/* || "$rel_path" == harden/system_maintenance/* ]]; then
+    if [[ "$rel_path" == audit/system_maintenance/* || "$rel_path" == audit/system_maintenance/*/* || "$rel_path" == harden/system_maintenance/* || "$rel_path" == harden/system_maintenance/*/* ]]; then
         json_type="system_maintenance"; json_file="$CONFIG_DIR/system_maintenance.json"
     elif [[ "$rel_path" == audit/network/* || "$rel_path" == harden/network/* ]]; then
         json_type="network"; json_file="$CONFIG_DIR/network.json"

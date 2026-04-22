@@ -13,7 +13,8 @@ INITIAL_SETUP_RAM_STORE="/dev/shm/beetle_initial_setup_store.env"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
-       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE LOGGING_RAM_STORE
+       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE \
+       LOGGING_RAM_STORE SSH_RAM_STORE INITIAL_SETUP_RAM_STORE
 
 load_dpkg() {
     rm -f "$DPKG_RAM_STORE"
@@ -695,10 +696,13 @@ load_json_system_maintenance() {
     python3 - <<EOF > "$PERM_RAM_STORE"
 import json
 
+def q(v):
+    return "'" + str(v).replace("'", "'\\''") + "'"
+
 with open("$json_file") as f:
     data = json.load(f)
 
-for entry in data["system_file_permissions"]:
+for entry in data.get("system_file_permissions", []):
     key = entry["file"].replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
     mode  = entry["mode"]
     owner = entry["owner"]
@@ -706,13 +710,14 @@ for entry in data["system_file_permissions"]:
     print(f'PERM_{key}_mode={mode}')
     print(f'PERM_{key}_owner={owner}')
     print(f'PERM_{key}_group={group}')
+
 ss = data.get('suid_sgid', {})
 risky = ss.get('known_risky', [])
 print('SS_count=' + q(len(risky)))
-for i,r in enumerate(risky):
-    print(f'SS_{i}_name=' + q(r.get('name','')))
-    print(f'SS_{i}_path=' + q(r.get('path','')))
-    print(f'SS_{i}_risk=' + q(r.get('risk','')))
+for i, r in enumerate(risky):
+    print(f'SS_{i}_name=' + q(r.get('name', '')))
+    print(f'SS_{i}_path=' + q(r.get('path', '')))
+    print(f'SS_{i}_risk=' + q(r.get('risk', '')))
 EOF
 
     chmod 600 "$PERM_RAM_STORE"
@@ -721,7 +726,6 @@ EOF
 
 unload_json_system_maintenance() {
     [ -f "$PERM_RAM_STORE" ] && shred -u "$PERM_RAM_STORE" 2>/dev/null || rm -f "$PERM_RAM_STORE"
-    unset $(compgen -v | grep -E '^(PERM_|SS_)')
 }
 
 get_perm() {

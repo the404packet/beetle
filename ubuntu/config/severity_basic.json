@@ -2,7 +2,7 @@
   "system_maintenance/local_user_and_group_settings/all_accounts_use_shadow_passwd": true,
   "system_maintenance/local_user_and_group_settings/all_groups_exist_in_shadow": true,
   "system_maintenance/local_user_and_group_settings/no_duplicates_uids": true,
-  "system_maintenance/local_user_and_group_settings/no_duplicate_gids": false,
+  "sysctem_maintenance/local_user_and_group_settings/no_duplicate_gids": false,
   "system_maintenance/local_user_and_group_settings/no_duplicate_grpnames": true,
   "system_maintenance/local_user_and_group_settings/no_duplicate_usernames": true,
   "system_maintenance/local_user_and_group_settings/shadow_group_isempty": true,
@@ -16,6 +16,7 @@
   "system_maintenance/system_file_permissions/gshadow_file_permissions": true,
   "system_maintenance/system_file_permissions/gshadow-_file_permissions": true,
   "system_maintenance/system_file_permissions/shells_file_permissions": true,
+  "system_maintenance/system_file_permissions/suid_sgid_files_review": true,
 
 
   "access_control/configure_ssh_server/config_ssh_server": true,
@@ -218,6 +219,85 @@
   "logging_and_auditing/system_auditing/configure_auditd_file_access/auditd_tools_group":                                     true,
   "logging_and_auditing/configure_integrity_checking/aide_installed":                                                          true,
   "logging_and_auditing/configure_integrity_checking/aide_timer":                                                              true,
-  "logging_and_auditing/configure_integrity_checking/aide_audit_tools_integrity":                                              true
+  "logging_and_auditing/configure_integrity_checking/aide_audit_tools_integrity":                                              true,
   
-}
+  "initial_setup/configure_additional_process_hardening/ensure_address_space_layout_randomization_is_enabled": true,
+  "initial_setup/configure_additional_process_hardening/ensure_automatic_error_reporting_is_not_enabled": true,
+  "initial_setup/configure_additional_process_hardening/ensure_core_dumps_are_restricted": true,
+  "initial_setup/configure_additional_process_hardening/ensure_prelink_is_not_installed": true,
+  "initial_setup/configure_additional_process_hardening/ensure_ptrace_scope_is_restricted": true,
+
+  "initial_setup/configure_bootloader/ensure_access_to_bootloader_config_is_configured": true,
+  "initial_setup/configure_bootloader/ensure_bootloader_password_is_set": true,
+
+  "initial_setup/configure_command_line_warning_banners/ensure_access_to_etc_issue_is_configured": true,
+  "initial_setup/configure_command_line_warning_banners/ensure_access_to_etc_issue_net_is_configured": true,
+  "initial_setup/configure_command_line_warning_banners/ensure_access_to_etc_motd_is_configured": true,
+  "initial_setup/configure_command_line_warning_banners/ensure_local_login_warning_banner_is_configured_properly": true,
+  "initial_setup/configure_command_line_warning_banners/ensure_message_of_the_day_is_configured_properly": true,
+  "initial_setup/configure_command_line_warning_banners/ensure_remote_login_warning_banner_is_configured_properly": true,
+
+  "initial_setup/configure_gnome_display_manager/gdm_automount": true,
+  "initial_setup/configure_gnome_display_manager/gdm_automount_override": true,
+  "initial_setup/configure_gnome_display_manager/gdm_autorun_never": true,
+  "initial_setup/configure_gnome_display_manager/gdm_autorun_never_override": true,
+  "initial_setup/configure_gnome_display_manager/gdm_banner": true,
+  "initial_setup/configure_gnome_display_manager/gdm_disable_user_list": true,
+  "initial_setup/configure_gnome_display_manager/gdm_removed": true,
+  "initial_setup/configure_gnome_display_manager/gdm_screen_lock": true,
+  "initial_setup/configure_gnome_display_manager/gdm_screen_lock_override": true,
+  "initial_setup/configure_gnome_display_manager/gdm_xdmcp": true,
+
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/cramfs": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/freexvfs": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/hfs": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/hfsplus": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/jffs2": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/overlayfs": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/squashfs": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/udf": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/unused_filesystem": true,
+  "initial_setup/filesystem/configure_filesystem_kernel_modules/usb_storage": true,
+
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_partition": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_nodev": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_nosuid": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_noexec": true,
+
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_dev_shm/dev_shm_partition": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_dev_shm/dev_shm_nodev": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_dev_shm/dev_shm_nosuid": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_dev_shm/dev_shm_noexec": true,
+
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_home/home_partition": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_home/home_nodev": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_home/home_nosuid": true,
+
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var/var_partition": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var/var_nodev": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var/var_nosuid": true,
+
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_tmp/var_tmp_partition": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_tmp/var_tmp_nodev": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_tmp/var_tmp_nosuid": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_tmp/var_tmp_noexec": true,
+
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log/var_log_partition": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log/var_log_nodev": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log/var_log_nosuid": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log/var_log_noexec": true,
+
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_partition": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_nodev": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_nosuid": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_noexec": true,
+
+  "initial_setup/mandatory_access_control/configure_apparmor/apparmor_bootloader": true,
+  "initial_setup/mandatory_access_control/configure_apparmor/apparmor_installed": true,
+  "initial_setup/mandatory_access_control/configure_apparmor/apparmor_profile_active": true,
+  "initial_setup/mandatory_access_control/configure_apparmor/apparmor_profile_enforcing": true,
+
+  "initial_setup/package_management/configure_package_repositories/apt_repositories": true,
+  "initial_setup/package_management/configure_package_repositories/gpg_keys": true,
+  "initial_setup/package_management/configure_package_updates/package_updates": true
+  }
