@@ -152,8 +152,16 @@ remove_snapshot() {
     SNAP_HASH=$(echo "$MATCH" | cut -d'|' -f5)
 
     # ---- LOCATE SYMLINK ----
-    if [[ "$SNAP_TYPE" == "beetle" ]]; then
-        SNAP_LINK="$BEETLE_DIR/$SNAP_NAME"
+    # ---- LOCATE SYMLINK ----
+if [[ "$SNAP_TYPE" == "beetle" ]]; then
+    SNAP_LINK="$BEETLE_DIR/$SNAP_NAME"
+
+    # beetle snapshots can only be deleted by beetled
+    BEETLED_PID=$(pgrep -x beetled)
+        if [[ -z "$BEETLED_PID" || "$PPID" -ne "$BEETLED_PID" ]]; then
+            echo "[!] Permission denied: beetle snapshots can only be removed by beetled daemon"
+            exit 1
+        fi
     else
         SNAP_LINK="$USER_DIR/$SNAP_NAME"
     fi
