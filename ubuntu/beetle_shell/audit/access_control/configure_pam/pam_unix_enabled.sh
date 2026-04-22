@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure pam_unix module is enabled'
+NAME="ensure pam_unix module is enabled"
 SEVERITY='basic'
 
 GREEN="\e[32m"

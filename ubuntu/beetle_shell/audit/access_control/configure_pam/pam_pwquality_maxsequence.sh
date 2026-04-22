@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password maximum sequential characters is configured'
+NAME="ensure password maximum sequential characters is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

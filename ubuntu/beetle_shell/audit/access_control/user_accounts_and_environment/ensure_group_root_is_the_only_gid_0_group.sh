@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure group root is the only GID 0 group'
+NAME="ensure group root is the only GID 0 group"
 SEVERITY='basic'
 
 GREEN="\e[32m"

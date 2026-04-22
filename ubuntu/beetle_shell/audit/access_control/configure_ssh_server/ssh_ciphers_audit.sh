@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd ciphers config'
+NAME="sshd ciphers config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

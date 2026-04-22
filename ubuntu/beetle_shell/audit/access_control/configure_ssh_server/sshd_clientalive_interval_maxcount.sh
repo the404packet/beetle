@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure sshd client alive interval and count max are configured'
+NAME="ensure sshd client alive interval and count max are configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

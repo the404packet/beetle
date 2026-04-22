@@ -84,7 +84,7 @@ run_check() {
     # ── Unload this script's JSON from RAM ──
     [ -n "$module_json" ] && unload_module_json "$json_type"
 
-    total_width=75
+    total_width=90
     name_length=${#NAME}
     dots_count=$(( total_width - name_length ))
     (( dots_count < 1 )) && dots_count=1

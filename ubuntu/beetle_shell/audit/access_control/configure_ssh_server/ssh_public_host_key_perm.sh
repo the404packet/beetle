@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ssh_public_host_key_permission'
+NAME="ssh_public_host_key_permission"
 SEVERITY='basic'
 
 GREEN="\e[32m"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure users must provide password for privilege escalation'
+NAME="ensure users must provide password for privilege escalation"
 SEVERITY='moderate'
 
 GREEN="\e[32m"
