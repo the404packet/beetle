@@ -73,5 +73,26 @@
     "profiles_dir":    "/etc/apparmor.d",
     "enforce_mode":    "enforce",
     "complain_mode":   "complain"
-  }
+  },
+  "gdm": {
+  "package":          "gdm3",
+  "profile_dir":      "/etc/dconf/profile",
+  "profile_file":     "/etc/dconf/profile/gdm",
+  "db_dir":           "/etc/dconf/db/local.d",
+  "locks_dir":        "/etc/dconf/db/local.d/locks",
+  "gdm_db_dir":       "/etc/dconf/db/gdm.d",
+  "banner_file":      "/etc/dconf/db/gdm.d/01-banner-message",
+  "login_screen_file":"/etc/dconf/db/local.d/00-login-screen",
+  "screensaver_file": "/etc/dconf/db/local.d/00-screensaver",
+  "screensaver_lock": "/etc/dconf/db/local.d/locks/00-screensaver",
+  "automount_file":   "/etc/dconf/db/local.d/00-media-automount",
+  "automount_lock":   "/etc/dconf/db/local.d/locks/00-media-automount",
+  "autorun_file":     "/etc/dconf/db/local.d/00-media-autorun",
+  "autorun_lock":     "/etc/dconf/db/local.d/locks/00-media-autorun",
+  "xdmcp_configs":    ["/etc/gdm3/custom.conf", "/etc/gdm3/daemon.conf",
+                       "/etc/gdm/custom.conf",  "/etc/gdm/daemon.conf"],
+  "banner_text":      "Authorized uses only. All activity may be monitored and reported",
+  "idle_delay":       900,
+  "lock_delay":       5
+}
 }

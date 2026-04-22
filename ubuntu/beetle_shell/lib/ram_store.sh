@@ -184,6 +184,28 @@ for i, p in enumerate(parts):
         print(f'FP_{i}_opt_{j}=' + q(opt))
     # also store mount->idx mapping for easy lookup
     print(f'FP_idx_{mount_key}=' + q(i))
+gd = data.get('gdm', {})
+print('GD_package='           + q(gd.get('package','')))
+print('GD_profile_dir='       + q(gd.get('profile_dir','')))
+print('GD_profile_file='      + q(gd.get('profile_file','')))
+print('GD_db_dir='            + q(gd.get('db_dir','')))
+print('GD_locks_dir='         + q(gd.get('locks_dir','')))
+print('GD_gdm_db_dir='        + q(gd.get('gdm_db_dir','')))
+print('GD_banner_file='       + q(gd.get('banner_file','')))
+print('GD_login_screen_file=' + q(gd.get('login_screen_file','')))
+print('GD_screensaver_file='  + q(gd.get('screensaver_file','')))
+print('GD_screensaver_lock='  + q(gd.get('screensaver_lock','')))
+print('GD_automount_file='    + q(gd.get('automount_file','')))
+print('GD_automount_lock='    + q(gd.get('automount_lock','')))
+print('GD_autorun_file='      + q(gd.get('autorun_file','')))
+print('GD_autorun_lock='      + q(gd.get('autorun_lock','')))
+print('GD_banner_text='       + q(gd.get('banner_text','')))
+print('GD_idle_delay='        + q(gd.get('idle_delay',900)))
+print('GD_lock_delay='        + q(gd.get('lock_delay',5)))
+xdmcp = gd.get('xdmcp_configs', [])
+print('GD_xdmcp_count=' + q(len(xdmcp)))
+for i,x in enumerate(xdmcp):
+    print(f'GD_xdmcp_{i}=' + q(x))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
@@ -211,9 +233,13 @@ partition_has_option() {
     findmnt -kn "$mount" | grep -qv "$option" && return 1 || return 0
 }
 
+gdm_installed() {
+    is_package_installed "gdm3"
+}
+
 unload_json_initial_setup() {
     rm -f "$INITIAL_SETUP_RAM_STORE"
-    unset $(compgen -v | grep -E '^(AA_|FM_)')
+    unset $(compgen -v | grep -E '^(AA_|FM_|PT_|GD_)')
 }
 
 beetle_module_audit() {
@@ -940,9 +966,6 @@ unload_all() {
     unload_json_logging_and_auditing
     unload_severity
 }
-
-
-
 
 export -f load_dpkg
 export -f unload_dpkg
