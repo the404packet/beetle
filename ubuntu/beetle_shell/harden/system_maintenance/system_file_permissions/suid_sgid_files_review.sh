@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
+
 NAME="ensure SUID and SGID files are reviewed"
-GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
+
+GREEN="\e[32m"
+RED="\e[31m"
+CYAN="\e[36m"
+RESET="\e[0m"
+
 [ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
 count="$SS_count"
@@ -28,19 +34,45 @@ for ((i=0; i<count; i++)); do
 done
 
 if [ "${#a_suspicious[@]}" -eq 0 ]; then
-    echo -e "${GREEN}SUCCESS${RESET}"; exit 0
+    echo -e "${GREEN}SUCCESS${RESET}"
+    exit 0
 fi
 
 echo ""
-echo "  [MANUAL CHECK] Suspicious SUID/SGID binaries detected:"
+echo -e "${CYAN}  Suspicious SUID/SGID binaries detected:${RESET}"
 for entry in "${a_suspicious[@]}"; do
     echo "    $entry"
 done
 echo ""
-echo -n "  Review complete and resolved? (yes/no): "
-read -r response
+echo -e "  Beetle recommends removing SUID/SGID bits from suspicious binaries above"
+echo ""
+echo -e "  Press ${GREEN}ENTER${RESET} to apply beetle recommended hardening"
+echo -e "  Type   ${RED}no${RESET}   to skip and mark as failed"
+read -r -p "  Choice: " response
 
-[ "$response" = "yes" ] \
-    && echo -e "${GREEN}SUCCESS${RESET}" \
-    || { echo -e "${RED}FAILED${RESET}"; exit 1; }
+if [[ "$response" == "no" ]]; then
+    echo -e "${RED}FAILED${RESET}"
+    exit 1
+fi
+
+failed=false
+for entry in "${a_suspicious[@]}"; do
+    path=$(echo "$entry" | grep -oP '(?<=: )/\S+(?= \(|$)')
+    [ -f "$path" ] || continue
+    chmod u-s,g-s "$path" 2>/dev/null
+
+    mode=$(stat -Lc '%#a' "$path" 2>/dev/null)
+    has_suid=$(( 8#$mode & 04000 ))
+    has_sgid=$(( 8#$mode & 02000 ))
+    if [ "$has_suid" -ne 0 ] || [ "$has_sgid" -ne 0 ]; then
+        failed=true
+    fi
+done
+
+if $failed; then
+    echo -e "${RED}FAILED${RESET}"
+    exit 1
+fi
+
+echo -e "${GREEN}SUCCESS${RESET}"
 exit 0
