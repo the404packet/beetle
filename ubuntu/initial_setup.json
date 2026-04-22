@@ -1,0 +1,258 @@
+{
+  "filesystem_modules": {
+    "modprobe_dir": "/etc/modprobe.d",
+    "modules": [
+      {
+        "name": "cramfs",
+        "type": "fs"
+      },
+      {
+        "name": "freevxfs",
+        "type": "fs"
+      },
+      {
+        "name": "hfs",
+        "type": "fs"
+      },
+      {
+        "name": "hfsplus",
+        "type": "fs"
+      },
+      {
+        "name": "jffs2",
+        "type": "fs"
+      },
+      {
+        "name": "overlayfs",
+        "type": "fs"
+      },
+      {
+        "name": "squashfs",
+        "type": "fs"
+      },
+      {
+        "name": "udf",
+        "type": "fs"
+      },
+      {
+        "name": "usb-storage",
+        "type": "drivers"
+      }
+    ]
+  },
+  "filesystem_partitions": {
+    "partitions": [
+      {
+        "mount": "/tmp",
+        "required": true,
+        "systemd_unit": "tmp.mount",
+        "options": [
+          "nodev",
+          "nosuid",
+          "noexec"
+        ]
+      },
+      {
+        "mount": "/dev/shm",
+        "required": true,
+        "systemd_unit": null,
+        "options": [
+          "nodev",
+          "nosuid",
+          "noexec"
+        ]
+      },
+      {
+        "mount": "/home",
+        "required": false,
+        "systemd_unit": null,
+        "options": [
+          "nodev",
+          "nosuid"
+        ]
+      },
+      {
+        "mount": "/var",
+        "required": false,
+        "systemd_unit": null,
+        "options": [
+          "nodev",
+          "nosuid"
+        ]
+      },
+      {
+        "mount": "/var/tmp",
+        "required": false,
+        "systemd_unit": null,
+        "options": [
+          "nodev",
+          "nosuid",
+          "noexec"
+        ]
+      },
+      {
+        "mount": "/var/log",
+        "required": false,
+        "systemd_unit": null,
+        "options": [
+          "nodev",
+          "nosuid",
+          "noexec"
+        ]
+      },
+      {
+        "mount": "/var/log/audit",
+        "required": false,
+        "systemd_unit": null,
+        "options": [
+          "nodev",
+          "nosuid",
+          "noexec"
+        ]
+      }
+    ]
+  },
+  "apparmor": {
+    "packages": [
+      {
+        "name": "apparmor"
+      },
+      {
+        "name": "apparmor-utils"
+      }
+    ],
+    "grub_config": "/etc/default/grub",
+    "grub_cfg": "/boot/grub/grub.cfg",
+    "grub_cmdline_key": "GRUB_CMDLINE_LINUX",
+    "grub_params": [
+      {
+        "name": "apparmor",
+        "value": "1"
+      },
+      {
+        "name": "security",
+        "value": "apparmor"
+      }
+    ],
+    "profiles_dir": "/etc/apparmor.d",
+    "enforce_mode": "enforce",
+    "complain_mode": "complain"
+  },
+  "gdm": {
+    "package": "gdm3",
+    "profile_dir": "/etc/dconf/profile",
+    "profile_file": "/etc/dconf/profile/gdm",
+    "db_dir": "/etc/dconf/db/local.d",
+    "locks_dir": "/etc/dconf/db/local.d/locks",
+    "gdm_db_dir": "/etc/dconf/db/gdm.d",
+    "banner_file": "/etc/dconf/db/gdm.d/01-banner-message",
+    "login_screen_file": "/etc/dconf/db/local.d/00-login-screen",
+    "screensaver_file": "/etc/dconf/db/local.d/00-screensaver",
+    "screensaver_lock": "/etc/dconf/db/local.d/locks/00-screensaver",
+    "automount_file": "/etc/dconf/db/local.d/00-media-automount",
+    "automount_lock": "/etc/dconf/db/local.d/locks/00-media-automount",
+    "autorun_file": "/etc/dconf/db/local.d/00-media-autorun",
+    "autorun_lock": "/etc/dconf/db/local.d/locks/00-media-autorun",
+    "xdmcp_configs": [
+      "/etc/gdm3/custom.conf",
+      "/etc/gdm3/daemon.conf",
+      "/etc/gdm/custom.conf",
+      "/etc/gdm/daemon.conf"
+    ],
+    "banner_text": "Authorized uses only. All activity may be monitored and reported",
+    "idle_delay": 900,
+    "lock_delay": 5
+  },
+  "package_manager": {
+    "sources_file": "/etc/apt/sources.list",
+    "gpg_dirs": [
+      "/etc/apt/trusted.gpg.d",
+      "/etc/apt/sources.list.d"
+    ],
+    "gpg_extensions": [
+      "gpg",
+      "asc"
+    ],
+    "recommended_repos": [
+      "deb http://archive.ubuntu.com/ubuntu {codename} main restricted universe multiverse",
+      "deb http://archive.ubuntu.com/ubuntu {codename}-updates main restricted universe multiverse",
+      "deb http://archive.ubuntu.com/ubuntu {codename}-security main restricted universe multiverse"
+    ],
+    "recommended_gpg_keys": [
+      {
+        "name": "Ubuntu Archive Automatic Signing Key",
+        "keyid": "3B4FE6ACC0B21F32",
+        "keyserver": "keyserver.ubuntu.com"
+      },
+      {
+        "name": "Ubuntu Archive Automatic Signing Key 2018",
+        "keyid": "871920D1991BC93C",
+        "keyserver": "keyserver.ubuntu.com"
+      },
+      {
+        "name": "Ubuntu CD Image Automatic Signing Key",
+        "keyid": "843938DF228D22F7",
+        "keyserver": "keyserver.ubuntu.com"
+      }
+    ]
+  },
+"bootloader": {
+  "grub_cfg": "/boot/grub/grub.cfg",
+  "grub_config": "/etc/default/grub",
+  "grub_custom_dir": "/etc/grub.d",
+  "grub_custom_file": "/etc/grub.d/40_custom",
+  "superuser": "grub_admin",
+  "perm_mask": "0177",
+  "owner": "root",
+  "group": "root"
+},
+"process_hardening": {
+  "sysctl_conf_file": "/etc/sysctl.d/60-kernel_sysctl.conf",
+  "coredump_conf": "/etc/systemd/coredump.conf",
+  "limits_conf": "/etc/security/limits.conf",
+  "kernel_params": [
+    {
+      "name": "kernel.randomize_va_space",
+      "value": "2"
+    },
+    {
+      "name": "kernel.yama.ptrace_scope",
+      "value": "(1|2|3)"
+    },
+    {
+      "name": "fs.suid_dumpable",
+      "value": "0"
+    }
+  ],
+  "apport": {
+    "config_file": "/etc/default/apport",
+    "service": "apport.service"
+  }
+},
+"warning_banners": {
+  "banner_files": [
+    {
+      "path": "/etc/motd",
+      "required": false,
+      "perm_mask": "0133",
+      "owner": "root",
+      "group": "root"
+    },
+    {
+      "path": "/etc/issue",
+      "required": true,
+      "perm_mask": "0133",
+      "owner": "root",
+      "group": "root"
+    },
+    {
+      "path": "/etc/issue.net",
+      "required": true,
+      "perm_mask": "0133",
+      "owner": "root",
+      "group": "root"
+    }
+  ],
+  "os_info_pattern": "(\\\\v|\\\\r|\\\\m|\\\\s|ubuntu|debian)"
+}
+}

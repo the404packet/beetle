@@ -8,6 +8,8 @@ SOURCE_DIR="/etc/beetle"
 
 META_FILE="$BASE_DIR/.snapshot_meta"
 
+STATE_SCRIPT="/usr/local/bin/beetle_shell/lib/state_snapshot.sh"
+
 mkdir -p "$STORE_DIR" "$BEETLE_DIR" "$USER_DIR"
 touch "$META_FILE"
 
@@ -17,8 +19,7 @@ show_help() {
     echo "  beetle snapshot capture [--name <snapshot_name>]"
     echo "  beetle snapshot capture main [--name <snapshot_name>]"
     echo "  beetle snapshot ls"
-    echo "  beetle snapshot ls user"
-    echo "  beetle snapshot ls beetle"
+    echo "  beetle snapshot rm <id|name>"
 }
 
 # ---------- ID ----------
@@ -26,91 +27,85 @@ generate_id() {
     date +"%Y%m%d%H%M%S"
 }
 
-# ---------- HASH ----------
-create_hash() {
-    tar -czf - -C / etc/beetle 2>/dev/null | sha256sum | awk '{print $1}'
-}
-
 # ---------- CAPTURE ----------
 capture_snapshot() {
     MODE=""
     CUSTOM_NAME=""
 
-    # -------- ARG PARSING --------
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            main)
-                MODE="main"
-                shift
-                ;;
-            --name)
-                CUSTOM_NAME="$2"
-                shift 2
-                ;;
-            *)
-                echo "[!] Unknown argument: $1"
-                exit 1
-                ;;
+            main) MODE="main"; shift ;;
+            --name) CUSTOM_NAME="$2"; shift 2 ;;
+            *) echo "[!] Unknown argument: $1"; exit 1 ;;
         esac
     done
 
-    # TYPE
-    if [[ -z "$MODE" ]]; then
-        TYPE="user"
-    else
-        TYPE="beetle"
+    TYPE=$([[ -z "$MODE" ]] && echo "user" || echo "beetle")
+    TARGET_DIR=$([[ "$TYPE" == "user" ]] && echo "$USER_DIR" || echo "$BEETLE_DIR")
+
+    # ---------- ROOT CHECK ----------
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "[!] Snapshot requires root"
+        exit 1
     fi
 
-    # TARGET DIR
-    if [[ "$TYPE" == "user" ]]; then
-        TARGET_DIR="$USER_DIR"
-    else
-        TARGET_DIR="$BEETLE_DIR"
-    fi
-
-    # SECURITY CHECK
+    # ---------- DAEMON CHECK ----------
     if [[ "$TYPE" == "beetle" ]]; then
-        if [[ "$EUID" -ne 0 ]]; then
-            echo "[!] Permission denied: system snapshot requires root"
-            exit 1
-        fi
-
         BEETLED_PID=$(pgrep -x beetled)
-
         if [[ -z "$BEETLED_PID" || "$PPID" -ne "$BEETLED_PID" ]]; then
             echo "[!] Only beetled daemon can trigger system snapshots"
             exit 1
         fi
     fi
 
-    # HASH
-    HASH=$(create_hash)
-    [[ -z "$HASH" ]] && { echo "[!] Failed to compute snapshot hash"; exit 1; }
-
     TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
     SNAP_ID=$(generate_id)
 
-    STORE_FILE="$STORE_DIR/$HASH.tar.gz"
+    STORE_FILE="$STORE_DIR/${SNAP_ID}.tar.gz"
 
-    # DEDUP
-    if [[ ! -f "$STORE_FILE" ]]; then
-        tar -czf "$STORE_FILE" -C / etc/beetle
-        echo "[+] New snapshot stored"
-    else
-        echo "[=] Duplicate snapshot detected, reusing existing data"
+    # =====================================
+    # 🔥 TEMP STATE DIR (SAFE LOCATION)
+    # =====================================
+    STATE_TMP="$BASE_DIR/.beetle_state"
+
+    # Cleanup safety (runs on exit)
+    trap 'rm -rf "$STATE_TMP"' EXIT
+
+    rm -rf "$STATE_TMP"
+    mkdir -p "$STATE_TMP"
+
+    STATE_OUT="$STATE_TMP/state.json"
+
+    # ---------- RUN STATE GENERATOR ----------
+    if [[ ! -f "$STATE_SCRIPT" ]]; then
+        echo "[!] State script not found: $STATE_SCRIPT"
+        exit 1
     fi
 
-    # ---------- NAME HANDLING ----------
-    if [[ -n "$CUSTOM_NAME" ]]; then
-        BASE_NAME="$CUSTOM_NAME"
-        SNAP_NAME="${BASE_NAME}.tar.gz"
-
-        if [[ -e "$TARGET_DIR/$SNAP_NAME" ]]; then
-            echo "[!] Snapshot name '$CUSTOM_NAME' already exists. Use a different name."
+    bash "$STATE_SCRIPT" \
+        --concerned "$SOURCE_DIR/concerned.json" \
+        --output "$STATE_OUT" || {
+            echo "[!] State capture failed"
             exit 1
-        fi
-    else
-        SNAP_NAME="snapshot_${SNAP_ID}.tar.gz"
+        }
+
+    # =====================================
+    # 📦 CREATE TAR (NO DUPLICATION)
+    # =====================================
+    tar -czf "$STORE_FILE" \
+    -C "$SOURCE_DIR" $(ls "$SOURCE_DIR") \
+    -C "$STATE_TMP" state.json
+
+    # ---------- CLEANUP ----------
+    rm -rf "$STATE_TMP"
+    trap - EXIT
+
+    # ---------- NAME ----------
+    SNAP_NAME=${CUSTOM_NAME:-snapshot_${SNAP_ID}}.tar.gz
+
+    if [[ -e "$TARGET_DIR/$SNAP_NAME" ]]; then
+        echo "[!] Snapshot name already exists"
+        exit 1
     fi
 
     # ---------- SYMLINK ----------
@@ -119,8 +114,8 @@ capture_snapshot() {
         exit 1
     }
 
-    # ---------- METADATA ----------
-    echo "${SNAP_ID}|${SNAP_NAME}|${TIMESTAMP}|${TYPE}|${HASH}" >> "$META_FILE"
+    # ---------- META ----------
+    echo "${SNAP_ID}|${SNAP_NAME}|${TIMESTAMP}|${TYPE}|NA" >> "$META_FILE"
 
     echo "[+] Snapshot created:"
     echo "    ID   : $SNAP_ID"
@@ -129,13 +124,14 @@ capture_snapshot() {
 }
 
 # ---------- REMOVE ----------
-# ---------- REMOVE ----------
 remove_snapshot() {
     local INPUT="$1"
 
-    [[ -z "$INPUT" ]] && { echo "[!] Usage: beetle snapshot rm <id|name>"; exit 1; }
+    [[ -z "$INPUT" ]] && {
+        echo "[!] Usage: beetle snapshot rm <id|name>"
+        exit 1
+    }
 
-    # ---- FIND META ENTRY ----
     MATCH=$(grep -E "^${INPUT}\|" "$META_FILE")
     [[ -z "$MATCH" ]] && MATCH=$(grep -E "\|${INPUT}\|" "$META_FILE")
     [[ -z "$MATCH" ]] && MATCH=$(grep -E "\|${INPUT}\.tar\.gz\|" "$META_FILE")
@@ -145,52 +141,29 @@ remove_snapshot() {
         exit 1
     fi
 
-    # ---- PARSE ----
     SNAP_ID=$(echo "$MATCH"   | cut -d'|' -f1)
     SNAP_NAME=$(echo "$MATCH" | cut -d'|' -f2)
     SNAP_TYPE=$(echo "$MATCH" | cut -d'|' -f4)
-    SNAP_HASH=$(echo "$MATCH" | cut -d'|' -f5)
 
-    # ---- LOCATE SYMLINK ----
-    # ---- LOCATE SYMLINK ----
-if [[ "$SNAP_TYPE" == "beetle" ]]; then
-    SNAP_LINK="$BEETLE_DIR/$SNAP_NAME"
+    if [[ "$SNAP_TYPE" == "beetle" ]]; then
+        SNAP_LINK="$BEETLE_DIR/$SNAP_NAME"
 
-    # beetle snapshots can only be deleted by beetled
-    BEETLED_PID=$(pgrep -x beetled)
+        BEETLED_PID=$(pgrep -x beetled)
         if [[ -z "$BEETLED_PID" || "$PPID" -ne "$BEETLED_PID" ]]; then
-            echo "[!] Permission denied: beetle snapshots can only be removed by beetled daemon"
+            echo "[!] Permission denied: beetle snapshots can only be removed by daemon"
             exit 1
         fi
     else
         SNAP_LINK="$USER_DIR/$SNAP_NAME"
     fi
 
-    if [[ ! -L "$SNAP_LINK" ]]; then
-        echo "[!] Symlink not found: $SNAP_LINK"
-        echo "    Removing metadata entry only"
-    else
+    if [[ -L "$SNAP_LINK" ]]; then
         rm "$SNAP_LINK"
-        echo "[+] Removed snapshot link: $SNAP_NAME"
+        echo "[+] Removed snapshot link"
     fi
 
-    # ---- REMOVE META ENTRY ----
     sed -i "/^${SNAP_ID}|/d" "$META_FILE"
-    echo "[+] Removed metadata entry for ID: $SNAP_ID"
-
-    # ---- DEDUP CHECK ----
-    STORE_FILE="$STORE_DIR/$SNAP_HASH.tar.gz"
-
-    if [[ -f "$STORE_FILE" ]]; then
-        REF_COUNT=$(find "$BEETLE_DIR" "$USER_DIR" -type l | while read -r link; do
-            target=$(readlink -f "$link" 2>/dev/null)
-            [[ "$target" == "$STORE_FILE" ]] && echo "ref"
-        done | wc -l)
-
-        if [[ "$REF_COUNT" -eq 0 ]]; then
-            rm "$STORE_FILE"
-        fi
-    fi
+    echo "[+] Removed metadata entry"
 }
 
 # ---------- LIST ----------

@@ -1,0 +1,18 @@
+{
+  "packages": {
+    "nginx":     ["nginx"],
+    "docker.io": ["docker"],
+    "ufw":       ["ufw"]
+  },
+  "kernel_modules": [
+    { "name": "br_netfilter", "removable": true  },
+    { "name": "overlay",      "removable": false }
+  ],
+  "firewalls": ["ufw", "iptables", "nftables"],
+  "files": [
+    "/etc/nginx/nginx.conf",
+    "/etc/passwd",
+    "/etc/ssh/sshd_config"
+  ],
+  "directories": ["/tmp", "/var/log"]
+}
