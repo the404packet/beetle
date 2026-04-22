@@ -6,8 +6,6 @@
   "access_control/ssh_banner_audit": true,
   "access_control/ssh_ciphers_audit": true,
   "access_control/ssh_kexalgorithm": true,
-
-  "host_based_firewall/configure_ufw/routedcheck": true,
   
   "services/configure_server_services/dns_service": true,
   "services/configure_server_services/web_proxy_server_service": true,

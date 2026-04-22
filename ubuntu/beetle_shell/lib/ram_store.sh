@@ -7,7 +7,8 @@ PERM_RAM_STORE="/dev/shm/beetle_permissions.env"          # system_maintenance
 SSH_RAM_STORE="/dev/shm/beetle_ssh.env"
 NETWORK_RAM_STORE="/dev/shm/beetle_network.env"           # network
 SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
-FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
+# FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
+FW_RAM_STORE="/dev/shm/beetle_fw_store.env"                  # host_based_firewall but cooler
 LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
@@ -749,6 +750,140 @@ unload_all() {
     unload_severity
 }
 
+# ──────────────────────────────────────────────────────────────────────────────────────────
+# FIREWALL 
+# ──────────────────────────────────────────────────────────────────────────────────────────
+
+#!/usr/bin/env bash
+# =============================================================================
+# lib/ram_store_firewall.sh
+# Beetle — RAM store loader for Section 4: Host Based Firewall
+#
+# Source this file from lib/ram_store.sh or the main runner.
+#
+# Flattens config/firewall.json into flat KEY=value lines in /dev/shm
+# and sources them so all vars are immediately available to child scripts.
+#
+# RAM store path : $FW_RAM_STORE  (/dev/shm/beetle_fw_store)
+#
+# Variable prefixes
+#   FW_   — top-level firewall selector (active_tool, allowed_tools)
+#   UFW_  — Section 4.2 UncomplicatedFirewall
+#   NFT_  — Section 4.3 nftables
+#   IPT_  — Section 4.4 iptables / ip6tables
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# load_json_firewall <json_file>
+#   Flattens all three backend sections of firewall.json into the RAM store,
+#   sets permissions to 600, then sources it.
+# -----------------------------------------------------------------------------
+load_json_firewall() {
+    local json_file="$1"
+    [ -f "$json_file" ] || { echo "ERROR: firewall JSON not found: $json_file"; return 1; }
+    rm -f "$FW_RAM_STORE"
+
+    python3 - <<EOF > "$FW_RAM_STORE"
+
+import json
+
+with open("$json_file") as f:
+    data = json.load(f)
+
+# ── top-level firewall selector ──────────────────────────────────────────────
+fw = data.get("firewall", {})
+print(f'FW_active_tool={fw.get("active_tool","")}')
+tools = fw.get("allowed_tools", [])
+print(f'FW_allowed_tools_count={len(tools)}')
+for i, t in enumerate(tools):
+    print(f'FW_allowed_tool_{i}={t}')
+
+# ── UFW (Section 4.2) ────────────────────────────────────────────────────────
+ufw = data.get("ufw", {})
+pkgs = ufw.get("required_packages", [])
+print(f'UFW_pkg_count={len(pkgs)}')
+for i, p in enumerate(pkgs):
+    print(f'UFW_pkg_{i}_name={p.get("name","")}')
+
+banned = ufw.get("banned_with_ufw", [])
+print(f'UFW_banned_count={len(banned)}')
+for i, b in enumerate(banned):
+    print(f'UFW_banned_{i}_name={b.get("name","")}')
+
+lb = ufw.get("loopback", {})
+print(f'UFW_lb_allow_in={lb.get("allow_in","")}')
+print(f'UFW_lb_allow_out={lb.get("allow_out","")}')
+print(f'UFW_lb_deny_in={lb.get("deny_in","")}')
+print(f'UFW_lb_deny_in6={lb.get("deny_in6","")}')
+
+dp = ufw.get("default_policies", {})
+print(f'UFW_policy_incoming={dp.get("incoming","")}')
+print(f'UFW_policy_outgoing={dp.get("outgoing","")}')
+print(f'UFW_policy_routed={dp.get("routed","")}')
+
+# ── nftables (Section 4.3) ───────────────────────────────────────────────────
+nft = data.get("nftables", {})
+nft_pkgs = nft.get("required_packages", [])
+print(f'NFT_pkg_count={len(nft_pkgs)}')
+for i, p in enumerate(nft_pkgs):
+    print(f'NFT_pkg_{i}_name={p.get("name","")}')
+
+nft_banned = nft.get("banned_with_nftables", [])
+print(f'NFT_banned_count={len(nft_banned)}')
+for i, b in enumerate(nft_banned):
+    print(f'NFT_banned_{i}_name={b.get("name","")}')
+
+tbl = nft.get("table", {})
+print(f'NFT_table_name={tbl.get("name","")}')
+print(f'NFT_table_family={tbl.get("family","")}')
+
+chains = nft.get("base_chains", [])
+print(f'NFT_chain_count={len(chains)}')
+for i, c in enumerate(chains):
+    print(f'NFT_chain_{i}_name={c.get("name","")}')
+    print(f'NFT_chain_{i}_hook={c.get("hook","")}')
+    print(f'NFT_chain_{i}_policy={c.get("policy","")}')
+
+lb = nft.get("loopback", {})
+print(f'NFT_lb_iface={lb.get("iface","")}')
+print(f'NFT_lb_deny_in={lb.get("deny_in","")}')
+print(f'NFT_lb_deny_in6={lb.get("deny_in6","")}')
+print(f'NFT_rules_file={nft.get("rules_file","")}')
+
+# ── iptables (Section 4.4) ───────────────────────────────────────────────────
+ipt = data.get("iptables", {})
+ipt_pkgs = ipt.get("required_packages", [])
+print(f'IPT_pkg_count={len(ipt_pkgs)}')
+for i, p in enumerate(ipt_pkgs):
+    print(f'IPT_pkg_{i}_name={p.get("name","")}')
+
+ipt_banned = ipt.get("banned_with_iptables", [])
+print(f'IPT_banned_count={len(ipt_banned)}')
+for i, b in enumerate(ipt_banned):
+    print(f'IPT_banned_{i}_name={b.get("name","")}')
+
+lb = ipt.get("loopback", {})
+print(f'IPT_lb_iface={lb.get("iface","")}')
+print(f'IPT_lb_deny_in={lb.get("deny_in","")}')
+print(f'IPT_lb_deny_in6={lb.get("deny_in6","")}')
+
+dp = ipt.get("default_policies", {})
+print(f'IPT_policy_input={dp.get("input","")}')
+print(f'IPT_policy_forward={dp.get("forward","")}')
+print(f'IPT_policy_output={dp.get("output","")}')
+
+states = ipt.get("established_states", [])
+print(f'IPT_states={",".join(states)}')
+print(f'IPT_rules_file={ipt.get("rules_file","")}')
+print(f'IPT_rules_file_v6={ipt.get("rules_file_v6","")}')
+EOF
+    chmod 600 "$FW_RAM_STORE"
+    source "$FW_RAM_STORE"
+}
+# ──────────────────────────────────────────────────────────────────────────────────────────
+# FIREWALL 
+# ──────────────────────────────────────────────────────────────────────────────────────────
 
 
 
@@ -779,4 +914,5 @@ export DPKG_RAM_STORE
 export PERM_RAM_STORE
 export SEVERITY_CONFIG_DIR
 export SSH_RAM_STORE
+export FW_RAM_STORE
 

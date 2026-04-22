@@ -1,14 +1,24 @@
 {
+  "_comment": "Beetle firewall config \u2014 covers UFW, nftables, iptables (CIS Section 4)",
+  "_usage": "Set active_tool to whichever backend is in use on this host",
   "firewall": {
     "active_tool": "ufw",
-    "allowed_tools": ["ufw", "nftables", "iptables"]
+    "allowed_tools": [
+      "ufw",
+      "nftables",
+      "iptables"
+    ]
   },
   "ufw": {
     "required_packages": [
-      { "name": "ufw" }
+      {
+        "name": "ufw"
+      }
     ],
     "banned_with_ufw": [
-      { "name": "iptables-persistent" }
+      {
+        "name": "iptables-persistent"
+      }
     ],
     "loopback": {
       "allow_in": "lo",
@@ -24,19 +34,35 @@
   },
   "nftables": {
     "required_packages": [
-      { "name": "nftables" }
+      {
+        "name": "nftables"
+      }
     ],
     "banned_with_nftables": [
-      { "name": "ufw" }
+      {
+        "name": "ufw"
+      }
     ],
     "table": {
       "name": "filter",
       "family": "inet"
     },
     "base_chains": [
-      { "name": "input",   "hook": "input",   "policy": "drop" },
-      { "name": "forward", "hook": "forward", "policy": "drop" },
-      { "name": "output",  "hook": "output",  "policy": "accept" }
+      {
+        "name": "input",
+        "hook": "input",
+        "policy": "drop"
+      },
+      {
+        "name": "forward",
+        "hook": "forward",
+        "policy": "drop"
+      },
+      {
+        "name": "output",
+        "hook": "output",
+        "policy": "accept"
+      }
     ],
     "loopback": {
       "iface": "lo",
@@ -47,11 +73,17 @@
   },
   "iptables": {
     "required_packages": [
-      { "name": "iptables" },
-      { "name": "iptables-persistent" }
+      {
+        "name": "iptables"
+      },
+      {
+        "name": "iptables-persistent"
+      }
     ],
     "banned_with_iptables": [
-      { "name": "ufw" }
+      {
+        "name": "ufw"
+      }
     ],
     "loopback": {
       "iface": "lo",
@@ -59,11 +91,14 @@
       "deny_in6": "::1"
     },
     "default_policies": {
-      "input":   "DROP",
+      "input": "DROP",
       "forward": "DROP",
-      "output":  "ACCEPT"
+      "output": "ACCEPT"
     },
-    "established_states": ["ESTABLISHED", "RELATED"],
+    "established_states": [
+      "ESTABLISHED",
+      "RELATED"
+    ],
     "rules_file": "/etc/iptables/rules.v4",
     "rules_file_v6": "/etc/iptables/rules.v6"
   }
