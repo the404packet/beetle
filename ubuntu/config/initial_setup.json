@@ -73,5 +73,55 @@
     "profiles_dir":    "/etc/apparmor.d",
     "enforce_mode":    "enforce",
     "complain_mode":   "complain"
+  },
+  "bootloader": {
+  "grub_cfg":          "/boot/grub/grub.cfg",
+  "grub_config":       "/etc/default/grub",
+  "grub_custom_dir":   "/etc/grub.d",
+  "grub_custom_file":  "/etc/grub.d/40_custom",
+  "superuser":         "grub_admin",
+  "perm_mask":         "0177",
+  "owner":             "root",
+  "group":             "root"
+},
+"process_hardening": {
+  "sysctl_conf_file": "/etc/sysctl.d/60-kernel_sysctl.conf",
+  "coredump_conf":    "/etc/systemd/coredump.conf",
+  "limits_conf":      "/etc/security/limits.conf",
+  "kernel_params": [
+    { "name": "kernel.randomize_va_space", "value": "2" },
+    { "name": "kernel.yama.ptrace_scope",  "value": "(1|2|3)" },
+    { "name": "fs.suid_dumpable",          "value": "0" }
+  ],
+  "apport": {
+    "config_file": "/etc/default/apport",
+    "service":     "apport.service"
   }
+},
+"warning_banners": {
+  "banner_files": [
+    {
+      "path":       "/etc/motd",
+      "required":   false,
+      "perm_mask":  "0133",
+      "owner":      "root",
+      "group":      "root"
+    },
+    {
+      "path":       "/etc/issue",
+      "required":   true,
+      "perm_mask":  "0133",
+      "owner":      "root",
+      "group":      "root"
+    },
+    {
+      "path":       "/etc/issue.net",
+      "required":   true,
+      "perm_mask":  "0133",
+      "owner":      "root",
+      "group":      "root"
+    }
+  ],
+  "os_info_pattern": "(\\\\v|\\\\r|\\\\m|\\\\s|ubuntu|debian)"
+}
 }

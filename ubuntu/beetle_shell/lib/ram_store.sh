@@ -184,6 +184,40 @@ for i, p in enumerate(parts):
         print(f'FP_{i}_opt_{j}=' + q(opt))
     # also store mount->idx mapping for easy lookup
     print(f'FP_idx_{mount_key}=' + q(i))
+
+bl = data.get('bootloader', {})
+print('BL_grub_cfg='         + q(bl.get('grub_cfg',         '/boot/grub/grub.cfg')))
+print('BL_grub_config='      + q(bl.get('grub_config',      '/etc/default/grub')))
+print('BL_grub_custom_dir='  + q(bl.get('grub_custom_dir',  '/etc/grub.d')))
+print('BL_grub_custom_file=' + q(bl.get('grub_custom_file', '/etc/grub.d/40_custom')))
+print('BL_superuser='        + q(bl.get('superuser',        'grub_admin')))
+print('BL_perm_mask='        + q(bl.get('perm_mask',        '0177')))
+print('BL_owner='            + q(bl.get('owner',            'root')))
+print('BL_group='            + q(bl.get('group',            'root')))
+
+ph = data.get('process_hardening', {})
+print('PH_sysctl_conf='   + q(ph.get('sysctl_conf_file', '/etc/sysctl.d/60-kernel_sysctl.conf')))
+print('PH_coredump_conf=' + q(ph.get('coredump_conf',    '/etc/systemd/coredump.conf')))
+print('PH_limits_conf='   + q(ph.get('limits_conf',      '/etc/security/limits.conf')))
+kp = ph.get('kernel_params', [])
+print('PH_kparam_count=' + q(len(kp)))
+for i, p in enumerate(kp):
+    print(f'PH_kparam_{i}_name='  + q(p.get('name',  '')))
+    print(f'PH_kparam_{i}_value=' + q(p.get('value', '')))
+ap = ph.get('apport', {})
+print('PH_apport_config=' + q(ap.get('config_file', '/etc/default/apport')))
+print('PH_apport_service='+ q(ap.get('service',     'apport.service')))
+
+wb = data.get('warning_banners', {})
+bf = wb.get('banner_files', [])
+print('WB_count='           + q(len(bf)))
+print('WB_os_info_pattern=' + q(wb.get('os_info_pattern', '(\\\\v|\\\\r|\\\\m|\\\\s)')))
+for i, b in enumerate(bf):
+    print(f'WB_{i}_path='     + q(b.get('path',     '')))
+    print(f'WB_{i}_required=' + q(str(b.get('required', False)).lower()))
+    print(f'WB_{i}_perm_mask='+ q(b.get('perm_mask', '0133')))
+    print(f'WB_{i}_owner='    + q(b.get('owner',     'root')))
+    print(f'WB_{i}_group='    + q(b.get('group',     'root')))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
