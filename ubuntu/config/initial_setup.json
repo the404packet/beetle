@@ -94,5 +94,23 @@
   "banner_text":      "Authorized uses only. All activity may be monitored and reported",
   "idle_delay":       900,
   "lock_delay":       5
+},
+"package_manager": {
+  "sources_file": "/etc/apt/sources.list",
+  "gpg_dirs": [
+    "/etc/apt/trusted.gpg.d",
+    "/etc/apt/sources.list.d"
+  ],
+  "gpg_extensions": ["gpg", "asc"],
+  "recommended_repos": [
+    "deb http://archive.ubuntu.com/ubuntu {codename} main restricted universe multiverse",
+    "deb http://archive.ubuntu.com/ubuntu {codename}-updates main restricted universe multiverse",
+    "deb http://archive.ubuntu.com/ubuntu {codename}-security main restricted universe multiverse"
+  ],
+  "recommended_gpg_keys": [
+    { "name": "Ubuntu Archive Automatic Signing Key", "keyid": "3B4FE6ACC0B21F32", "keyserver": "keyserver.ubuntu.com" },
+    { "name": "Ubuntu Archive Automatic Signing Key 2018", "keyid": "871920D1991BC93C", "keyserver": "keyserver.ubuntu.com" },
+    { "name": "Ubuntu CD Image Automatic Signing Key", "keyid": "843938DF228D22F7", "keyserver": "keyserver.ubuntu.com" }
+  ]
 }
 }

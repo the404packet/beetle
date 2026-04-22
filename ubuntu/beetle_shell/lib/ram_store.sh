@@ -206,6 +206,30 @@ xdmcp = gd.get('xdmcp_configs', [])
 print('GD_xdmcp_count=' + q(len(xdmcp)))
 for i,x in enumerate(xdmcp):
     print(f'GD_xdmcp_{i}=' + q(x))
+pm = data.get('package_manager', {})
+print('PM_sources_file=' + q(pm.get('sources_file', '/etc/apt/sources.list')))
+
+gpg_dirs = pm.get('gpg_dirs', [])
+print('PM_gpg_dir_count=' + q(len(gpg_dirs)))
+for i, d in enumerate(gpg_dirs):
+    print(f'PM_gpg_dir_{i}=' + q(d))
+
+gpg_exts = pm.get('gpg_extensions', [])
+print('PM_gpg_ext_count=' + q(len(gpg_exts)))
+for i, e in enumerate(gpg_exts):
+    print(f'PM_gpg_ext_{i}=' + q(e))
+
+repos = pm.get('recommended_repos', [])
+print('PM_repo_count=' + q(len(repos)))
+for i, r in enumerate(repos):
+    print(f'PM_repo_{i}=' + q(r))
+
+keys = pm.get('recommended_gpg_keys', [])
+print('PM_gpg_key_count=' + q(len(keys)))
+for i, k in enumerate(keys):
+    print(f'PM_gpg_key_{i}_name=' + q(k.get('name', '')))
+    print(f'PM_gpg_key_{i}_keyid=' + q(k.get('keyid', '')))
+    print(f'PM_gpg_key_{i}_keyserver=' + q(k.get('keyserver', '')))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
