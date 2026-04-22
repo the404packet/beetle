@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd LoginGraceTime config'
+NAME="sshd LoginGraceTime config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

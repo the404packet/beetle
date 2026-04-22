@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure minimum password days is configured'
+NAME="ensure minimum password days is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

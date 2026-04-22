@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure root is the only UID 0 account'
+NAME="ensure root is the only UID 0 account"
 SEVERITY='basic'
 
 GREEN="\e[32m"

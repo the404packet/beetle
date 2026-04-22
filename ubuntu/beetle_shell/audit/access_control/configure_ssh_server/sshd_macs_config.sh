@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd MACs config'
+NAME="sshd MACs config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

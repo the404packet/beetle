@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd kexalgorithm config'
+NAME="sshd kexalgorithm config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

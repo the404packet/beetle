@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd LogLevel config'
+NAME="sshd LogLevel config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

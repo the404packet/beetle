@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password complexity is configured'
+NAME="ensure password complexity is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

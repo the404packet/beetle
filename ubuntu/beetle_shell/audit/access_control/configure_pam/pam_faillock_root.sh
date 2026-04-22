@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password failed attempts lockout includes root account'
+NAME="ensure password failed attempts lockout includes root account"
 SEVERITY='moderate'
 
 GREEN="\e[32m"

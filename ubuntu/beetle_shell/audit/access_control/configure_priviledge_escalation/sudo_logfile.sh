@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure sudo log file exists'
+NAME="ensure sudo log file exists"
 SEVERITY='basic'
 
 GREEN="\e[32m"

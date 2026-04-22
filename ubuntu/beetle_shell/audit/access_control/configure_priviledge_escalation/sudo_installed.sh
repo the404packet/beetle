@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure sudo is installed'
+NAME="ensure sudo is installed"
 SEVERITY='basic'
 
 GREEN="\e[32m"

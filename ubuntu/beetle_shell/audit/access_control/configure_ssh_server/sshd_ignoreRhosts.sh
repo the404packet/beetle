@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd IgnoreRhosts set to yes'
+NAME="sshd IgnoreRhosts set to yes"
 SEVERITY='basic'
 
 GREEN="\e[32m"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd PermitUserEnvironment config'
+NAME="sshd PermitUserEnvironment config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

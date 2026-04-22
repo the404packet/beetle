@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure pam_pwhistory includes use_authtok'
+NAME="ensure pam_pwhistory includes use_authtok"
 SEVERITY='basic'
 
 GREEN="\e[32m"

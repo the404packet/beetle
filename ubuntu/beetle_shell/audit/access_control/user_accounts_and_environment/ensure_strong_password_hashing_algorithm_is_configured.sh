@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure strong password hashing algorithm is configured'
+NAME="ensure strong password hashing algorithm is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

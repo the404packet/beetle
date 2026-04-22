@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure default user umask is configured'
+NAME="ensure default user umask is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

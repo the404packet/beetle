@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password number of changed characters is configured'
+NAME="ensure password number of changed characters is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"
