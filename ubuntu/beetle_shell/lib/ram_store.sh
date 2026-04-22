@@ -218,6 +218,52 @@ for i, b in enumerate(bf):
     print(f'WB_{i}_perm_mask='+ q(b.get('perm_mask', '0133')))
     print(f'WB_{i}_owner='    + q(b.get('owner',     'root')))
     print(f'WB_{i}_group='    + q(b.get('group',     'root')))
+gd = data.get('gdm', {})
+print('GD_package='           + q(gd.get('package','')))
+print('GD_profile_dir='       + q(gd.get('profile_dir','')))
+print('GD_profile_file='      + q(gd.get('profile_file','')))
+print('GD_db_dir='            + q(gd.get('db_dir','')))
+print('GD_locks_dir='         + q(gd.get('locks_dir','')))
+print('GD_gdm_db_dir='        + q(gd.get('gdm_db_dir','')))
+print('GD_banner_file='       + q(gd.get('banner_file','')))
+print('GD_login_screen_file=' + q(gd.get('login_screen_file','')))
+print('GD_screensaver_file='  + q(gd.get('screensaver_file','')))
+print('GD_screensaver_lock='  + q(gd.get('screensaver_lock','')))
+print('GD_automount_file='    + q(gd.get('automount_file','')))
+print('GD_automount_lock='    + q(gd.get('automount_lock','')))
+print('GD_autorun_file='      + q(gd.get('autorun_file','')))
+print('GD_autorun_lock='      + q(gd.get('autorun_lock','')))
+print('GD_banner_text='       + q(gd.get('banner_text','')))
+print('GD_idle_delay='        + q(gd.get('idle_delay',900)))
+print('GD_lock_delay='        + q(gd.get('lock_delay',5)))
+xdmcp = gd.get('xdmcp_configs', [])
+print('GD_xdmcp_count=' + q(len(xdmcp)))
+for i,x in enumerate(xdmcp):
+    print(f'GD_xdmcp_{i}=' + q(x))
+pm = data.get('package_manager', {})
+print('PM_sources_file=' + q(pm.get('sources_file', '/etc/apt/sources.list')))
+
+gpg_dirs = pm.get('gpg_dirs', [])
+print('PM_gpg_dir_count=' + q(len(gpg_dirs)))
+for i, d in enumerate(gpg_dirs):
+    print(f'PM_gpg_dir_{i}=' + q(d))
+
+gpg_exts = pm.get('gpg_extensions', [])
+print('PM_gpg_ext_count=' + q(len(gpg_exts)))
+for i, e in enumerate(gpg_exts):
+    print(f'PM_gpg_ext_{i}=' + q(e))
+
+repos = pm.get('recommended_repos', [])
+print('PM_repo_count=' + q(len(repos)))
+for i, r in enumerate(repos):
+    print(f'PM_repo_{i}=' + q(r))
+
+keys = pm.get('recommended_gpg_keys', [])
+print('PM_gpg_key_count=' + q(len(keys)))
+for i, k in enumerate(keys):
+    print(f'PM_gpg_key_{i}_name=' + q(k.get('name', '')))
+    print(f'PM_gpg_key_{i}_keyid=' + q(k.get('keyid', '')))
+    print(f'PM_gpg_key_{i}_keyserver=' + q(k.get('keyserver', '')))
 PYEOF
 
     python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
@@ -245,9 +291,13 @@ partition_has_option() {
     findmnt -kn "$mount" | grep -qv "$option" && return 1 || return 0
 }
 
+gdm_installed() {
+    is_package_installed "gdm3"
+}
+
 unload_json_initial_setup() {
     rm -f "$INITIAL_SETUP_RAM_STORE"
-    unset $(compgen -v | grep -E '^(AA_|FM_)')
+    unset $(compgen -v | grep -E '^(AA_|FM_|PT_|GD_)')
 }
 
 beetle_module_audit() {
@@ -656,6 +706,13 @@ for entry in data["system_file_permissions"]:
     print(f'PERM_{key}_mode={mode}')
     print(f'PERM_{key}_owner={owner}')
     print(f'PERM_{key}_group={group}')
+ss = data.get('suid_sgid', {})
+risky = ss.get('known_risky', [])
+print('SS_count=' + q(len(risky)))
+for i,r in enumerate(risky):
+    print(f'SS_{i}_name=' + q(r.get('name','')))
+    print(f'SS_{i}_path=' + q(r.get('path','')))
+    print(f'SS_{i}_risk=' + q(r.get('risk','')))
 EOF
 
     chmod 600 "$PERM_RAM_STORE"
@@ -664,6 +721,7 @@ EOF
 
 unload_json_system_maintenance() {
     [ -f "$PERM_RAM_STORE" ] && shred -u "$PERM_RAM_STORE" 2>/dev/null || rm -f "$PERM_RAM_STORE"
+    unset $(compgen -v | grep -E '^(PERM_|SS_)')
 }
 
 get_perm() {
@@ -974,9 +1032,6 @@ unload_all() {
     unload_json_logging_and_auditing
     unload_severity
 }
-
-
-
 
 export -f load_dpkg
 export -f unload_dpkg
