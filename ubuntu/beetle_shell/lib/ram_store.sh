@@ -648,6 +648,13 @@ for entry in data["system_file_permissions"]:
     print(f'PERM_{key}_mode={mode}')
     print(f'PERM_{key}_owner={owner}')
     print(f'PERM_{key}_group={group}')
+ss = data.get('suid_sgid', {})
+risky = ss.get('known_risky', [])
+print('SS_count=' + q(len(risky)))
+for i,r in enumerate(risky):
+    print(f'SS_{i}_name=' + q(r.get('name','')))
+    print(f'SS_{i}_path=' + q(r.get('path','')))
+    print(f'SS_{i}_risk=' + q(r.get('risk','')))
 EOF
 
     chmod 600 "$PERM_RAM_STORE"
@@ -656,6 +663,7 @@ EOF
 
 unload_json_system_maintenance() {
     [ -f "$PERM_RAM_STORE" ] && shred -u "$PERM_RAM_STORE" 2>/dev/null || rm -f "$PERM_RAM_STORE"
+    unset $(compgen -v | grep -E '^(PERM_|SS_)')
 }
 
 get_perm() {
