@@ -16,7 +16,7 @@ EXPECTED_OWNER=$(get_perm "$FILE" owner)
 EXPECTED_GROUP=$(get_perm "$FILE" group)
 
 [ -f "$FILE" ] || exit 2
-
+    
 mode=$(stat -Lc '%a' "$FILE" 2>/dev/null) || exit 2
 owner=$(stat -Lc '%U' "$FILE" 2>/dev/null) || exit 2
 group=$(stat -Lc '%G' "$FILE" 2>/dev/null) || exit 2

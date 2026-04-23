@@ -97,5 +97,77 @@
     "diffie-hellman-group1-sha1",
     "diffie-hellman-group14-sha1",
     "diffie-hellman-group-exchange-sha1"
-  ]
+  ],
+  "sudo_settings": {
+      "timestamp_timeout": {
+          "max": 15
+      },
+      "logfile": {
+          "path": "/var/log/sudo.log"
+      },
+      "su_restrict_group": {
+          "name": "sugroup"
+      }
+  },
+  "pam_settings": {
+    "libpam_runtime": {
+      "min_version": "1.5.3-5"
+    },
+    "libpam_modules": {
+      "min_version": "1.5.3-5"
+    },
+    "faillock": {
+      "deny_max": 5,
+      "unlock_time_min": 900,
+      "unlock_time_value": 900,
+      "root_unlock_time_min": 60,
+      "root_unlock_time_value": 60
+    },
+    "pwquality": {
+      "difok_min": 2,
+      "minlen_min": 14,
+      "minclass": 3,
+      "maxrepeat_max": 3,
+      "maxsequence_max": 3
+    },
+    "pwhistory": {
+      "remember_min": 24
+    },
+    "unix": {
+      "hash_algo": "yescrypt"
+    }
+  },
+    "login_defs": {
+    "file": "/etc/login.defs",
+    "pass_max_days": {
+      "max": 365
+    },
+    "pass_min_days": {
+      "min": 1
+    },
+    "pass_warn_age": {
+      "min": 7
+    },
+    "encrypt_method": {
+      "allowed": ["SHA512", "YESCRYPT"]
+    },
+    "inactive": {
+      "max": 45
+    }
+  },
+
+  "user_env": {
+    "tmout": {
+      "max": 900,
+      "profile_d_file": "/etc/profile.d/50-systemwide_tmout.sh"
+    },
+    "umask": {
+      "value": "027",
+      "profile_d_file": "/etc/profile.d/50-systemwide_umask.sh"
+    },
+    "root_umask": {
+      "files": ["/root/.bash_profile", "/root/.bashrc"]
+    }
+  }
 }
+
