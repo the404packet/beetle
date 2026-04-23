@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure system accounts do not have a valid login shell'
+NAME="ensure system accounts do not have a valid login shell"
 SEVERITY='basic'
 
 GREEN="\e[32m"

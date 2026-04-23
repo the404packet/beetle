@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password failed attempts lockout is configured'
+NAME="ensure password failed attempts lockout is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

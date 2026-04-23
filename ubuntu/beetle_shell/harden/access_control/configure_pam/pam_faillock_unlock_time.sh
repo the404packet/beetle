@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password unlock time is configured'
+NAME="ensure password unlock time is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

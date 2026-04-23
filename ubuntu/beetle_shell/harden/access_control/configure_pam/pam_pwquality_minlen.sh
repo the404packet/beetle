@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure minimum password length is configured'
+NAME="ensure minimum password length is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd DisableForwarding config'
+NAME="sshd DisableForwarding config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

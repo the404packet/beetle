@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure pam_unix does not include remember'
+NAME="ensure pam_unix does not include remember"
 SEVERITY='basic'
 
 GREEN="\e[32m"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure sudo is installed'
+NAME="ensure sudo is installed"
 SEVERITY='basic'
 
 GREEN="\e[32m"
@@ -12,7 +12,7 @@ if is_package_installed "sudo" || is_package_installed "sudo-ldap"; then
     exit 0
 fi
 
-if apt-get install -y sudo 2>/dev/null; then
+if apt-get install -y sudo >/dev/null 2>&1; then
     echo -e "${GREEN}SUCCESS${RESET}"
 else
     echo -e "${RED}FAILED${RESET}"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure libpam-pwquality is installed'
+NAME="ensure libpam-pwquality is installed"
 SEVERITY='basic'
 
 GREEN="\e[32m"

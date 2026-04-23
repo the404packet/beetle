@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password history remember is configured'
+NAME="ensure password history remember is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

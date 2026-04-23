@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ssh login banner'
+NAME="ssh login banner"
 SEVERITY='basic'
 
 GREEN="\e[32m"

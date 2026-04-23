@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure all users last password change date is in the past'
+NAME="ensure all users last password change date is in the past"
 SEVERITY='basic'
 
 GREEN="\e[32m"

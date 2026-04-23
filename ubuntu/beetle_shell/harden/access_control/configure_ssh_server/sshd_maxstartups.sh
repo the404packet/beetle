@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd MaxStartups config'
+NAME="sshd MaxStartups config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

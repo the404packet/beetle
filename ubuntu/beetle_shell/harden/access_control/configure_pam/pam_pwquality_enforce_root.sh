@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password quality is enforced for the root user'
+NAME="ensure password quality is enforced for the root user"
 SEVERITY='basic'
 
 GREEN="\e[32m"

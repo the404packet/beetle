@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure nologin is not listed in /etc/shells'
+NAME="ensure nologin is not listed in /etc/shells"
 SEVERITY='basic'
 
 GREEN="\e[32m"

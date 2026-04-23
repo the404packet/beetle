@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password dictionary check is enabled'
+NAME="ensure password dictionary check is enabled"
 SEVERITY='basic'
 
 GREEN="\e[32m"
