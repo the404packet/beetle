@@ -1,3 +1,26 @@
 {
-    "access_control/configure_ssh_server/sshd_access_config": true
+    "initial_setup/configure_gnome_display_manager/gdm_automount": true,
+    "initial_setup/configure_gnome_display_manager/gdm_automount_override": true,
+    "initial_setup/configure_gnome_display_manager/gdm_autorun_never": true,
+    "initial_setup/configure_gnome_display_manager/gdm_autorun_never_override": true,
+    "initial_setup/configure_gnome_display_manager/gdm_banner": true,
+    "initial_setup/configure_gnome_display_manager/gdm_disable_user_list": true,
+    "initial_setup/configure_gnome_display_manager/gdm_removed": true,
+    "initial_setup/configure_gnome_display_manager/gdm_screen_lock": true,
+    "initial_setup/configure_gnome_display_manager/gdm_screen_lock_override": true,
+    "initial_setup/configure_gnome_display_manager/gdm_xdmcp": true,  
+    "initial_setup/configure_additional_process_hardening/ensure_address_space_layout_randomization_is_enabled": true,
+    "initial_setup/configure_additional_process_hardening/ensure_automatic_error_reporting_is_not_enabled": true,
+    "initial_setup/configure_additional_process_hardening/ensure_core_dumps_are_restricted": true,
+    "initial_setup/configure_additional_process_hardening/ensure_prelink_is_not_installed": true,
+    "initial_setup/configure_additional_process_hardening/ensure_ptrace_scope_is_restricted": true,
+
+    "logging_and_auditing/configure_integrity_checking/aide_installed": true,
+    "logging_and_auditing/configure_integrity_checking/aide_timer": true,
+    "logging_and_auditing/configure_integrity_checking/aide_audit_tools_integrity": true,
+
+    "services/configure_server_services/web_proxy_server_service": true,
+    "services/configure_server_services/web_server_service": true,
+    "services/configure_server_services/mta_not_listening_on_loopback": true,
+    "services/configure_server_services/samba_file_server_service": true
 }
