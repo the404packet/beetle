@@ -244,5 +244,54 @@ for d in state.get("directories", []):
         subprocess.run(["mount","-o","remount",path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(f"    [+] Remounted: {path}")
 
+    # -------- USERS --------
+import pwd, grp, spwd
+
+for u in state.get("users", []):
+    name  = u["name"]
+    uid   = u["uid"]
+    gid   = u["gid"]
+    home  = u["home"]
+    shell = u["shell"]
+
+    try:
+        pwd.getpwnam(name)
+    except KeyError:
+        subprocess.run([
+            "useradd", "-u", str(uid), "-g", str(gid),
+            "-d", home, "-s", shell, name
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"    [+] Created user: {name}")
+    else:
+        subprocess.run([
+            "usermod", "-u", str(uid), "-g", str(gid),
+            "-d", home, "-s", shell, name
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"    [+] Updated user: {name}")
+
+# -------- GROUPS --------
+for g in state.get("groups", []):
+    name    = g["name"]
+    gid     = g["gid"]
+    members = g.get("members", [])
+
+    try:
+        grp.getgrnam(name)
+    except KeyError:
+        subprocess.run([
+            "groupadd", "-g", str(gid), name
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"    [+] Created group: {name}")
+    else:
+        subprocess.run([
+            "groupmod", "-g", str(gid), name
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"    [+] Updated group: {name}")
+
+    for member in members:
+        subprocess.run([
+            "usermod", "-aG", name, member
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 print("\n[+] Restore complete")
 EOF

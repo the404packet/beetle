@@ -190,6 +190,31 @@ for d in data.get("directories", []):
         })
 
 result["directories"] = dirs
+
+# -------- USERS --------
+import pwd
+users = []
+for u in pwd.getpwall():
+    users.append({
+        "name": u.pw_name,
+        "uid": u.pw_uid,
+        "gid": u.pw_gid,
+        "home": u.pw_dir,
+        "shell": u.pw_shell
+    })
+result["users"] = users
+
+# -------- GROUPS --------
+import grp
+groups = []
+for g in grp.getgrall():
+    groups.append({
+        "name": g.gr_name,
+        "gid": g.gr_gid,
+        "members": g.gr_mem
+    })
+result["groups"] = groups
+
 print(json.dumps(result))
 EOF
 )
