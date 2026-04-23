@@ -8,7 +8,7 @@ find_module_json() {
     local json_type=""
     local json_file=""
 
-    if [[ "$rel_path" == audit/system_maintenance/* || "$rel_path" == harden/system_maintenance/* ]]; then
+    if [[ "$rel_path" == audit/system_maintenance/* || "$rel_path" == audit/system_maintenance/*/* || "$rel_path" == harden/system_maintenance/* || "$rel_path" == harden/system_maintenance/*/* ]]; then
         json_type="system_maintenance"; json_file="$CONFIG_DIR/system_maintenance.json"
     elif [[ "$rel_path" == audit/network/* || "$rel_path" == harden/network/* ]]; then
         json_type="network"; json_file="$CONFIG_DIR/network.json"
@@ -20,6 +20,8 @@ find_module_json() {
         json_type="host_based_firewall"; json_file="$CONFIG_DIR/host_based_firewall.json"
     elif [[ "$rel_path" == audit/logging_and_auditing/* || "$rel_path" == harden/logging_and_auditing/* ]]; then
         json_type="logging_and_auditing"; json_file="$CONFIG_DIR/logging_and_auditing.json"
+    elif [[ "$rel_path" == audit/initial_setup/* || "$rel_path" == harden/initial_setup/* ]]; then
+        json_type="initial_setup"; json_file="$CONFIG_DIR/initial_setup.json"
     else
         echo ""; return 0
     fi

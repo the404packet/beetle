@@ -10,10 +10,12 @@ SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
 # FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
 FW_RAM_STORE="/dev/shm/beetle_fw_store.env"                  # host_based_firewall but cooler
 LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
+INITIAL_SETUP_RAM_STORE="/dev/shm/beetle_initial_setup_store.env"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
-       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE LOGGING_RAM_STORE
+       NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FIREWALL_RAM_STORE \
+       LOGGING_RAM_STORE SSH_RAM_STORE INITIAL_SETUP_RAM_STORE
 
 load_dpkg() {
     rm -f "$DPKG_RAM_STORE"
@@ -126,6 +128,229 @@ is_check_enabled() {
 
     [ -z "$val" ] && return 1
     [ "$val" == "true" ]
+}
+
+load_json_initial_setup() {
+    local json_file="$1"
+    [ -f "$json_file" ] || { echo "ERROR: initial_setup JSON not found: $json_file"; return 1; }
+
+    local py_script
+    py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
+    cat > "$py_script" << 'PYEOF'
+import json, sys
+
+def q(v):
+    return "'" + str(v).replace("'", "'\\''") + "'"
+
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+
+aa = data.get('apparmor', {})
+print('AA_grub_config='      + q(aa.get('grub_config','')))
+print('AA_grub_cfg='         + q(aa.get('grub_cfg','')))
+print('AA_grub_cmdline_key=' + q(aa.get('grub_cmdline_key','')))
+print('AA_profiles_dir='     + q(aa.get('profiles_dir','')))
+print('AA_enforce_mode='     + q(aa.get('enforce_mode','')))
+print('AA_complain_mode='    + q(aa.get('complain_mode','')))
+
+pkgs = aa.get('packages', [])
+print('AA_pkg_count=' + q(len(pkgs)))
+for i,p in enumerate(pkgs):
+    print(f'AA_pkg_{i}_name=' + q(p.get('name','')))
+
+gp = aa.get('grub_params', [])
+print('AA_grub_param_count=' + q(len(gp)))
+for i,p in enumerate(gp):
+    print(f'AA_grub_{i}_name='  + q(p.get('name','')))
+    print(f'AA_grub_{i}_value=' + q(p.get('value','')))
+fm = data.get('filesystem_modules', {})
+print('FM_modprobe_dir=' + q(fm.get('modprobe_dir','')))
+mods = fm.get('modules', [])
+print('FM_count=' + q(len(mods)))
+for i,m in enumerate(mods):
+    print(f'FM_{i}_name=' + q(m.get('name','')))
+    print(f'FM_{i}_type=' + q(m.get('type','')))
+fp = data.get('filesystem_partitions', {})
+parts = fp.get('partitions', [])
+print('FP_count=' + q(len(parts)))
+for i, p in enumerate(parts):
+    mount = p.get('mount', '')
+    mount_key = mount.replace('/', '_').lstrip('_')
+    print(f'FP_{i}_mount=' + q(mount))
+    print(f'FP_{i}_mount_key=' + q(mount_key))
+    print(f'FP_{i}_required=' + q(str(p.get('required', False)).lower()))
+    print(f'FP_{i}_systemd_unit=' + q(p.get('systemd_unit') or ''))
+    opts = p.get('options', [])
+    print(f'FP_{i}_opt_count=' + q(len(opts)))
+    for j, opt in enumerate(opts):
+        print(f'FP_{i}_opt_{j}=' + q(opt))
+    # also store mount->idx mapping for easy lookup
+    print(f'FP_idx_{mount_key}=' + q(i))
+
+bl = data.get('bootloader', {})
+print('BL_grub_cfg='         + q(bl.get('grub_cfg',         '/boot/grub/grub.cfg')))
+print('BL_grub_config='      + q(bl.get('grub_config',      '/etc/default/grub')))
+print('BL_grub_custom_dir='  + q(bl.get('grub_custom_dir',  '/etc/grub.d')))
+print('BL_grub_custom_file=' + q(bl.get('grub_custom_file', '/etc/grub.d/40_custom')))
+print('BL_superuser='        + q(bl.get('superuser',        'grub_admin')))
+print('BL_perm_mask='        + q(bl.get('perm_mask',        '0177')))
+print('BL_owner='            + q(bl.get('owner',            'root')))
+print('BL_group='            + q(bl.get('group',            'root')))
+
+ph = data.get('process_hardening', {})
+print('PH_sysctl_conf='   + q(ph.get('sysctl_conf_file', '/etc/sysctl.d/60-kernel_sysctl.conf')))
+print('PH_coredump_conf=' + q(ph.get('coredump_conf',    '/etc/systemd/coredump.conf')))
+print('PH_limits_conf='   + q(ph.get('limits_conf',      '/etc/security/limits.conf')))
+kp = ph.get('kernel_params', [])
+print('PH_kparam_count=' + q(len(kp)))
+for i, p in enumerate(kp):
+    print(f'PH_kparam_{i}_name='  + q(p.get('name',  '')))
+    print(f'PH_kparam_{i}_value=' + q(p.get('value', '')))
+ap = ph.get('apport', {})
+print('PH_apport_config=' + q(ap.get('config_file', '/etc/default/apport')))
+print('PH_apport_service='+ q(ap.get('service',     'apport.service')))
+
+wb = data.get('warning_banners', {})
+bf = wb.get('banner_files', [])
+print('WB_count='           + q(len(bf)))
+print('WB_os_info_pattern=' + q(wb.get('os_info_pattern', '(\\\\v|\\\\r|\\\\m|\\\\s)')))
+for i, b in enumerate(bf):
+    print(f'WB_{i}_path='     + q(b.get('path',     '')))
+    print(f'WB_{i}_required=' + q(str(b.get('required', False)).lower()))
+    print(f'WB_{i}_perm_mask='+ q(b.get('perm_mask', '0133')))
+    print(f'WB_{i}_owner='    + q(b.get('owner',     'root')))
+    print(f'WB_{i}_group='    + q(b.get('group',     'root')))
+gd = data.get('gdm', {})
+print('GD_package='           + q(gd.get('package','')))
+print('GD_profile_dir='       + q(gd.get('profile_dir','')))
+print('GD_profile_file='      + q(gd.get('profile_file','')))
+print('GD_db_dir='            + q(gd.get('db_dir','')))
+print('GD_locks_dir='         + q(gd.get('locks_dir','')))
+print('GD_gdm_db_dir='        + q(gd.get('gdm_db_dir','')))
+print('GD_banner_file='       + q(gd.get('banner_file','')))
+print('GD_login_screen_file=' + q(gd.get('login_screen_file','')))
+print('GD_screensaver_file='  + q(gd.get('screensaver_file','')))
+print('GD_screensaver_lock='  + q(gd.get('screensaver_lock','')))
+print('GD_automount_file='    + q(gd.get('automount_file','')))
+print('GD_automount_lock='    + q(gd.get('automount_lock','')))
+print('GD_autorun_file='      + q(gd.get('autorun_file','')))
+print('GD_autorun_lock='      + q(gd.get('autorun_lock','')))
+print('GD_banner_text='       + q(gd.get('banner_text','')))
+print('GD_idle_delay='        + q(gd.get('idle_delay',900)))
+print('GD_lock_delay='        + q(gd.get('lock_delay',5)))
+xdmcp = gd.get('xdmcp_configs', [])
+print('GD_xdmcp_count=' + q(len(xdmcp)))
+for i,x in enumerate(xdmcp):
+    print(f'GD_xdmcp_{i}=' + q(x))
+pm = data.get('package_manager', {})
+print('PM_sources_file=' + q(pm.get('sources_file', '/etc/apt/sources.list')))
+
+gpg_dirs = pm.get('gpg_dirs', [])
+print('PM_gpg_dir_count=' + q(len(gpg_dirs)))
+for i, d in enumerate(gpg_dirs):
+    print(f'PM_gpg_dir_{i}=' + q(d))
+
+gpg_exts = pm.get('gpg_extensions', [])
+print('PM_gpg_ext_count=' + q(len(gpg_exts)))
+for i, e in enumerate(gpg_exts):
+    print(f'PM_gpg_ext_{i}=' + q(e))
+
+repos = pm.get('recommended_repos', [])
+print('PM_repo_count=' + q(len(repos)))
+for i, r in enumerate(repos):
+    print(f'PM_repo_{i}=' + q(r))
+
+keys = pm.get('recommended_gpg_keys', [])
+print('PM_gpg_key_count=' + q(len(keys)))
+for i, k in enumerate(keys):
+    print(f'PM_gpg_key_{i}_name=' + q(k.get('name', '')))
+    print(f'PM_gpg_key_{i}_keyid=' + q(k.get('keyid', '')))
+    print(f'PM_gpg_key_{i}_keyserver=' + q(k.get('keyserver', '')))
+PYEOF
+
+    python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
+    local exit_code=$?
+    rm -f "$py_script"
+    [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
+    chmod 600 "$INITIAL_SETUP_RAM_STORE"
+    source "$INITIAL_SETUP_RAM_STORE"
+}
+
+get_partition_idx() {
+    local mount="$1"
+    local key; key=$(echo "$mount" | sed 's|/|_|g; s|^_||')
+    local var="FP_idx_${key}"
+    echo "${!var}"
+}
+
+is_partition_mounted() {
+    local mount="$1"
+    findmnt -kn "$mount" &>/dev/null
+}
+
+partition_has_option() {
+    local mount="$1" option="$2"
+    findmnt -kn "$mount" | grep -qv "$option" && return 1 || return 0
+}
+
+gdm_installed() {
+    is_package_installed "gdm3"
+}
+
+unload_json_initial_setup() {
+    rm -f "$INITIAL_SETUP_RAM_STORE"
+    unset $(compgen -v | grep -E '^(AA_|FM_|PT_|GD_)')
+}
+
+beetle_module_audit() {
+    local mod_name="$1" mod_type="$2"
+    local mod_path
+    mod_path="$(readlink -f /lib/modules/**/kernel/"$mod_type" 2>/dev/null | sort -u)"
+    local found=0
+
+    for base_dir in $mod_path; do
+        local check_dir="${base_dir}/${mod_name//-//}"
+        if [ -d "$check_dir" ] && [ -n "$(ls -A "$check_dir" 2>/dev/null)" ]; then
+            found=1
+            local mod_chk_name="$mod_name"
+            [[ "$mod_name" =~ overlay ]] && mod_chk_name="${mod_name::-2}"
+            local showconfig
+            showconfig=$(modprobe --showconfig 2>/dev/null \
+                | grep -P "\b(install|blacklist)\h+${mod_chk_name//-/_}\b")
+
+            lsmod 2>/dev/null | grep -q "$mod_chk_name" && return 1
+            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+(\/usr)?\/bin\/(true|false)\b" || return 1
+            echo "$showconfig" | grep -Pq "\bblacklist\h+${mod_chk_name//-/_}\b" || return 1
+        fi
+    done
+    return 0
+}
+
+beetle_module_harden() {
+    local mod_name="$1" mod_type="$2" modprobe_dir="$3"
+    local mod_path
+    mod_path="$(readlink -f /lib/modules/**/kernel/"$mod_type" 2>/dev/null | sort -u)"
+
+    for base_dir in $mod_path; do
+        local check_dir="${base_dir}/${mod_name//-//}"
+        if [ -d "$check_dir" ] && [ -n "$(ls -A "$check_dir" 2>/dev/null)" ]; then
+            local mod_chk_name="$mod_name"
+            [[ "$mod_name" =~ overlay ]] && mod_chk_name="${mod_name::-2}"
+            local conf_file="${modprobe_dir}/${mod_name}.conf"
+            local showconfig
+            showconfig=$(modprobe --showconfig 2>/dev/null \
+                | grep -P "\b(install|blacklist)\h+${mod_chk_name//-/_}\b")
+
+            lsmod 2>/dev/null | grep -q "$mod_chk_name" && \
+                modprobe -r "$mod_chk_name" 2>/dev/null; rmmod "$mod_name" 2>/dev/null
+
+            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+(\/usr)?\/bin\/(true|false)\b" || \
+                printf '%s\n' "install ${mod_chk_name} $(readlink -f /bin/false)" >> "$conf_file"
+
+            echo "$showconfig" | grep -Pq "\bblacklist\h+${mod_chk_name//-/_}\b" || \
+                printf '%s\n' "blacklist ${mod_chk_name}" >> "$conf_file"
+        fi
+    done
 }
 
 # ─────────────────────────────────────────────
@@ -472,10 +697,13 @@ load_json_system_maintenance() {
     python3 - <<EOF > "$PERM_RAM_STORE"
 import json
 
+def q(v):
+    return "'" + str(v).replace("'", "'\\''") + "'"
+
 with open("$json_file") as f:
     data = json.load(f)
 
-for entry in data["system_file_permissions"]:
+for entry in data.get("system_file_permissions", []):
     key = entry["file"].replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
     mode  = entry["mode"]
     owner = entry["owner"]
@@ -483,6 +711,14 @@ for entry in data["system_file_permissions"]:
     print(f'PERM_{key}_mode={mode}')
     print(f'PERM_{key}_owner={owner}')
     print(f'PERM_{key}_group={group}')
+
+ss = data.get('suid_sgid', {})
+risky = ss.get('known_risky', [])
+print('SS_count=' + q(len(risky)))
+for i, r in enumerate(risky):
+    print(f'SS_{i}_name=' + q(r.get('name', '')))
+    print(f'SS_{i}_path=' + q(r.get('path', '')))
+    print(f'SS_{i}_risk=' + q(r.get('risk', '')))
 EOF
 
     chmod 600 "$PERM_RAM_STORE"
@@ -729,6 +965,57 @@ for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
         pattern = "|".join(i.replace(".", r"\.") for i in items)
         env_key = list_key.upper() + "_PATTERN"
         print(f'{env_key}="{pattern}"')
+
+# sudo_settings
+for key, val in data.get("sudo_settings", {}).items():
+    safe = key.upper()
+    if isinstance(val, dict):
+        for field, fval in val.items():
+            print(f'SUDO_{safe}_{field.upper()}={fval}')
+            
+# pam_settings — flatten into PAM_ prefixed vars
+for section, vals in data.get("pam_settings", {}).items():
+    safe_section = section.upper()
+    if isinstance(vals, dict):
+        for field, fval in vals.items():
+            print(f'PAM_{safe_section}_{field.upper()}={fval}')
+
+ld = data.get("login_defs", {})
+print(f'LD_file={ld.get("file", "/etc/login.defs")}')
+
+pmd = ld.get("pass_max_days", {})
+print(f'LD_pass_max_days_max={pmd.get("max", 365)}')
+
+pmind = ld.get("pass_min_days", {})
+print(f'LD_pass_min_days_min={pmind.get("min", 1)}')
+
+pwa = ld.get("pass_warn_age", {})
+print(f'LD_pass_warn_age_min={pwa.get("min", 7)}')
+
+em = ld.get("encrypt_method", {})
+allowed_algos = em.get("allowed", ["SHA512", "YESCRYPT"])
+print(f'LD_encrypt_method_allowed="{"|".join(allowed_algos)}"')
+
+inact = ld.get("inactive", {})
+print(f'LD_inactive_max={inact.get("max", 45)}')
+
+# ── user_env ──
+ue = data.get("user_env", {})
+
+tmout = ue.get("tmout", {})
+print(f'UE_tmout_max={tmout.get("max", 900)}')
+print(f'UE_tmout_profile_d_file={tmout.get("profile_d_file", "/etc/profile.d/50-systemwide_tmout.sh")}')
+
+umask_cfg = ue.get("umask", {})
+print(f'UE_umask_value={umask_cfg.get("value", "027")}')
+print(f'UE_umask_profile_d_file={umask_cfg.get("profile_d_file", "/etc/profile.d/50-systemwide_umask.sh")}')
+
+root_umask = ue.get("root_umask", {})
+root_umask_files = root_umask.get("files", ["/root/.bash_profile", "/root/.bashrc"])
+print(f'UE_root_umask_file_count={len(root_umask_files)}')
+for idx, rf in enumerate(root_umask_files):
+    print(f'UE_root_umask_file_{idx}={rf}')
+
 EOF
 
     chmod 600 "$SSH_RAM_STORE"
@@ -741,6 +1028,7 @@ unload_json_access_control() {
 
 unload_all() {
     unload_dpkg
+    unload_json_initial_setup
     unload_json_system_maintenance
     unload_json_network
     unload_json_services
@@ -749,143 +1037,6 @@ unload_all() {
     unload_json_logging_and_auditing
     unload_severity
 }
-
-# ──────────────────────────────────────────────────────────────────────────────────────────
-# FIREWALL 
-# ──────────────────────────────────────────────────────────────────────────────────────────
-
-#!/usr/bin/env bash
-# =============================================================================
-# lib/ram_store_firewall.sh
-# Beetle — RAM store loader for Section 4: Host Based Firewall
-#
-# Source this file from lib/ram_store.sh or the main runner.
-#
-# Flattens config/firewall.json into flat KEY=value lines in /dev/shm
-# and sources them so all vars are immediately available to child scripts.
-#
-# RAM store path : $FW_RAM_STORE  (/dev/shm/beetle_fw_store)
-#
-# Variable prefixes
-#   FW_   — top-level firewall selector (active_tool, allowed_tools)
-#   UFW_  — Section 4.2 UncomplicatedFirewall
-#   NFT_  — Section 4.3 nftables
-#   IPT_  — Section 4.4 iptables / ip6tables
-# =============================================================================
-
-
-# -----------------------------------------------------------------------------
-# load_json_firewall <json_file>
-#   Flattens all three backend sections of firewall.json into the RAM store,
-#   sets permissions to 600, then sources it.
-# -----------------------------------------------------------------------------
-load_json_firewall() {
-    local json_file="$1"
-    [ -f "$json_file" ] || { echo "ERROR: firewall JSON not found: $json_file"; return 1; }
-    rm -f "$FW_RAM_STORE"
-
-    python3 - <<EOF > "$FW_RAM_STORE"
-
-import json
-
-with open("$json_file") as f:
-    data = json.load(f)
-
-# ── top-level firewall selector ──────────────────────────────────────────────
-fw = data.get("firewall", {})
-print(f'FW_active_tool={fw.get("active_tool","")}')
-tools = fw.get("allowed_tools", [])
-print(f'FW_allowed_tools_count={len(tools)}')
-for i, t in enumerate(tools):
-    print(f'FW_allowed_tool_{i}={t}')
-
-# ── UFW (Section 4.2) ────────────────────────────────────────────────────────
-ufw = data.get("ufw", {})
-pkgs = ufw.get("required_packages", [])
-print(f'UFW_pkg_count={len(pkgs)}')
-for i, p in enumerate(pkgs):
-    print(f'UFW_pkg_{i}_name={p.get("name","")}')
-
-banned = ufw.get("banned_with_ufw", [])
-print(f'UFW_banned_count={len(banned)}')
-for i, b in enumerate(banned):
-    print(f'UFW_banned_{i}_name={b.get("name","")}')
-
-lb = ufw.get("loopback", {})
-print(f'UFW_lb_allow_in={lb.get("allow_in","")}')
-print(f'UFW_lb_allow_out={lb.get("allow_out","")}')
-print(f'UFW_lb_deny_in={lb.get("deny_in","")}')
-print(f'UFW_lb_deny_in6={lb.get("deny_in6","")}')
-
-dp = ufw.get("default_policies", {})
-print(f'UFW_policy_incoming={dp.get("incoming","")}')
-print(f'UFW_policy_outgoing={dp.get("outgoing","")}')
-print(f'UFW_policy_routed={dp.get("routed","")}')
-
-# ── nftables (Section 4.3) ───────────────────────────────────────────────────
-nft = data.get("nftables", {})
-nft_pkgs = nft.get("required_packages", [])
-print(f'NFT_pkg_count={len(nft_pkgs)}')
-for i, p in enumerate(nft_pkgs):
-    print(f'NFT_pkg_{i}_name={p.get("name","")}')
-
-nft_banned = nft.get("banned_with_nftables", [])
-print(f'NFT_banned_count={len(nft_banned)}')
-for i, b in enumerate(nft_banned):
-    print(f'NFT_banned_{i}_name={b.get("name","")}')
-
-tbl = nft.get("table", {})
-print(f'NFT_table_name={tbl.get("name","")}')
-print(f'NFT_table_family={tbl.get("family","")}')
-
-chains = nft.get("base_chains", [])
-print(f'NFT_chain_count={len(chains)}')
-for i, c in enumerate(chains):
-    print(f'NFT_chain_{i}_name={c.get("name","")}')
-    print(f'NFT_chain_{i}_hook={c.get("hook","")}')
-    print(f'NFT_chain_{i}_policy={c.get("policy","")}')
-
-lb = nft.get("loopback", {})
-print(f'NFT_lb_iface={lb.get("iface","")}')
-print(f'NFT_lb_deny_in={lb.get("deny_in","")}')
-print(f'NFT_lb_deny_in6={lb.get("deny_in6","")}')
-print(f'NFT_rules_file={nft.get("rules_file","")}')
-
-# ── iptables (Section 4.4) ───────────────────────────────────────────────────
-ipt = data.get("iptables", {})
-ipt_pkgs = ipt.get("required_packages", [])
-print(f'IPT_pkg_count={len(ipt_pkgs)}')
-for i, p in enumerate(ipt_pkgs):
-    print(f'IPT_pkg_{i}_name={p.get("name","")}')
-
-ipt_banned = ipt.get("banned_with_iptables", [])
-print(f'IPT_banned_count={len(ipt_banned)}')
-for i, b in enumerate(ipt_banned):
-    print(f'IPT_banned_{i}_name={b.get("name","")}')
-
-lb = ipt.get("loopback", {})
-print(f'IPT_lb_iface={lb.get("iface","")}')
-print(f'IPT_lb_deny_in={lb.get("deny_in","")}')
-print(f'IPT_lb_deny_in6={lb.get("deny_in6","")}')
-
-dp = ipt.get("default_policies", {})
-print(f'IPT_policy_input={dp.get("input","")}')
-print(f'IPT_policy_forward={dp.get("forward","")}')
-print(f'IPT_policy_output={dp.get("output","")}')
-
-states = ipt.get("established_states", [])
-print(f'IPT_states={",".join(states)}')
-print(f'IPT_rules_file={ipt.get("rules_file","")}')
-print(f'IPT_rules_file_v6={ipt.get("rules_file_v6","")}')
-EOF
-    chmod 600 "$FW_RAM_STORE"
-    source "$FW_RAM_STORE"
-}
-# ──────────────────────────────────────────────────────────────────────────────────────────
-# FIREWALL 
-# ──────────────────────────────────────────────────────────────────────────────────────────
-
-
 
 export -f load_dpkg
 export -f unload_dpkg
@@ -898,6 +1049,9 @@ export -f load_module_json
 export -f unload_module_json
 export -f load_dpkg unload_dpkg is_package_installed get_installed_version unset_package
 export -f load_severity unload_severity is_check_enabled
+export -f load_json_initial_setup unload_json_initial_setup 
+export -f beetle_module_audit beetle_module_harden
+export -f get_partition_idx is_partition_mounted partition_has_option
 export -f load_json_system_maintenance unload_json_system_maintenance get_perm
 export -f load_json_network unload_json_network get_net
 export -f check_ipv6_disabled
