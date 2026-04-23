@@ -7,7 +7,8 @@ PERM_RAM_STORE="/dev/shm/beetle_permissions.env"          # system_maintenance
 SSH_RAM_STORE="/dev/shm/beetle_ssh.env"
 NETWORK_RAM_STORE="/dev/shm/beetle_network.env"           # network
 SERVICES_RAM_STORE="/dev/shm/beetle_services.env"         # services
-FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
+# FIREWALL_RAM_STORE="/dev/shm/beetle_firewall.env"         # host_based_firewall
+FW_RAM_STORE="/dev/shm/beetle_fw_store.env"                  # host_based_firewall but cooler
 LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
 INITIAL_SETUP_RAM_STORE="/dev/shm/beetle_initial_setup_store.env"
 
@@ -1067,4 +1068,5 @@ export DPKG_RAM_STORE
 export PERM_RAM_STORE
 export SEVERITY_CONFIG_DIR
 export SSH_RAM_STORE
+export FW_RAM_STORE
 
