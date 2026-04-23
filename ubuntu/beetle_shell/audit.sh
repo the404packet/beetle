@@ -68,7 +68,7 @@ run_check() {
     export NETWORK_RAM_STORE
     export SERVICES_RAM_STORE
     export ACCESS_RAM_STORE
-    export FIREWALL_RAM_STORE
+    export FW_RAM_STORE
     export LOGGING_RAM_STORE
     export INITIAL_SETUP_RAM_STORE
 
