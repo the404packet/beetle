@@ -2,7 +2,7 @@
   "system_maintenance/local_user_and_group_settings/all_accounts_use_shadow_passwd": true,
   "system_maintenance/local_user_and_group_settings/all_groups_exist_in_shadow": true,
   "system_maintenance/local_user_and_group_settings/no_duplicates_uids": true,
-  "system_maintenance/local_user_and_group_settings/no_duplicate_gids": false,
+  "system_maintenance/local_user_and_group_settings/no_duplicate_gids": true,
   "system_maintenance/local_user_and_group_settings/no_duplicate_grpnames": true,
   "system_maintenance/local_user_and_group_settings/no_duplicate_usernames": true,
   "system_maintenance/local_user_and_group_settings/shadow_group_isempty": true,
@@ -19,7 +19,6 @@
   "system_maintenance/system_file_permissions/opasswd_file_permissions": true,
   "system_maintenance/system_file_permissions/opasswd_old_file_permissions": true,
   "system_maintenance/system_file_permissions/suid_sgid_files_review": true,
-
 
   "access_control/configure_ssh_server/config_ssh_server": true,
   "access_control/configure_ssh_server/ssh_banner_audit": true,
