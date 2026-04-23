@@ -33,6 +33,29 @@
   --transition:   130ms ease;
 }
 
+html.dark {
+  --bg:           #0d1117;
+  --surface:      #161b22;
+  --surface-2:    #21262d;
+  --border:       #30363d;
+  --text-1:       #e6e8f0;
+  --text-2:       #9ba3b5;
+  --text-3:       #6e778c;
+  --accent:       #3b71f0;
+  --accent-light: #18284f;
+  --accent-ring:  #294077;
+  --green:        #2ea043;
+  --green-bg:     #122b1c;
+  --green-ring:   #1e4a2d;
+  --green-stroke: #238636;
+  --red:          #f85149;
+  --red-bg:       #3b1212;
+  --red-ring:     #631e1e;
+  --red-stroke:   #da3633;
+  
+  color-scheme: dark;
+}
+
 html, body, #root {
   height: 100%;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;

@@ -1,6 +1,6 @@
-import { ShieldCheck } from 'lucide-react'
+import { ShieldCheck, Moon, Sun } from 'lucide-react'
 
-export default function Sidebar({ tabs, activeTab, setActiveTab }) {
+export default function Sidebar({ tabs, activeTab, setActiveTab, isDark, setIsDark }) {
   return (
     <aside style={{
       width: 220,
@@ -86,6 +86,7 @@ export default function Sidebar({ tabs, activeTab, setActiveTab }) {
         padding: '14px 18px',
         borderTop: '1px solid var(--border)',
         fontSize: 11, color: 'var(--text-3)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <img
@@ -95,6 +96,28 @@ export default function Sidebar({ tabs, activeTab, setActiveTab }) {
           />
           Beetle v1.0.0
         </div>
+
+        <button
+          onClick={() => setIsDark(!isDark)}
+          style={{
+            background: 'none', border: 'none',
+            color: 'var(--text-3)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 4, borderRadius: 'var(--radius-sm)',
+            transition: 'background var(--transition), color var(--transition)',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'var(--surface-2)'
+            e.currentTarget.style.color = 'var(--text-1)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = 'var(--text-3)'
+          }}
+          title="Toggle Theme"
+        >
+          {isDark ? <Sun size={14} /> : <Moon size={14} />}
+        </button>
       </div>
     </aside>
   )

@@ -21,6 +21,24 @@ const DEFAULT_MODULES = { audit: [], harden: [], severities: ['basic', 'moderate
 export default function App() {
   const [activeTab, setActiveTab] = useState('audit')
   const [modules,   setModules]   = useState(DEFAULT_MODULES)
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('theme')
+      if (stored) return stored === 'dark'
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+    }
+    return false
+  })
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }, [isDark])
 
   useEffect(() => {
     fetch('/api/modules')
@@ -33,7 +51,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar tabs={TABS} activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar tabs={TABS} activeTab={activeTab} setActiveTab={setActiveTab} isDark={isDark} setIsDark={setIsDark} />
 
       {/* Main content area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -66,8 +84,9 @@ export default function App() {
           {/* Watermark */}
           <div style={{
             position: 'fixed',
-            bottom: 32,
-            right: 32,
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
             width: 320,
             height: 320,
             backgroundImage: 'url(/static/beetle.png)',
