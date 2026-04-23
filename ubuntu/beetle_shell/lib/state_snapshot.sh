@@ -190,6 +190,7 @@ for d in data.get("directories", []):
         })
 
 result["directories"] = dirs
+print(json.dumps(result))
 EOF
 )
 

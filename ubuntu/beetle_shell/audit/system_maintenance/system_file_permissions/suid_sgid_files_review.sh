@@ -10,9 +10,14 @@ for ((i=0; i<count; i++)); do
     p_var="SS_${i}_path"; path="${!p_var}"
     [ -f "$path" ] || continue
 
-    mode=$(stat -Lc '%#a' "$path" 2>/dev/null)
-    has_suid=$(( 8#$mode & 04000 ))
-    has_sgid=$(( 8#$mode & 02000 ))
+    mode=$(stat -Lc '%a' "$path" 2>/dev/null)
+    [ -z "$mode" ] && continue
+
+    perm=$((8#$mode))
+
+    has_suid=$(( perm & 04000 ))
+    has_sgid=$(( perm & 02000 ))
+
     [ "$has_suid" -eq 0 ] && [ "$has_sgid" -eq 0 ] && continue
 
     # verify checksum via dpkg

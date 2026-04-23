@@ -51,8 +51,14 @@ capture_snapshot() {
 
     # ---------- DAEMON CHECK ----------
     if [[ "$TYPE" == "beetle" ]]; then
-        BEETLED_PID=$(pgrep -x beetled)
-        if [[ -z "$BEETLED_PID" || "$PPID" -ne "$BEETLED_PID" ]]; then
+        BEETLED_PID=$(pgrep -x beetled | head -n1)
+        ANCESTOR_PID="$$"
+        FOUND=false
+        while [[ "$ANCESTOR_PID" -gt 1 ]]; do
+            ANCESTOR_PID=$(awk '{print $4}' /proc/$ANCESTOR_PID/stat 2>/dev/null)
+            [[ "$ANCESTOR_PID" == "$BEETLED_PID" ]] && { FOUND=true; break; }
+        done
+        if [[ "$FOUND" != true ]]; then
             echo "[!] Only beetled daemon can trigger system snapshots"
             exit 1
         fi
