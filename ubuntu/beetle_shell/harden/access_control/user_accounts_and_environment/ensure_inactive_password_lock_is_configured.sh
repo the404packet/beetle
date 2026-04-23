@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure inactive password lock is configured'
+NAME="ensure inactive password lock is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

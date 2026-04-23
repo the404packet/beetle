@@ -139,8 +139,9 @@ echo -e "${CYAN}Severity level : ${YELLOW}${TARGET_LEVEL}${RESET}\n"
 echo -e "${CYAN}Loading packages......${RESET}"
 load_dpkg || { echo -e "${RED}Failed to load dpkg${RESET}"; unload_all; exit 1; }
 
+# ── Load severity levels cumulatively ──
 echo -e "${CYAN}Loading severity configuration.......${RESET}\n"
-load_severity "$TARGET_LEVEL" || { echo -e "${RED}Failed to load severity configuration${RESET}"; unload_all; exit 1; }
+load_severity "${TARGET_LEVEL,,}" || { echo -e "${RED}Failed to load severity: $TARGET_LEVEL${RESET}"; unload_all; exit 1; }
 
 if [ -n "$TARGET_FOLDER" ]; then
     SEARCH_PATH="$BEETLE_SHELL_ROOT/audit/$TARGET_FOLDER"

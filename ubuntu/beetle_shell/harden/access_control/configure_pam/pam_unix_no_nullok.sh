@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure pam_unix does not include nullok'
+NAME="ensure pam_unix does not include nullok"
 SEVERITY='basic'
 
 GREEN="\e[32m"

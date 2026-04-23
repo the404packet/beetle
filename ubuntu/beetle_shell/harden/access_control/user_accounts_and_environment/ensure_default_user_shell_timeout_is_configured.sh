@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure default user shell timeout is configured'
+NAME="ensure default user shell timeout is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

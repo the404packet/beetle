@@ -25,8 +25,15 @@ for ((i=0; i<count; i++)); do
 
     pkg=$(dpkg -S "$path" 2>/dev/null | awk -F: '{print $1}' | head -1)
     if [ -n "$pkg" ]; then
-        if dpkg --verify "$pkg" 2>/dev/null | grep -q "^??5.*${path}"; then
-            a_suspicious+=("CHECKSUM MISMATCH [$risk]: $path (pkg: $pkg)")
+        expected_mode=$(dpkg-statoverride --list "$path" 2>/dev/null | awk '{print $3}')
+        if [ -n "$expected_mode" ]; then
+            expected_perm=$((8#$expected_mode))
+            expected_suid=$(( expected_perm & 04000 ))
+            expected_sgid=$(( expected_perm & 02000 ))
+            [ "$has_suid" -gt 0 ] && [ "$expected_suid" -eq 0 ] && { a_suspicious+=("UNEXPECTED SUID [$risk]: $path (pkg: $pkg)"); continue; }
+            [ "$has_sgid" -gt 0 ] && [ "$expected_sgid" -eq 0 ] && { a_suspicious+=("UNEXPECTED SGID [$risk]: $path (pkg: $pkg)"); continue; }
+        else
+            a_suspicious+=("UNEXPECTED SUID/SGID [$risk]: $path (pkg: $pkg)")
         fi
     else
         a_suspicious+=("NOT FROM PACKAGE [$risk]: $path")

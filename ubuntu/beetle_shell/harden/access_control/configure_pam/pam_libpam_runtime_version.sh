@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure latest version of pam is installed'
+NAME="ensure latest version of pam is installed"
 SEVERITY='basic'
 
 GREEN="\e[32m"

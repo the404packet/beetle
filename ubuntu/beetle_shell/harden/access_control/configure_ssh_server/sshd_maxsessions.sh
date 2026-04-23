@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd MaxSessions config'
+NAME="sshd MaxSessions config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure root is the only GID 0 account'
+NAME="ensure root is the only GID 0 account"
 SEVERITY='basic'
 
 GREEN="\e[32m"
@@ -8,7 +8,7 @@ RED="\e[31m"
 RESET="\e[0m"
 
 # Ensure root's primary GID is 0
-usermod -g 0 root 2>/dev/null
+usermod -g 0 root >/dev/null 2>&1
 
 # Flag any other non-exempt accounts with primary GID 0 — cannot safely auto-fix
 flag=1

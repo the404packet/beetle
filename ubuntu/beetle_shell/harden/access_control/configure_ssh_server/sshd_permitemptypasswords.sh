@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd PermitEmptyPasswords config'
+NAME="sshd PermitEmptyPasswords config"
 SEVERITY='basic'
 
 GREEN="\e[32m"

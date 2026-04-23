@@ -44,6 +44,11 @@ unload_dpkg() {
 is_package_installed() {
     local pkg="$1"
     local key="PKG_${pkg//[^a-zA-Z0-9_]/_}"
+
+    if [ -z "${!key}" ] && [ -f "$DPKG_RAM_STORE" ]; then
+        source "$DPKG_RAM_STORE"
+    fi  
+
     [ "${!key}" = "installed" ]
 }
 

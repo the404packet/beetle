@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure password expiration warning days is configured'
+NAME="ensure password expiration warning days is configured"
 SEVERITY='basic'
 
 GREEN="\e[32m"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure root is the only UID 0 account'
+NAME="ensure root is the only UID 0 account"
 SEVERITY='basic'
 
 GREEN="\e[32m"
@@ -8,7 +8,7 @@ RED="\e[31m"
 RESET="\e[0m"
 
 # Ensure root itself has UID 0
-usermod -u 0 root 2>/dev/null
+usermod -u 0 root >/dev/null 2>&1
 
 # Any non-root account with UID 0 cannot be safely auto-reassigned without
 # knowing what UID to use — log them and fail so the operator resolves manually.

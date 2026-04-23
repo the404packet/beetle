@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='sshd GSSAPIAuthentication set to no'
+NAME="sshd GSSAPIAuthentication set to no"
 SEVERITY='basic'
 
 GREEN="\e[32m"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAME='ensure pam_pwhistory module is enabled'
+NAME="ensure pam_pwhistory module is enabled"
 SEVERITY='basic'
 
 GREEN="\e[32m"
