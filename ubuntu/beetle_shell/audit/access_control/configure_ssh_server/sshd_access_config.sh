@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME="restrict ssh access using allow/deny list of user/grp"
-SEVERITY='strict'
+
 
 GREEN="\e[32m"
 RED="\e[31m"

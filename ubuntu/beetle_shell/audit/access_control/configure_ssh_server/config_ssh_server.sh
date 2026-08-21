@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="/etc/ssh/sshd_config file permission"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

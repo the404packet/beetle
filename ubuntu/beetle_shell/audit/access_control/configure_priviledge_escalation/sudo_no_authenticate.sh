@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure re-authentication for privilege escalation is not disabled globally"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

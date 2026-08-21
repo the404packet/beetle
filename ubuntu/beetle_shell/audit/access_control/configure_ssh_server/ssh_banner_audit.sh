@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ssh login banner audit"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

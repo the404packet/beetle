@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-NAME="sshd PermitRootLogin config"
-SEVERITY='basic'
+NAME="sshd PermitRootLogin config"  
 
 GREEN="\e[32m"
 RED="\e[31m"

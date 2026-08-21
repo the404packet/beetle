@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure password quality checking is enforced"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

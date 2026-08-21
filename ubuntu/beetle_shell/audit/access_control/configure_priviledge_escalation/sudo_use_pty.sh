@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure sudo commands use pty"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

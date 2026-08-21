@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure access to the su command is restricted"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

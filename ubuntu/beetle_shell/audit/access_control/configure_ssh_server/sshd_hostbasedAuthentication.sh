@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="sshd HostbasedAuthentication set to no"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"
