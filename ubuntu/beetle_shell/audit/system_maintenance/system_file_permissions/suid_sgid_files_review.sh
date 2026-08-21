@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 NAME="ensure SUID and SGID files are reviewed"
+
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 

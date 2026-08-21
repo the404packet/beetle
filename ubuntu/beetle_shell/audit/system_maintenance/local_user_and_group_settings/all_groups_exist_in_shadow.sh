@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME=" all passwd GIDs exist in group"
-SEVERITY="basic"
 
 PASSWD_FILE="/etc/passwd"
 GROUP_FILE="/etc/group"

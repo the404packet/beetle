@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="/etc/passwd- backup file permission"
-SEVERITY="basic"
 
 GREEN="\e[32m"
 RED="\e[31m"

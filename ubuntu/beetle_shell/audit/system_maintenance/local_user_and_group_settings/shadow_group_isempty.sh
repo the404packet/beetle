@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="verify shadow group has no members or primary users"
-SEVERITY="basic"
 
 GROUP_FILE="/etc/group"
 PASSWD_FILE="/etc/passwd"

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="verify no duplicate user names exist"
-SEVERITY="basic"
 
 PASSWD_FILE="/etc/passwd"
 GROUP_FILE="/etc/group"

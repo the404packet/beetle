@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="/etc/security/opasswd.old file permissions"
-SEVERITY="basic"
 
 GREEN="\e[32m"
 RED="\e[31m"

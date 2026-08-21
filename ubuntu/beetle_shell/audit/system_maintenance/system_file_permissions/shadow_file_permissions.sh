@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="/etc/shadow file permissions"
-SEVERITY="critical"
 
 GREEN="\e[32m"
 RED="\e[31m"

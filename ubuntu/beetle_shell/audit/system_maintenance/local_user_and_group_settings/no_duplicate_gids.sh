@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="verify no duplicate GIDs exist"
-SEVERITY="basic"
 
 FILE="/etc/group"
 
