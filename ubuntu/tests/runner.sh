@@ -26,7 +26,7 @@ source "$BEETLE_SHELL_DIR/lib/ram_store.sh" 2>/dev/null || true
 source "$BEETLE_SHELL_DIR/lib/find_json.sh" 2>/dev/null || true
 
 load_dpkg 2>/dev/null || true
-load_severity "basic" 2>/dev/null || true
+load_severity "strict" 2>/dev/null || true
 
 if [ "$EUID" -ne 0 ]; then
     log_failure "Test runner requires root permissions (sudo)."
@@ -131,9 +131,9 @@ done
 # Step 4: Run Harden
 log_section "STEP 4: HARDENING SYSTEM"
 if [ "$AUDIT_TARGET_DIR" != "$BEETLE_SHELL_DIR/audit" ]; then
-    bash "$BEETLE_SHELL_DIR/harden.sh" system_maintenance || true
+    SKIP_SNAPSHOT=true bash "$BEETLE_SHELL_DIR/harden.sh" system_maintenance || true
 else
-    bash "$BEETLE_SHELL_DIR/harden.sh" || true
+    SKIP_SNAPSHOT=true bash "$BEETLE_SHELL_DIR/harden.sh" || true
 fi
 
 # Step 5: Run Script-by-Script Post-Harden Audit Test

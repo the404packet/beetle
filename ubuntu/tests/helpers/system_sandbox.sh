@@ -33,10 +33,17 @@ system_snapshot_create() {
         "/etc/issue.net"
         "/etc/motd"
         "/etc/shadow"
+        "/etc/shadow-"
         "/etc/gshadow"
+        "/etc/gshadow-"
         "/etc/passwd"
+        "/etc/passwd-"
         "/etc/group"
+        "/etc/group-"
         "/etc/shells"
+        "/etc/security/opasswd"
+        "/etc/security/opasswd.old"
+        "/usr/bin/unsecure_suid_test"
     )
 
     local EXISTING_TARGETS=()
