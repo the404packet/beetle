@@ -66,15 +66,18 @@ echo "[*] Snapshot : $SNAP_LABEL"
 echo "[*] Manifest : $MANIFEST_FILE"
 
 # ---------- PRE-RESTORE SNAPSHOT ----------
-echo "[*] Capturing pre-restore safety snapshot..."
-SNAP_RESPONSE=$(beetle snapshot capture main 2>&1)
-
-if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
-    echo "[+] Safety snapshot captured"
+if [[ "${SKIP_SNAPSHOT:-false}" == "true" ]]; then
+    echo "[*] Skipping pre-restore safety snapshot (test runner mode)"
 else
-    echo "[!] Safety snapshot failed — aborting"
-    echo "$SNAP_RESPONSE"
-    exit 1
+    echo "[*] Capturing pre-restore safety snapshot..."
+    SNAP_RESPONSE=$(beetle snapshot capture main 2>&1)
+    if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
+        echo "[+] Safety snapshot captured"
+    else
+        echo "[!] Safety snapshot failed — aborting"
+        echo "$SNAP_RESPONSE"
+        exit 1
+    fi
 fi
 
 # ---------- RESTORE /etc/beetle FILES FROM OBJECT STORE ----------
@@ -325,3 +328,8 @@ for g in state.get("groups", []):
 
 print("\n[+] Restore complete")
 EOF
+
+# ---------- APPLY SYSCTL (runtime reload of restored sysctl.conf) ----------
+if command -v sysctl &>/dev/null; then
+    sysctl --system >/dev/null 2>&1 || true
+fi
