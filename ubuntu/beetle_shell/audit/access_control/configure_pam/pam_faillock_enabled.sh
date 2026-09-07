@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure pam_faillock module is enabled"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="/etc/passwd accounts use shadowed passwords"
-SEVERITY="basic"
 
 FILE="/etc/passwd"
 

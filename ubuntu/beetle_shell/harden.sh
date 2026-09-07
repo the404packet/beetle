@@ -160,15 +160,19 @@ mapfile -d '' scripts < <(
 
 echo -e "${CYAN}Capturing pre-harden snapshot...${RESET}"
 
-SNAP_RESPONSE=$(beetle snapshot capture main 2>&1)
-
-if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
-    echo -e "${GREEN}Snapshot captured${RESET}\n"
+if [[ "${SKIP_SNAPSHOT:-false}" == "true" ]]; then
+    echo -e "${YELLOW}Skipping pre-harden snapshot (test runner mode)${RESET}\n"
 else
-    echo -e "${RED}Snapshot failed — aborting${RESET}"
-    echo "$SNAP_RESPONSE"
-    unload_all
-    exit 1
+    SNAP_RESPONSE=$(beetle snapshot capture main 2>&1)
+
+    if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
+        echo -e "${GREEN}Snapshot captured${RESET}\n"
+    else
+        echo -e "${RED}Snapshot failed — aborting${RESET}"
+        echo "$SNAP_RESPONSE"
+        unload_all
+        exit 1
+    fi
 fi
 
 for script in "${scripts[@]}"; do

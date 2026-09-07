@@ -26,7 +26,7 @@
 
   "access_control/user_accounts_and_environment/ensure_accounts_without_a_valid_login_shell_are_locked": true,
   "access_control/user_accounts_and_environment/ensure_system_accounts_do_not_have_a_valid_login_shell": true,
-    "access_control/user_accounts_and_environment/ensure_password_expiration_is_configured": true,
+  "access_control/user_accounts_and_environment/ensure_password_expiration_is_configured": true,
   "access_control/user_accounts_and_environment/ensure_minimum_password_days_is_configured": true,
   "access_control/user_accounts_and_environment/ensure_password_expiration_warning_days_is_configured": true,
   "access_control/user_accounts_and_environment/ensure_strong_password_hashing_algorithm_is_configured": true,

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ssh_private_host_key_permission"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

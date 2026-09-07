@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="verify no duplicate UIDs exist"
-SEVERITY="basic"
 
 FILE="/etc/passwd"
 

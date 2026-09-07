@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="sshd MaxAuthTries config"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

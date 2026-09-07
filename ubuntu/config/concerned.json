@@ -61,11 +61,33 @@
     "cron": ["cron.service"],
     "at": ["atd.service"],
     "systemd-timesyncd": ["systemd-timesyncd.service"],
-    "chrony": ["chrony.service"]
+    "chrony": ["chrony.service"],
+    "auditd": ["auditd.service"],
+    "audispd-plugins": [],
+    "rsyslog": ["rsyslog.service"],
+    "systemd-journal-remote": ["systemd-journal-remote.service", "systemd-journal-upload.service"],
+    "libpam-modules": [],
+    "libpam-pwquality": [],
+    "sudo": [],
+    "bluez": ["bluetooth.service"],
+    "iptables-persistent": [],
+    "nftables": ["nftables.service"]
   },
   "kernel_modules": [
     { "name": "br_netfilter", "removable": true  },
-    { "name": "overlay",      "removable": false }
+    { "name": "overlay",      "removable": false },
+    { "name": "cramfs",       "removable": true  },
+    { "name": "freevxfs",     "removable": true  },
+    { "name": "hfs",          "removable": true  },
+    { "name": "hfsplus",      "removable": true  },
+    { "name": "jffs2",        "removable": true  },
+    { "name": "squashfs",     "removable": true  },
+    { "name": "udf",          "removable": true  },
+    { "name": "usb-storage",  "removable": true  },
+    { "name": "dccp",         "removable": true  },
+    { "name": "sctp",         "removable": true  },
+    { "name": "rds",          "removable": true  },
+    { "name": "tipc",         "removable": true  }
   ],
   "firewalls": ["ufw", "iptables", "nftables"],
   "files": [
@@ -85,7 +107,26 @@
     "/etc/gshadow-",
     "/etc/shells",
     "/etc/security/opasswd",
-    "/etc/security/opasswd.old"
+    "/etc/security/opasswd.old",
+    "/etc/ssh/sshd_config",
+    "/etc/sudoers",
+    "/etc/pam.d/common-auth",
+    "/etc/pam.d/common-password",
+    "/etc/pam.d/common-account",
+    "/etc/pam.d/common-session",
+    "/etc/pam.d/su",
+    "/etc/security/faillock.conf",
+    "/etc/security/pwquality.conf",
+    "/etc/security/limits.conf",
+    "/etc/login.defs",
+    "/etc/sysctl.conf",
+    "/etc/issue",
+    "/etc/issue.net",
+    "/etc/motd",
+    "/etc/fstab",
+    "/etc/audit/auditd.conf",
+    "/etc/rsyslog.conf",
+    "/etc/systemd/journald.conf"
   ],
   "directories": [
     "/tmp",
@@ -94,6 +135,14 @@
     "/var",
     "/var/tmp",
     "/var/log",
-    "/var/log/audit"
+    "/var/log/audit",
+    "/etc/modprobe.d",
+    "/etc/sudoers.d",
+    "/etc/pam.d",
+    "/etc/security",
+    "/etc/ssh",
+    "/etc/audit",
+    "/etc/audit/rules.d",
+    "/etc/systemd"
   ]
 }

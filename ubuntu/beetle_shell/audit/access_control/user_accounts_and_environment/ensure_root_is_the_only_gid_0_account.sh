@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure root is the only GID 0 account"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

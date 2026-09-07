@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure password history is enforced for the root user"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

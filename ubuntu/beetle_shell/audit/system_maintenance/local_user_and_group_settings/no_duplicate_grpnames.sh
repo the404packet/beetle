@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="verify no duplicate group names exist"
-SEVERITY="basic"
 
 FILE="/etc/group"
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure root account access is controlled"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

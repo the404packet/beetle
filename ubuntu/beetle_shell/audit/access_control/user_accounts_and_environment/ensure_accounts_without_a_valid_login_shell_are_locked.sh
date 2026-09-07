@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="ensure accounts without a valid login shell are locked"
-SEVERITY='basic'
 
 GREEN="\e[32m"
 RED="\e[31m"

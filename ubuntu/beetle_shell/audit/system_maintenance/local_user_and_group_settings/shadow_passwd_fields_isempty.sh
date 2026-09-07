@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="/etc/shadow empty password check"
-SEVERITY="basic"
 
 FILE="/etc/shadow"
 
