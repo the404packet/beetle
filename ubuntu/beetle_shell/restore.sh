@@ -3,6 +3,8 @@
 SNAPSHOT_FILE=""
 BASE_DIR="/var/lib/beetle"
 META_FILE="$BASE_DIR/.snapshot_meta"
+OBJECT_DIR="$BASE_DIR/.objects"
+MANIFEST_DIR="$BASE_DIR/.manifests"
 RESTORE_TMP="$BASE_DIR/.restore_tmp"
 ETC_BEETLE="/etc/beetle"
 
@@ -31,7 +33,6 @@ if [[ -z "$SNAPSHOT_FILE" || "$SNAPSHOT_FILE" == "latest" ]]; then
 else
     MATCH=$(grep -E "^${SNAPSHOT_FILE}\|" "$META_FILE")
     [[ -z "$MATCH" ]] && MATCH=$(grep -E "\|${SNAPSHOT_FILE}\|" "$META_FILE")
-    [[ -z "$MATCH" ]] && MATCH=$(grep -E "\|${SNAPSHOT_FILE}\.tar\.gz\|" "$META_FILE")
 
     if [[ -z "$MATCH" ]]; then
         echo "[!] No snapshot found for: $SNAPSHOT_FILE"
@@ -39,58 +40,90 @@ else
     fi
 fi
 
-SNAP_NAME=$(echo "$MATCH" | cut -d'|' -f2)
-SNAP_TYPE=$(echo "$MATCH" | cut -d'|' -f4)
+SNAP_ID=$(echo "$MATCH"    | cut -d'|' -f1)
+SNAP_LABEL=$(echo "$MATCH" | cut -d'|' -f2)
+SNAP_TYPE=$(echo "$MATCH"  | cut -d'|' -f4)
 
 if [[ "$SNAP_TYPE" == "beetle" ]]; then
-    SNAP_LINK="$BASE_DIR/beetle_snapshots/$SNAP_NAME"
+    SNAP_LINK="$BASE_DIR/beetle_snapshots/$SNAP_LABEL"
 else
-    SNAP_LINK="$BASE_DIR/user_snapshots/$SNAP_NAME"
+    SNAP_LINK="$BASE_DIR/user_snapshots/$SNAP_LABEL"
 fi
 
-if [[ ! -e "$SNAP_LINK" ]]; then
-    echo "[!] Snapshot file not found: $SNAP_LINK"
+if [[ ! -L "$SNAP_LINK" ]]; then
+    echo "[!] Snapshot link not found: $SNAP_LINK"
     exit 1
 fi
 
-echo "[*] Snapshot: $SNAP_NAME"
+# Resolve manifest from symlink
+MANIFEST_FILE=$(readlink -f "$SNAP_LINK")
+if [[ ! -f "$MANIFEST_FILE" ]]; then
+    echo "[!] Snapshot manifest not found: $MANIFEST_FILE"
+    exit 1
+fi
+
+echo "[*] Snapshot : $SNAP_LABEL"
+echo "[*] Manifest : $MANIFEST_FILE"
 
 # ---------- PRE-RESTORE SNAPSHOT ----------
-echo -e "${CYAN}Capturing pre-harden snapshot...${RESET}"
-
-SNAP_RESPONSE=$(beetle snapshot capture main 2>&1)
-
-if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
-    echo -e "${GREEN}Snapshot captured${RESET}\n"
+if [[ "${SKIP_SNAPSHOT:-false}" == "true" ]]; then
+    echo "[*] Skipping pre-restore safety snapshot (test runner mode)"
 else
-    echo -e "${RED}Snapshot failed — aborting${RESET}"
-    echo "$SNAP_RESPONSE"
-    unload_all
-    exit 1
+    echo "[*] Capturing pre-restore safety snapshot..."
+    SNAP_RESPONSE=$(beetle snapshot capture main 2>&1)
+    if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
+        echo "[+] Safety snapshot captured"
+    else
+        echo "[!] Safety snapshot failed — aborting"
+        echo "$SNAP_RESPONSE"
+        exit 1
+    fi
 fi
 
-# ---------- EXTRACT ----------
+# ---------- RESTORE /etc/beetle FILES FROM OBJECT STORE ----------
 trap 'rm -rf "$RESTORE_TMP"' EXIT
 rm -rf "$RESTORE_TMP"
 mkdir -p "$RESTORE_TMP"
 
-tar -xzf "$SNAP_LINK" -C "$RESTORE_TMP" || {
-    echo "[!] Failed to extract snapshot"
-    exit 1
-}
+echo "[*] Restoring /etc/beetle files from object store..."
 
-# ---------- RESTORE /etc/beetle FILES ----------
-echo "[*] Restoring /etc/beetle files..."
-for f in "$RESTORE_TMP"/*.json "$RESTORE_TMP"/*.conf; do
-    [[ -e "$f" ]] || continue
-    cp "$f" "$ETC_BEETLE/$(basename "$f")"
-    echo "    [+] Restored: $(basename "$f")"
-done
+python3 - <<PYEOF
+import json, os, shutil, sys
+
+manifest = json.load(open("$MANIFEST_FILE"))
+object_dir = "$OBJECT_DIR"
+source_dir = "$ETC_BEETLE"
+restore_tmp = "$RESTORE_TMP"
+
+for rel_path, file_hash in manifest.get("files", {}).items():
+    if rel_path == "__state__":
+        continue
+    prefix = file_hash[:2]
+    obj_path = os.path.join(object_dir, prefix, file_hash)
+    if not os.path.exists(obj_path):
+        print(f"    [!] Missing object for {rel_path} ({file_hash})")
+        continue
+    dest = os.path.join(source_dir, rel_path)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    shutil.copy2(obj_path, dest)
+    print(f"    [+] Restored: {rel_path}")
+
+# Extract state.json to RESTORE_TMP for use below
+state_hash = manifest.get("files", {}).get("__state__")
+if state_hash:
+    prefix = state_hash[:2]
+    obj_path = os.path.join(object_dir, prefix, state_hash)
+    if os.path.exists(obj_path):
+        shutil.copy2(obj_path, os.path.join(restore_tmp, "state.json"))
+        print("    [+] Loaded state.json from object store")
+    else:
+        print("    [!] state.json object missing")
+PYEOF
 
 # ---------- LOAD STATE ----------
 STATE_FILE="$RESTORE_TMP/state.json"
 if [[ ! -f "$STATE_FILE" ]]; then
-    echo "[!] state.json not found in snapshot"
+    echo "[!] state.json not found in object store for this snapshot"
     exit 1
 fi
 
@@ -295,3 +328,8 @@ for g in state.get("groups", []):
 
 print("\n[+] Restore complete")
 EOF
+
+# ---------- APPLY SYSCTL (runtime reload of restored sysctl.conf) ----------
+if command -v sysctl &>/dev/null; then
+    sysctl --system >/dev/null 2>&1 || true
+fi
