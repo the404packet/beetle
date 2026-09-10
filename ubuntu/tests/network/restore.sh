@@ -79,5 +79,13 @@ if [ -f "$BACKUP_DIR/wifi_radio" ] && command -v nmcli &>/dev/null; then
     fi
 fi
 
+# --- 6. Restore bluez package state ---
+if [ -f "$BACKUP_DIR/pkg_bluez.status" ]; then
+    orig=$(cat "$BACKUP_DIR/pkg_bluez.status")
+    if [[ "$orig" == "not-installed" || "$orig" != *"install ok installed"* ]]; then
+        apt-get remove -y -q bluez 2>/dev/null || true
+    fi
+fi
+
 rm -rf "$BACKUP_DIR"
 echo "Restore completed successfully for network module."

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # run_test.sh - Automated test runner for Beetle network module
 # Workflow:
+# 0. Pre-flight baseline: detect scripts that are always-HARDENED due to missing
+#    hardware/packages (no wireless, no bluez, module not in kernel, etc.)
+#    Those are tagged SKIPPED and excluded from test phases.
 # 1. Store backup & Unsecure all settings
 # 2. Run Beetle Audit (Expected: NOT HARDENED, Actual: verified)
 # 3. Run Beetle Harden
@@ -26,6 +29,7 @@ GREEN="\e[32m"
 RED="\e[31m"
 CYAN="\e[36m"
 YELLOW="\e[33m"
+BLUE="\e[34m"
 RESET="\e[0m"
 
 cleanup() {

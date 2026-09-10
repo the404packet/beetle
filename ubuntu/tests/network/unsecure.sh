@@ -61,7 +61,8 @@ for mod in dccp tipc rds sctp; do
     lsmod | grep -qw "$mod" && echo "loaded" > "$BACKUP_DIR/lsmod_${mod}" || echo "not_loaded" > "$BACKUP_DIR/lsmod_${mod}"
 done
 
-# --- 4. Bluetooth service state ---
+# --- 4. Bluetooth service state & package ---
+dpkg-query -W -f='${Status}' bluez 2>/dev/null > "$BACKUP_DIR/pkg_bluez.status" || echo "not-installed" > "$BACKUP_DIR/pkg_bluez.status"
 systemctl is-enabled bluetooth.service 2>/dev/null > "$BACKUP_DIR/bluetooth.enabled" || echo "disabled" > "$BACKUP_DIR/bluetooth.enabled"
 systemctl is-active bluetooth.service 2>/dev/null > "$BACKUP_DIR/bluetooth.active" || echo "inactive" > "$BACKUP_DIR/bluetooth.active"
 
@@ -71,6 +72,11 @@ if command -v nmcli &>/dev/null; then
 fi
 
 echo "=== Unsecuring network settings ==="
+
+# --- 0. Ensure bluez package is installed so bluetooth audit check evaluates service state ---
+if ! dpkg -l bluez &>/dev/null; then
+    apt-get install -y -q bluez 2>/dev/null || true
+fi
 
 # --- 1. Set insecure sysctl values (opposite of what audit expects) ---
 sysctl -w net.ipv4.ip_forward=1                           2>/dev/null || true
@@ -96,6 +102,10 @@ sysctl -w net.ipv6.conf.all.accept_source_route=1         2>/dev/null || true
 sysctl -w net.ipv6.conf.default.accept_source_route=1     2>/dev/null || true
 sysctl -w net.ipv6.conf.all.accept_ra=1                   2>/dev/null || true
 sysctl -w net.ipv6.conf.default.accept_ra=1               2>/dev/null || true
+
+# Disable IPv6 via sysctl so IPv6 status audit fails (reports NOT HARDENED when config expects enabled)
+sysctl -w net.ipv6.conf.all.disable_ipv6=1                2>/dev/null || true
+sysctl -w net.ipv6.conf.default.disable_ipv6=1            2>/dev/null || true
 
 # Remove hardened sysctl config files so audit_sysctl_file checks fail too
 rm -f /etc/sysctl.d/60-netipv4_sysctl.conf /etc/sysctl.d/60-netipv6_sysctl.conf
