@@ -73,10 +73,13 @@ fi
 
 echo "=== Unsecuring network settings ==="
 
-# --- 0. Ensure bluez package is installed so bluetooth audit check evaluates service state ---
+# --- 0. Ensure bluez package is installed and service is unmasked/enabled/started ---
 if ! dpkg -l bluez &>/dev/null; then
     apt-get install -y -q bluez 2>/dev/null || true
 fi
+systemctl unmask bluetooth.service 2>/dev/null || true
+systemctl enable bluetooth.service 2>/dev/null || true
+systemctl start bluetooth.service 2>/dev/null || true
 
 # --- 1. Set insecure sysctl values (opposite of what audit expects) ---
 sysctl -w net.ipv4.ip_forward=1                           2>/dev/null || true
@@ -107,21 +110,48 @@ sysctl -w net.ipv6.conf.default.accept_ra=1               2>/dev/null || true
 sysctl -w net.ipv6.conf.all.disable_ipv6=1                2>/dev/null || true
 sysctl -w net.ipv6.conf.default.disable_ipv6=1            2>/dev/null || true
 
-# Remove hardened sysctl config files so audit_sysctl_file checks fail too
-rm -f /etc/sysctl.d/60-netipv4_sysctl.conf /etc/sysctl.d/60-netipv6_sysctl.conf
+# Write insecure values into sysctl config files so file audit checks fail initially,
+# and harden scripts can locate and update the file properly
+mkdir -p /etc/sysctl.d
+cat << 'EOF' > /etc/sysctl.d/60-netipv4_sysctl.conf
+net.ipv4.ip_forward = 1
+net.ipv4.conf.all.send_redirects = 1
+net.ipv4.conf.default.send_redirects = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 0
+net.ipv4.icmp_echo_ignore_broadcasts = 0
+net.ipv4.conf.all.accept_redirects = 1
+net.ipv4.conf.default.accept_redirects = 1
+net.ipv4.conf.all.secure_redirects = 1
+net.ipv4.conf.default.secure_redirects = 1
+net.ipv4.conf.all.rp_filter = 0
+net.ipv4.conf.default.rp_filter = 0
+net.ipv4.conf.all.accept_source_route = 1
+net.ipv4.conf.default.accept_source_route = 1
+net.ipv4.conf.all.log_martians = 0
+net.ipv4.conf.default.log_martians = 0
+net.ipv4.tcp_syncookies = 0
+EOF
 
-# --- 2. Remove kernel module restrictions (remove modprobe.d blocklist entries) ---
+cat << 'EOF' > /etc/sysctl.d/60-netipv6_sysctl.conf
+net.ipv6.conf.all.forwarding = 1
+net.ipv6.conf.all.accept_redirects = 1
+net.ipv6.conf.default.accept_redirects = 1
+net.ipv6.conf.all.accept_source_route = 1
+net.ipv6.conf.default.accept_source_route = 1
+net.ipv6.conf.all.accept_ra = 1
+net.ipv6.conf.default.accept_ra = 1
+EOF
+
+# --- 2. Unsecure kernel modules (install extra modules package, load modules, remove blocklists) ---
+# Try installing linux-modules-extra for current kernel if available
+apt-get install -y -q "linux-modules-extra-$(uname -r)" 2>/dev/null || true
+
 for mod in dccp tipc rds sctp; do
     rm -f "/etc/modprobe.d/${mod}.conf"
+    modprobe "$mod" 2>/dev/null || true
 done
 
-# --- 3. Enable bluetooth service (audit expects it restricted/stopped) ---
-if systemctl list-unit-files bluetooth.service &>/dev/null; then
-    systemctl enable bluetooth.service 2>/dev/null || true
-    systemctl start bluetooth.service 2>/dev/null || true
-fi
-
-# --- 4. Enable wifi if blocked (audit expects it restricted) ---
+# --- 3. Enable wifi if blocked (audit expects it restricted) ---
 if command -v nmcli &>/dev/null; then
     nmcli radio wifi on 2>/dev/null || true
 fi

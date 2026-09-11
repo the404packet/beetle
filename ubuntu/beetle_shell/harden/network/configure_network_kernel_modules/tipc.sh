@@ -19,19 +19,16 @@ fi
 
 for mod_base in $mod_path; do
     if [ -d "$mod_base/${mod_name}" ] && [ -n "$(ls -A "$mod_base/${mod_name}" 2>/dev/null)" ]; then
-        a_showconfig=()
-        while IFS= read -r l_showconfig; do
-            a_showconfig+=("$l_showconfig")
-        done < <(modprobe --showconfig | grep -P -- "\b(install|blacklist)\h+${mod_name}\b")
+        showconfig=$(modprobe --showconfig 2>/dev/null | grep -P -- "\b(install|blacklist)\h+${mod_name}\b")
 
         if lsmod | grep -q "$mod_name" 2>/dev/null; then
             modprobe -r "$mod_name" 2>/dev/null
             rmmod "$mod_name" 2>/dev/null
         fi
-        if ! grep -Pq -- "\binstall\h+${mod_name}\h+(\/usr)?\/bin\/(true|false)\b" <<< "${a_showconfig[*]}"; then
+        if ! grep -Pq -- "\binstall\h+${mod_name}\h+(\/usr)?\/bin\/(true|false)\b" <<< "$showconfig"; then
             printf '%s\n' "install $mod_name $(readlink -f /bin/false)" >> /etc/modprobe.d/"$mod_name".conf
         fi
-        if ! grep -Pq -- "\bblacklist\h+${mod_name}\b" <<< "${a_showconfig[*]}"; then
+        if ! grep -Pq -- "\bblacklist\h+${mod_name}\b" <<< "$showconfig"; then
             printf '%s\n' "blacklist $mod_name" >> /etc/modprobe.d/"$mod_name".conf
         fi
     fi
@@ -41,14 +38,11 @@ failed=false
 for mod_base in $mod_path; do
     if [ -d "$mod_base/${mod_name}" ] && [ -n "$(ls -A "$mod_base/${mod_name}" 2>/dev/null)" ]; then
         if lsmod | grep -q "$mod_name" 2>/dev/null; then failed=true; break; fi
-        a_showconfig=()
-        while IFS= read -r l_showconfig; do
-            a_showconfig+=("$l_showconfig")
-        done < <(modprobe --showconfig | grep -P -- "\b(install|blacklist)\h+${mod_name}\b")
-        if ! grep -Pq -- "\binstall\h+${mod_name}\h+(\/usr)?\/bin\/(true|false)\b" <<< "${a_showconfig[*]}"; then
+        showconfig=$(modprobe --showconfig 2>/dev/null | grep -P -- "\b(install|blacklist)\h+${mod_name}\b")
+        if ! grep -Pq -- "\binstall\h+${mod_name}\h+(\/usr)?\/bin\/(true|false)\b" <<< "$showconfig"; then
             failed=true; break
         fi
-        if ! grep -Pq -- "\bblacklist\h+${mod_name}\b" <<< "${a_showconfig[*]}"; then
+        if ! grep -Pq -- "\bblacklist\h+${mod_name}\b" <<< "$showconfig"; then
             failed=true; break
         fi
     fi
