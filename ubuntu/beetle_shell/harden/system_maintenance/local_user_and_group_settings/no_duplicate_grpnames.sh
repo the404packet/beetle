@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="verify no duplicate group names exist"
-SEVERITY="basic"
 
 GREEN="\e[32m"
 YELLOW="\e[33m"
@@ -29,11 +28,22 @@ echo -e "${YELLOW}Duplicate group names found:${RESET}"
 echo "$duplicates"
 echo
 echo -e "${YELLOW}Default hardening: Append a numeric suffix to duplicate group names to make them unique.${RESET}"
-echo -e "Press ${GREEN}ENTER${RESET} to apply default hardening, or type ${RED}no${RESET} to configure manually: "
 
-read -r response </dev/tty
+response="y"
+if [ -t 0 ] && [ -c /dev/tty ]; then
+    while true; do
+        echo -e "Apply default hardening? [${GREEN}y${RESET}/${RED}n${RESET}] (default: y): "
+        read -r response </dev/tty
+        response="${response:-y}"
+        case "${response,,}" in
+            y|yes) response="y"; break ;;
+            n|no)  response="n"; break ;;
+            *) echo -e "${RED}Please answer y or n.${RESET}" ;;
+        esac
+    done
+fi
 
-if [[ "${response,,}" == "no" ]]; then
+if [[ "$response" == "n" ]]; then
     echo -e "${YELLOW}Manual remediation required. No changes made.${RESET}"
     echo -e "  1. Rename duplicate group: groupmod -n <new_groupname> <old_groupname>"
     echo -e "${RED}FAILED${RESET}"
@@ -42,25 +52,26 @@ fi
 
 FAILED=0
 
+# Iterate unique duplicate names (one entry per duplicated name, not per line)
 while read -r l_count l_group; do
-    if [ "$l_count" -gt 1 ];
-    then
-        occurrences=($(awk -F: '($1 == n) {print NR}' n=$l_group "$FILE"))
-        # Skip first occurrence, rename the rest
-        for i in "${!occurrences[@]}"; do
-            if [ "$i" -eq 0 ]; then
-                continue
-            fi
-            new_groupname="${l_group}_${i}"
-            # Make sure new group name does not already exist
+    if [ "$l_count" -gt 1 ]; then
+        # Line numbers of every occurrence of this name
+        mapfile -t line_nums < <(awk -F: -v n="$l_group" '$1 == n {print NR}' "$FILE")
+
+        # Skip the first occurrence; rename the rest by editing the file directly.
+        # Using sed on the specific line avoids groupmod's ambiguous name-lookup
+        # behaviour when multiple entries share the same name.
+        idx=0
+        for lineno in "${line_nums[@]:1}"; do
+            idx=$(( idx + 1 ))
+            new_groupname="${l_group}_${idx}"
             while getent group "$new_groupname" &>/dev/null; do
-                new_groupname="${new_groupname}_${i}"
+                new_groupname="${new_groupname}_${idx}"
             done
-            groupmod -n "$new_groupname" "$l_group" 2>/dev/null
-            if [[ $? -eq 0 ]]; then
-                echo -e "  ${GREEN}Renamed duplicate group '$l_group' to '$new_groupname'${RESET}"
+            if sed -i "${lineno}s/^[^:]*:/${new_groupname}:/" "$FILE"; then
+                echo -e "  ${GREEN}Renamed duplicate group '$l_group' (line $lineno) to '$new_groupname'${RESET}"
             else
-                echo -e "  ${RED}Failed to rename duplicate group '$l_group'${RESET}"
+                echo -e "  ${RED}Failed to rename duplicate group '$l_group' at line $lineno${RESET}"
                 FAILED=1
             fi
         done

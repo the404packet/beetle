@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="verify no duplicate GIDs exist"
-SEVERITY="basic"
 
 GREEN="\e[32m"
 YELLOW="\e[33m"
@@ -30,11 +29,22 @@ echo -e "${YELLOW}Duplicate GIDs found:${RESET}"
 echo "$duplicates"
 echo
 echo -e "${YELLOW}Default hardening: Assign a new unique GID to duplicate groups and fix file ownership.${RESET}"
-echo -e "Press ${GREEN}ENTER${RESET} to apply default hardening, or type ${RED}no${RESET} to configure manually: "
 
-read -r response </dev/tty
+response="y"
+if [ -t 0 ] && [ -c /dev/tty ]; then
+    while true; do
+        echo -e "Apply default hardening? [${GREEN}y${RESET}/${RED}n${RESET}] (default: y): "
+        read -r response </dev/tty
+        response="${response:-y}"
+        case "${response,,}" in
+            y|yes) response="y"; break ;;
+            n|no)  response="n"; break ;;
+            *) echo -e "${RED}Please answer y or n.${RESET}" ;;
+        esac
+    done
+fi
 
-if [[ "${response,,}" == "no" ]]; then
+if [[ "$response" == "n" ]]; then
     echo -e "${YELLOW}Manual remediation required. No changes made.${RESET}"
     echo -e "  1. Assign new unique GID: groupmod -g <new_gid> <groupname>"
     echo -e "  2. Fix file ownership:    find / -group <old_gid> -exec chgrp <new_gid> {} \;"
@@ -44,24 +54,39 @@ fi
 
 FAILED=0
 
+# Find the first free GID above 1000.
+# Stop as soon as gid falls into a gap (doesn't match an existing GID).
+next_gid=$(
+    awk -F: '{print $3}' "$FILE" | sort -n -u | awk '
+        BEGIN { gid = 1000 }
+        $1 == gid { gid++; next }
+        $1 > gid  { exit }
+        END       { print gid }
+    '
+)
+[ -z "$next_gid" ] && next_gid=1000
+
 while read -r l_count l_gid; do
     if [ "$l_count" -gt 1 ]; then
         groups=($(awk -F: '($3 == n) {print $1}' n=$l_gid "$FILE"))
-        # Keep first group, reassign rest
         for i in "${!groups[@]}"; do
             if [ "$i" -eq 0 ]; then
                 continue
             fi
             grp="${groups[$i]}"
-            # Find next available GID above 1000
-            new_gid=$(awk -F: '{print $3}' "$FILE" | sort -n | awk 'BEGIN{gid=1000} $1==gid{gid++} END{print gid}')
-            groupmod -g "$new_gid" "$grp" 2>/dev/null
-            if [[ $? -eq 0 ]]; then
+
+            # Guard: ensure next_gid is not already taken (belt-and-braces).
+            while awk -F: -v G="$next_gid" '$3 == G {found=1; exit} END {exit !found}' "$FILE"; do
+                next_gid=$(( next_gid + 1 ))
+            done
+
+            new_gid="$next_gid"
+            if groupmod -g "$new_gid" "$grp" 2>/dev/null; then
                 echo -e "  ${GREEN}Reassigned GID of '$grp' from $l_gid to $new_gid${RESET}"
-                # Fix file ownership
-                find / -xdev -group "$l_gid" 2>/dev/null | xargs chgrp "$new_gid" 2>/dev/null
+                find / -xdev -group "$l_gid" -print0 2>/dev/null | xargs -0 chgrp "$new_gid" 2>/dev/null
+                next_gid=$(( next_gid + 1 ))
             else
-                echo -e "  ${RED}Failed to reassign GID for '$grp'${RESET}"
+                echo -e "  ${RED}Failed to reassign GID for '$grp' (target GID $new_gid)${RESET}"
                 FAILED=1
             fi
         done
