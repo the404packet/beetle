@@ -29,7 +29,7 @@ active=$(systemctl is-active "$svc" 2>/dev/null)
 if [[ "$enabled" == "enabled" ]] || [[ "$active" == "active" ]]; then
     echo -e "${RED}NOT HARDENED${RESET}"
 else
-    echo -e "${RED}NOT HARDENED${RESET}"
+    echo -e "${RED}HARDENED${RESET}"
 fi
 
 exit 0
