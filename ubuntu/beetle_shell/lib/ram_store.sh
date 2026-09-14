@@ -511,6 +511,11 @@ get_net() {
 # ─────────────────────────────────────────────
 # SERVICES JSON loader/unloader/getter
 # ─────────────────────────────────────────────
+live_package_installed() {
+    local pkg="$1"
+    dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"
+}
+
 load_json_services() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
@@ -1068,6 +1073,7 @@ export -f load_json_services unload_json_services get_svc get_svc_services is_ve
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
 export -f load_json_access_control unload_json_access_control get_acc
 export -f unload_all
+export -f live_package_installed
 export SEVERITY_RAM_STORE
 export DPKG_RAM_STORE
 export PERM_RAM_STORE

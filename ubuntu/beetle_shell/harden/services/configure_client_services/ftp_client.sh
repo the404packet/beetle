@@ -19,7 +19,7 @@ while IFS= read -r pkg; do
             apt-get remove --purge -y "$pkg" &>/dev/null
             unset_package "$pkg"
 
-            if is_package_installed "$pkg"; then
+            if live_package_installed "$pkg"; then
                 echo -e "${RED}FAILED${RESET}"
                 exit 1
             fi
