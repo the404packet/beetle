@@ -8,9 +8,22 @@ echo "  [MANUAL CHECK] unused filesystem kernel modules"
 echo "  This check requires manual review — disabling wrong modules can be FATAL."
 echo "  Run: beetle audit initial_setup to see which modules need attention."
 echo ""
-echo -n "  Press ENTER to auto-disable non-mounted CVE modules, or type 'no' to handle manually: "
-read -r response
-[ "$response" = "no" ] && { echo -e "${RED}FAILED${RESET}"; exit 1; }
+
+# Interactive prompt only if we have a terminal; otherwise default to 'y'
+response="y"
+if [ -t 0 ] && [ -c /dev/tty ]; then
+    while true; do
+        echo -e "Apply default hardening? [${GREEN}y${RESET}/${RED}n${RESET}] (default: y): "
+        read -r response </dev/tty
+        response="${response:-y}"
+        case "${response,,}" in
+            y|yes) response="y"; break ;;
+            n|no)  response="n"; break ;;
+            *) echo -e "${RED}Please answer y or n.${RESET}" ;;
+        esac
+    done
+fi
+[ "$response" = "n" ] && { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
 a_ignore=("xfs" "vfat" "ext2" "ext3" "ext4")
 a_cve=("afs" "ceph" "cifs" "exfat" "ext" "fat" "fscache" "fuse" "gfs2" "nfs_common" "nfsd" "smbfs_common")
@@ -35,12 +48,17 @@ for mod in "${a_available[@]}"; do
     [[ "$mod" =~ overlay ]] && mod="${mod::-2}"
     grep -Pq "\b${mod}\b" <<< "${a_ignore[*]}" && continue
     conf_file="${FM_modprobe_dir}/${mod}.conf"
+
+    # Accept any /false or /true path — matches what beetle_module_harden now writes
     grep -Pq "\bblacklist\h+${mod}\b" <<< "${a_modprobe_config[*]}" || \
         printf '%s\n' "blacklist ${mod}" >> "$conf_file"
-    grep -Pq "\binstall\h+${mod}\h+(\/usr)?\/bin\/(false|true)\b" <<< "${a_modprobe_config[*]}" || \
-        printf '%s\n' "install ${mod} $(readlink -f /bin/false)" >> "$conf_file"
-    lsmod 2>/dev/null | grep -q "$mod" && \
-        modprobe -r "$mod" 2>/dev/null; rmmod "$mod" 2>/dev/null || true
+    grep -Pq "\binstall\h+${mod}\h+\S*/(false|true)\b" <<< "${a_modprobe_config[*]}" || \
+        printf '%s\n' "install ${mod} /bin/false" >> "$conf_file"
+
+    # Best-effort unload (may fail if in use; that's acceptable)
+    if lsmod 2>/dev/null | grep -q "^${mod} "; then
+        modprobe -r "$mod" 2>/dev/null || true
+    fi
 done
 
 echo -e "${GREEN}SUCCESS${RESET}"; exit 0

@@ -20,7 +20,7 @@ RESTORE_SCRIPT="$SCRIPT_DIR/restore.sh"
 
 LIB_DIR="$BEETLE_SHELL_ROOT/lib"
 source "$LIB_DIR/ram_store.sh"  || { echo "ERROR: cannot load ram_store.sh"; exit 1; }
-source "$LIB_DIR/find_json.sh"  || { echo "ERROR: cannot load find_json.sh"; exit 1; }
+[ -f "$LIB_DIR/find_json.sh" ] && source "$LIB_DIR/find_json.sh" || true
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -34,8 +34,11 @@ cleanup() {
     unload_json_initial_setup || true
     unload_dpkg || true
     unload_severity || true
+    # Clean leftover ram stores so the next run starts fresh
+    sudo rm -f /dev/shm/beetle_*.env 2>/dev/null || rm -f /dev/shm/beetle_*.env 2>/dev/null || true
 }
 trap cleanup EXIT
+sudo rm -f /dev/shm/beetle_*.env 2>/dev/null || rm -f /dev/shm/beetle_*.env 2>/dev/null || true
 
 echo -e "${CYAN}====================================================${RESET}"
 echo -e "${CYAN}   Beetle Initial Setup Test Suite Runner           ${RESET}"
@@ -45,7 +48,8 @@ echo -e "${CYAN}====================================================${RESET}\n"
 echo -e "${YELLOW}[STEP 1] Unsecuring all initial_setup settings...${RESET}"
 bash "$UNSECURE_SCRIPT"
 
-# Load environment dependencies for running audit & harden scripts
+# Refresh the package ram store AFTER unsecure, because unsecure installs
+# packages (e.g. gdm3) that Phase 1 audits need to see as present.
 load_dpkg
 load_severity "strict"
 load_json_initial_setup "$SCRIPT_DIR/../../config/initial_setup.json"
@@ -68,7 +72,8 @@ for script in "${AUDIT_SCRIPTS[@]}"; do
     rel_path="${script#$BEETLE_SHELL_ROOT/audit/initial_setup/}"
     script_id="${rel_path%.sh}"
 
-    name=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
+    # Accept NAME='...' or NAME="..."
+    name=$(awk -F= '/^NAME=/{gsub(/["'"'"']/,"",$2); print $2}' "$script")
     [ -z "$name" ] && name="$(basename "$script")"
     SCRIPT_NAMES["$script_id"]="$name"
 
@@ -106,19 +111,17 @@ mapfile -d '' HARDEN_SCRIPTS < <(
 )
 
 for script in "${HARDEN_SCRIPTS[@]}"; do
-    name=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
+    # Accept NAME='...' or NAME="..."
+    name=$(awk -F= '/^NAME=/{gsub(/["'"'"']/,"",$2); print $2}' "$script")
     [ -z "$name" ] && name="$(basename "$script")"
 
     # Skip only scripts that read from /dev/tty unconditionally.
-    # Scripts with the [ -t 0 ] guard are safe to run non-interactively.
     if grep -q '/dev/tty' "$script" && ! grep -q '\[ -t 0 \]' "$script"; then
         printf "  Harden: %-47s | Result: ${YELLOW}%s${RESET}\n" "$name" "SKIPPED (Interactive)"
         continue
     fi
 
     TMP_FILE=$(mktemp)
-    # Pipe an empty line as safety net for any stray read; the [ -t 0 ] guard
-    # makes scripts that implement it use their non-interactive default.
     echo "" | bash "$script" > "$TMP_FILE" 2>/dev/null || true
     harden_res=$(tr -d '\r' < "$TMP_FILE" | tr '\n' ' ' | xargs)
     rm -f "$TMP_FILE"
@@ -129,6 +132,11 @@ for script in "${HARDEN_SCRIPTS[@]}"; do
         printf "  Harden: %-47s | Result: ${RED}%s${RESET}\n" "$name" "FAILED"
     fi
 done
+
+# Step 3.5: Refresh ram store so Phase 4 audits see post-harden state
+echo -e "\n${YELLOW}[STEP 3.5] Refreshing ram store after harden...${RESET}"
+load_dpkg
+load_json_initial_setup "$SCRIPT_DIR/../../config/initial_setup.json"
 
 # Step 4: Run Final Audit (Expected: HARDENED)
 echo -e "\n${YELLOW}[STEP 4] Running Final Audit after Hardening (Expected: HARDENED)...${RESET}"

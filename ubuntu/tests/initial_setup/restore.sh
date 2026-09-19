@@ -47,36 +47,49 @@ for svc in "${SERVICES[@]}"; do
 done
 
 # ── 3. Restore Directory Backups ──
+# dconf gdm.d
 if [ -d "$BACKUP_DIR/dconf_gdm.d_dir" ]; then
     rm -rf /etc/dconf/db/gdm.d 2>/dev/null || true
+    mkdir -p /etc/dconf/db 2>/dev/null || true
     cp -a "$BACKUP_DIR/dconf_gdm.d_dir" /etc/dconf/db/gdm.d 2>/dev/null || true
 fi
 
+# dconf local.d (includes locks/ subdirectory)
+if [ -d "$BACKUP_DIR/dconf_local.d_dir" ]; then
+    rm -rf /etc/dconf/db/local.d 2>/dev/null || true
+    mkdir -p /etc/dconf/db 2>/dev/null || true
+    cp -a "$BACKUP_DIR/dconf_local.d_dir" /etc/dconf/db/local.d 2>/dev/null || true
+fi
+
+# modprobe.d
 if [ -d "$BACKUP_DIR/modprobe.d_dir" ]; then
     rm -rf /etc/modprobe.d 2>/dev/null || true
     cp -a "$BACKUP_DIR/modprobe.d_dir" /etc/modprobe.d 2>/dev/null || true
 fi
 
+# apt sources.list.d
 if [ -d "$BACKUP_DIR/sources.list.d_dir" ]; then
     rm -rf /etc/apt/sources.list.d 2>/dev/null || true
     cp -a "$BACKUP_DIR/sources.list.d_dir" /etc/apt/sources.list.d 2>/dev/null || true
 fi
 
 # ── 4. Restore File Backups and Permissions Metadata ──
+# Restore contents first.
 for backup_file in "$BACKUP_DIR"/*; do
     [ -f "$backup_file" ] || continue
     case "$backup_file" in
         *.meta|*.enabled|*.active|*.val|*.status|*.out|*.rules) continue ;;
     esac
     base_name=$(basename "$backup_file")
-    target_file=$(echo "$base_name" | tr '_' '/')
+    target_file=$(echo "$base_name" | tr '|' '/')
     cp -a "$backup_file" "$target_file" 2>/dev/null || true
 done
 
+# Then restore modes / owners / groups.
 for meta_file in "$BACKUP_DIR"/*.meta; do
     [ -f "$meta_file" ] || continue
     base_name=$(basename "$meta_file" .meta)
-    target_file=$(echo "$base_name" | tr '_' '/')
+    target_file=$(echo "$base_name" | tr '|' '/')
     if [ -e "$target_file" ]; then
         read -r mode owner group < "$meta_file"
         chmod "$mode" "$target_file" 2>/dev/null || true
@@ -85,6 +98,8 @@ for meta_file in "$BACKUP_DIR"/*.meta; do
 done
 
 # ── 5. Restore Package Installation State ──
+# For each tracked package, if it wasn't originally installed, remove it now.
+# Uses DEBIAN_FRONTEND=noninteractive and </dev/null so apt can't block.
 for status_file in "$BACKUP_DIR"/pkg_*.status; do
     [ -f "$status_file" ] || continue
     pkg=$(basename "$status_file" .status | sed 's/^pkg_//')

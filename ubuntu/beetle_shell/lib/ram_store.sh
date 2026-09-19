@@ -17,8 +17,17 @@ export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
        NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FW_RAM_STORE FIREWALL_RAM_STORE \
        LOGGING_RAM_STORE SSH_RAM_STORE INITIAL_SETUP_RAM_STORE
 
+_clean_ram_store() {
+    local path="$1"
+    [ -e "$path" ] || return 0
+    rm -f "$path" 2>/dev/null || \
+        sudo -n rm -f "$path" 2>/dev/null || \
+        : > "$path" 2>/dev/null || \
+        true
+}
+
 load_dpkg() {
-    rm -f "$DPKG_RAM_STORE"
+    _clean_ram_store "$DPKG_RAM_STORE"
 
     dpkg-query -W -f='${Package} ${Status} ${Version}\n' 2>/dev/null | \
     awk '$0 ~ /install ok installed/ {print $1, $NF}' | \
@@ -38,7 +47,7 @@ get_installed_version() {
 }
 
 unload_dpkg() {
-    [ -f "$DPKG_RAM_STORE" ] && shred -u "$DPKG_RAM_STORE" 2>/dev/null || rm -f "$DPKG_RAM_STORE"
+    [ -f "$DPKG_RAM_STORE" ] && shred -u "$DPKG_RAM_STORE" 2>/dev/null || _clean_ram_store "$DPKG_RAM_STORE"
 }
 
 is_package_installed() {
@@ -64,7 +73,7 @@ unset_package() {
 # ─────────────────────────────────────────────
 load_severity() {
     local target_level="$1"
-    rm -f "$SEVERITY_RAM_STORE"
+    _clean_ram_store "$SEVERITY_RAM_STORE"
 
     local levels=("basic")
     [[ "$target_level" == "moderate" ]] && levels=("basic" "moderate")
@@ -100,7 +109,7 @@ EOF
 }
 
 unload_severity() {
-    [ -f "$SEVERITY_RAM_STORE" ] && shred -u "$SEVERITY_RAM_STORE" 2>/dev/null || rm -f "$SEVERITY_RAM_STORE"
+    [ -f "$SEVERITY_RAM_STORE" ] && shred -u "$SEVERITY_RAM_STORE" 2>/dev/null || _clean_ram_store "$SEVERITY_RAM_STORE"
 }
 
 is_check_enabled() {
@@ -138,6 +147,8 @@ is_check_enabled() {
 load_json_initial_setup() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: initial_setup JSON not found: $json_file"; return 1; }
+
+    _clean_ram_store "$INITIAL_SETUP_RAM_STORE"
 
     local py_script
     py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
@@ -275,7 +286,7 @@ PYEOF
 
     python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
     local exit_code=$?
-    rm -f "$py_script"
+    _clean_ram_store "$py_script"
     [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
     chmod 600 "$INITIAL_SETUP_RAM_STORE"
     source "$INITIAL_SETUP_RAM_STORE"
@@ -303,7 +314,7 @@ gdm_installed() {
 }
 
 unload_json_initial_setup() {
-    rm -f "$INITIAL_SETUP_RAM_STORE"
+    _clean_ram_store "$INITIAL_SETUP_RAM_STORE"
     unset $(compgen -v | grep -E '^(AA_|FM_|PT_|GD_)')
 }
 
@@ -323,9 +334,14 @@ beetle_module_audit() {
             showconfig=$(modprobe --showconfig 2>/dev/null \
                 | grep -P "\b(install|blacklist)\h+${mod_chk_name//-/_}\b")
 
-            lsmod 2>/dev/null | grep -q "$mod_chk_name" && return 1
-            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+(\/usr)?\/bin\/(true|false)\b" || return 1
+            # Persistent block must be present
+            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+\S*/(true|false)\b" || return 1
             echo "$showconfig" | grep -Pq "\bblacklist\h+${mod_chk_name//-/_}\b" || return 1
+
+            # Real test: modprobe must not plan to insmod it
+            if modprobe --dry-run "$mod_chk_name" 2>/dev/null | grep -q "insmod"; then
+                return 1
+            fi
         fi
     done
     return 0
@@ -349,8 +365,8 @@ beetle_module_harden() {
             lsmod 2>/dev/null | grep -q "$mod_chk_name" && \
                 modprobe -r "$mod_chk_name" 2>/dev/null; rmmod "$mod_name" 2>/dev/null
 
-            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+(\/usr)?\/bin\/(true|false)\b" || \
-                printf '%s\n' "install ${mod_chk_name} $(readlink -f /bin/false)" >> "$conf_file"
+            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+\S*/(true|false)\b" || \
+                printf '%s\n' "install ${mod_chk_name} /bin/false" >> "$conf_file"
 
             echo "$showconfig" | grep -Pq "\bblacklist\h+${mod_chk_name//-/_}\b" || \
                 printf '%s\n' "blacklist ${mod_chk_name}" >> "$conf_file"
@@ -364,7 +380,7 @@ beetle_module_harden() {
 load_json_network() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-    rm -f "$NETWORK_RAM_STORE"
+    _clean_ram_store "$NETWORK_RAM_STORE"
 
     python3 - <<EOF > "$NETWORK_RAM_STORE"
 import json
@@ -417,7 +433,7 @@ EOF
 }
 
 unload_json_network() {
-    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || rm -f "$NETWORK_RAM_STORE"
+    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || _clean_ram_store "$NETWORK_RAM_STORE"
 }
 
 get_net() {
@@ -428,7 +444,7 @@ get_net() {
 }
 
 unload_json_network() {
-    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || rm -f "$NETWORK_RAM_STORE"
+    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || _clean_ram_store "$NETWORK_RAM_STORE"
 }
 
 check_ipv6_disabled() {
@@ -519,7 +535,7 @@ live_package_installed() {
 load_json_services() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-    rm -f "$SERVICES_RAM_STORE"
+    _clean_ram_store "$SERVICES_RAM_STORE"
 
     python3 - <<EOF > "$SERVICES_RAM_STORE"
 import json
@@ -607,7 +623,7 @@ EOF
 }
 
 unload_json_services() {
-    [ -f "$SERVICES_RAM_STORE" ] && shred -u "$SERVICES_RAM_STORE" 2>/dev/null || rm -f "$SERVICES_RAM_STORE"
+    [ -f "$SERVICES_RAM_STORE" ] && shred -u "$SERVICES_RAM_STORE" 2>/dev/null || _clean_ram_store "$SERVICES_RAM_STORE"
 }
 
 get_svc() {
@@ -665,7 +681,7 @@ get_acc() {
 load_json_host_based_firewall() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-    rm -f "$FIREWALL_RAM_STORE"
+    _clean_ram_store "$FIREWALL_RAM_STORE"
 
     python3 - <<EOF > "$FIREWALL_RAM_STORE"
 import json
@@ -684,7 +700,7 @@ EOF
 }
 
 unload_json_host_based_firewall() {
-    [ -f "$FIREWALL_RAM_STORE" ] && shred -u "$FIREWALL_RAM_STORE" 2>/dev/null || rm -f "$FIREWALL_RAM_STORE"
+    [ -f "$FIREWALL_RAM_STORE" ] && shred -u "$FIREWALL_RAM_STORE" 2>/dev/null || _clean_ram_store "$FIREWALL_RAM_STORE"
 }
 
 get_fw() {
@@ -702,7 +718,7 @@ load_json_system_maintenance() {
 
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
 
-    rm -f "$PERM_RAM_STORE"
+    _clean_ram_store "$PERM_RAM_STORE"
 
     python3 - <<EOF > "$PERM_RAM_STORE"
 import json
@@ -736,7 +752,7 @@ EOF
 }
 
 unload_json_system_maintenance() {
-    [ -f "$PERM_RAM_STORE" ] && shred -u "$PERM_RAM_STORE" 2>/dev/null || rm -f "$PERM_RAM_STORE"
+    [ -f "$PERM_RAM_STORE" ] && shred -u "$PERM_RAM_STORE" 2>/dev/null || _clean_ram_store "$PERM_RAM_STORE"
 }
 
 get_perm() {
@@ -751,6 +767,8 @@ get_perm() {
 load_json_logging_and_auditing() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: logging JSON not found: $json_file"; return 1; }
+
+    _clean_ram_store "$LOGGING_RAM_STORE"
 
     local py_script
     py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
@@ -886,7 +904,7 @@ PYEOF
 
     python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"
     local exit_code=$?
-    rm -f "$py_script"
+    _clean_ram_store "$py_script"
 
     [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
     chmod 600 "$LOGGING_RAM_STORE"
@@ -894,7 +912,7 @@ PYEOF
 }
 
 unload_json_logging_and_auditing() {
-    rm -f "$LOGGING_RAM_STORE"
+    _clean_ram_store "$LOGGING_RAM_STORE"
     unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_|LP_|AD_|AC_|AR_|AI_)')
 }
 
@@ -939,7 +957,7 @@ load_json_access_control() {
 
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
 
-    rm -f "$SSH_RAM_STORE"
+    _clean_ram_store "$SSH_RAM_STORE"
 
     python3 - <<EOF > "$SSH_RAM_STORE"
 import json
@@ -1033,7 +1051,7 @@ EOF
 }
 
 unload_json_access_control() {
-    [ -f "$SSH_RAM_STORE" ] && shred -u "$SSH_RAM_STORE" 2>/dev/null || rm -f "$SSH_RAM_STORE"
+    [ -f "$SSH_RAM_STORE" ] && shred -u "$SSH_RAM_STORE" 2>/dev/null || _clean_ram_store "$SSH_RAM_STORE"
 }
 
 unload_all() {
@@ -1074,6 +1092,7 @@ export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
 export -f load_json_access_control unload_json_access_control get_acc
 export -f unload_all
 export -f live_package_installed
+export -f _clean_ram_store
 export SEVERITY_RAM_STORE
 export DPKG_RAM_STORE
 export PERM_RAM_STORE
