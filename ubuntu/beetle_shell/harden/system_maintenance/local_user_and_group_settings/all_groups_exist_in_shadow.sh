@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 
-NAME=" all passwd GIDs exist in group"
-SEVERITY="basic"
+NAME="all passwd GIDs exist in group"
 
 GREEN="\e[32m"
-RED="\e[31m"
 YELLOW="\e[33m"
 RED="\e[31m"
 RESET="\e[0m"
@@ -40,12 +38,23 @@ done <<< "$missing_users"
 
 echo
 echo -e "${YELLOW}Default hardening (Option 1): Create missing groups with the corresponding GID.${RESET}"
-echo -e "Press ${GREEN}ENTER${RESET} to apply default hardening, or type ${RED}no${RESET} to configure manually: "
 
-# Read from terminal directly in case stdout is redirected
-read -r response </dev/tty
+# Interactive prompt only when we have a terminal; otherwise default to "y"
+response="y"
+if [ -t 0 ] && [ -c /dev/tty ]; then
+    while true; do
+        echo -e "Apply default hardening? [${GREEN}y${RESET}/${RED}n${RESET}] (default: y): "
+        read -r response </dev/tty
+        response="${response:-y}"
+        case "${response,,}" in
+            y|yes) response="y"; break ;;
+            n|no)  response="n"; break ;;
+            *) echo -e "${RED}Please answer y or n.${RESET}" ;;
+        esac
+    done
+fi
 
-if [[ "${response,,}" == "no" ]]; then
+if [[ "$response" == "n" ]]; then
     echo -e "${YELLOW}Manual remediation required. No changes made.${RESET}"
     echo -e "For each affected user, either:"
     echo -e "  1. Create the missing group:  groupadd -g <GID> <groupname>"
@@ -58,7 +67,10 @@ fi
 FAILED=0
 
 while IFS=: read -r username gid; do
-    if ! getent group "$gid" &>/dev/null; then
+    # CHANGED: use numeric GID lookup, not name lookup.
+    # `getent group "$gid"` looks up by *name*, which fails for a numeric
+    # string. The correct check is whether the GID appears in field 3.
+    if ! awk -F: -v g="$gid" '$3 == g {found=1; exit} END {exit !found}' "$GROUP_FILE"; then
         groupadd -g "$gid" "group_${gid}" 2>/dev/null
         if [[ $? -eq 0 ]]; then
             echo -e "  ${GREEN}Created group 'group_${gid}' with GID $gid for user '$username'${RESET}"

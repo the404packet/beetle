@@ -53,7 +53,7 @@
       "rsync": { "restrict": true, "version": null, "services": ["rsync.service"] }
     },
     "samba": {
-      "samba": { "restrict": false, "version": null, "services": ["smbd.service", "nmbd.service", "winbind.service"] },
+      "samba": { "restrict": true, "version": null, "services": ["smbd.service", "nmbd.service", "winbind.service"] },
       "samba-common-bin": { "restrict": true, "version": null, "services": [] }
     },
     "snmp": {
@@ -68,17 +68,17 @@
       "squid": { "restrict": true, "version": null, "services": ["squid.service"] },
       "tinyproxy": { "restrict": true, "version": null, "services": ["tinyproxy.service"] },
       "privoxy": { "restrict": true, "version": null, "services": ["privoxy.service"] },
-      "haproxy": { "restrict": false, "version": "2.8.9", "services": ["haproxy.service"] },
-      "traefik": { "restrict": false, "version": "2.11.0", "services": ["traefik.service"] },
-      "varnish": { "restrict": false, "version": "7.5.0", "services": ["varnish.service"] }
+      "haproxy": { "restrict": true, "version": "2.8.9", "services": ["haproxy.service"] },
+      "traefik": { "restrict": true, "version": "2.11.0", "services": ["traefik.service"] },
+      "varnish": { "restrict": true, "version": "7.5.0", "services": ["varnish.service"] }
     },
     "web": {
       "apache2": { "restrict": true, "version": "2.4.62", "services": ["apache2.service"] },
-      "nginx": { "restrict": false, "version": "1.26.0", "services": ["nginx.service"] },
-      "lighttpd": { "restrict": false, "version": "1.4.76", "services": ["lighttpd.service"] },
-      "caddy": { "restrict": false, "version": "2.8.4", "services": ["caddy.service"] },
-      "tomcat10": { "restrict": false, "version": "10.1.28", "services": ["tomcat10.service"] },
-      "h2o": { "restrict": false, "version": "2.2.6", "services": ["h2o.service"] }
+      "nginx": { "restrict": true, "version": "1.26.0", "services": ["nginx.service"] },
+      "lighttpd": { "restrict": true, "version": "1.4.76", "services": ["lighttpd.service"] },
+      "caddy": { "restrict": true, "version": "2.8.4", "services": ["caddy.service"] },
+      "tomcat10": { "restrict": true, "version": "10.1.28", "services": ["tomcat10.service"] },
+      "h2o": { "restrict": true, "version": "2.2.6", "services": ["h2o.service"] }
     },
     "xinetd": {
       "xinetd": { "restrict": true, "version": null, "services": ["xinetd.service"] }
@@ -89,7 +89,7 @@
       "x11-common": { "restrict": true, "version": null, "services": [] }
     },
     "mail": {
-      "postfix": { "restrict": false, "version": "3.8.6", "services": ["postfix.service"] },
+      "postfix": { "restrict": true, "version": "3.8.6", "services": ["postfix.service"] },
       "exim4": { "restrict": true, "version": null, "services": ["exim4.service"] },
       "sendmail": { "restrict": true, "version": null, "services": ["sendmail.service"] }
     }
@@ -130,7 +130,7 @@
       "name": "at",
       "package": "at",
       "service": "atd.service",
-      "required": false
+      "required": true
     }
   ],
   "cron_dirs": [

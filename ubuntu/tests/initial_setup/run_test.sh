@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_test.sh - Automated test runner for Beetle system_maintenance module
+# run_test.sh - Automated test runner for Beetle initial_setup module
 # Workflow:
 # 1. Store backup & Unsecure all settings
 # 2. Run Beetle Audit (Expected: NOT HARDENED, Actual: verified)
@@ -20,7 +20,7 @@ RESTORE_SCRIPT="$SCRIPT_DIR/restore.sh"
 
 LIB_DIR="$BEETLE_SHELL_ROOT/lib"
 source "$LIB_DIR/ram_store.sh"  || { echo "ERROR: cannot load ram_store.sh"; exit 1; }
-source "$LIB_DIR/find_json.sh"  || { echo "ERROR: cannot load find_json.sh"; exit 1; }
+[ -f "$LIB_DIR/find_json.sh" ] && source "$LIB_DIR/find_json.sh" || true
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -31,28 +31,34 @@ RESET="\e[0m"
 cleanup() {
     echo -e "\n${CYAN}=== Restoring original system state ===${RESET}"
     bash "$RESTORE_SCRIPT" || true
-    unload_all || true
+    unload_json_initial_setup || true
+    unload_dpkg || true
+    unload_severity || true
+    # Clean leftover ram stores so the next run starts fresh
+    sudo rm -f /dev/shm/beetle_*.env 2>/dev/null || rm -f /dev/shm/beetle_*.env 2>/dev/null || true
 }
 trap cleanup EXIT
+sudo rm -f /dev/shm/beetle_*.env 2>/dev/null || rm -f /dev/shm/beetle_*.env 2>/dev/null || true
 
 echo -e "${CYAN}====================================================${RESET}"
-echo -e "${CYAN}   Beetle System Maintenance Test Suite Runner       ${RESET}"
+echo -e "${CYAN}   Beetle Initial Setup Test Suite Runner           ${RESET}"
 echo -e "${CYAN}====================================================${RESET}\n"
 
 # Step 1: Unsecure settings
-echo -e "${YELLOW}[STEP 1] Unsecuring all system_maintenance settings...${RESET}"
+echo -e "${YELLOW}[STEP 1] Unsecuring all initial_setup settings...${RESET}"
 bash "$UNSECURE_SCRIPT"
 
-# Load environment dependencies for running audit & harden scripts
+# Refresh the package ram store AFTER unsecure, because unsecure installs
+# packages (e.g. gdm3) that Phase 1 audits need to see as present.
 load_dpkg
 load_severity "strict"
-load_json_system_maintenance "$SCRIPT_DIR/../../config/system_maintenance.json"
+load_json_initial_setup "$SCRIPT_DIR/../../config/initial_setup.json"
 
-export DPKG_RAM_STORE PERM_RAM_STORE SEVERITY_RAM_STORE
+export DPKG_RAM_STORE SEVERITY_RAM_STORE INITIAL_SETUP_RAM_STORE
 
-# Find all audit scripts under system_maintenance
+# Find all audit scripts under initial_setup
 mapfile -d '' AUDIT_SCRIPTS < <(
-    find "$BEETLE_SHELL_ROOT/audit/system_maintenance" \
+    find "$BEETLE_SHELL_ROOT/audit/initial_setup" \
         -mindepth 1 -type f -name "*.sh" -print0 | sort -z
 )
 
@@ -63,10 +69,11 @@ declare -A INITIAL_STATUS
 echo -e "\n${YELLOW}[STEP 2] Running Initial Audit (Expected: NOT HARDENED)...${RESET}"
 
 for script in "${AUDIT_SCRIPTS[@]}"; do
-    rel_path="${script#$BEETLE_SHELL_ROOT/audit/system_maintenance/}"
+    rel_path="${script#$BEETLE_SHELL_ROOT/audit/initial_setup/}"
     script_id="${rel_path%.sh}"
 
-    name=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
+    # Accept NAME='...' or NAME="..."
+    name=$(awk -F= '/^NAME=/{gsub(/["'"'"']/,"",$2); print $2}' "$script")
     [ -z "$name" ] && name="$(basename "$script")"
     SCRIPT_NAMES["$script_id"]="$name"
 
@@ -96,27 +103,25 @@ for script in "${AUDIT_SCRIPTS[@]}"; do
         "$name" "NOT HARDENED" "$ACTUAL" "$STATUS"
 done
 
-# Step 3: Run Beetle Harden for system_maintenance
-echo -e "\n${YELLOW}[STEP 3] Running Beetle Harden for system_maintenance...${RESET}"
+# Step 3: Run Beetle Harden for initial_setup
+echo -e "\n${YELLOW}[STEP 3] Running Beetle Harden for initial_setup...${RESET}"
 mapfile -d '' HARDEN_SCRIPTS < <(
-    find "$BEETLE_SHELL_ROOT/harden/system_maintenance" \
+    find "$BEETLE_SHELL_ROOT/harden/initial_setup" \
         -mindepth 1 -type f -name "*.sh" -print0 | sort -z
 )
 
 for script in "${HARDEN_SCRIPTS[@]}"; do
-    name=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
+    # Accept NAME='...' or NAME="..."
+    name=$(awk -F= '/^NAME=/{gsub(/["'"'"']/,"",$2); print $2}' "$script")
     [ -z "$name" ] && name="$(basename "$script")"
 
     # Skip only scripts that read from /dev/tty unconditionally.
-    # Scripts with the [ -t 0 ] guard are safe to run non-interactively.
     if grep -q '/dev/tty' "$script" && ! grep -q '\[ -t 0 \]' "$script"; then
         printf "  Harden: %-47s | Result: ${YELLOW}%s${RESET}\n" "$name" "SKIPPED (Interactive)"
         continue
     fi
 
     TMP_FILE=$(mktemp)
-    # Pipe an empty line as safety net for any stray read; the [ -t 0 ] guard
-    # makes scripts that implement it use their non-interactive default.
     echo "" | bash "$script" > "$TMP_FILE" 2>/dev/null || true
     harden_res=$(tr -d '\r' < "$TMP_FILE" | tr '\n' ' ' | xargs)
     rm -f "$TMP_FILE"
@@ -128,6 +133,11 @@ for script in "${HARDEN_SCRIPTS[@]}"; do
     fi
 done
 
+# Step 3.5: Refresh ram store so Phase 4 audits see post-harden state
+echo -e "\n${YELLOW}[STEP 3.5] Refreshing ram store after harden...${RESET}"
+load_dpkg
+load_json_initial_setup "$SCRIPT_DIR/../../config/initial_setup.json"
+
 # Step 4: Run Final Audit (Expected: HARDENED)
 echo -e "\n${YELLOW}[STEP 4] Running Final Audit after Hardening (Expected: HARDENED)...${RESET}"
 
@@ -135,7 +145,7 @@ declare -A FINAL_ACTUAL
 declare -A FINAL_STATUS
 
 for script in "${AUDIT_SCRIPTS[@]}"; do
-    rel_path="${script#$BEETLE_SHELL_ROOT/audit/system_maintenance/}"
+    rel_path="${script#$BEETLE_SHELL_ROOT/audit/initial_setup/}"
     script_id="${rel_path%.sh}"
     name="${SCRIPT_NAMES[$script_id]}"
 
@@ -167,7 +177,7 @@ done
 
 # Step 5: Summary Table
 echo -e "\n${CYAN}=========================================================================================================${RESET}"
-echo -e "${CYAN}                                   SYSTEM MAINTENANCE TEST RESULTS                                      ${RESET}"
+echo -e "${CYAN}                                    INITIAL SETUP TEST RESULTS                                          ${RESET}"
 echo -e "${CYAN}=========================================================================================================${RESET}"
 printf "%-50s | %-15s | %-15s | %-15s | %-15s\n" "SCRIPT NAME (NAME variable)" "PHASE 1 EXP" "PHASE 1 ACT" "PHASE 2 EXP" "PHASE 2 ACT"
 echo -e "---------------------------------------------------------------------------------------------------------"

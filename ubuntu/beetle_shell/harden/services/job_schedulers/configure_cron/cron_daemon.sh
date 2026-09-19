@@ -24,8 +24,8 @@ for ((i=0; i<daemon_count; i++)); do
 
     if [[ "$required" == "true" ]]; then
         if ! is_package_installed "$package"; then
-            apt-get install -y "$package" &>/dev/null
-            if ! is_package_installed "$package"; then
+            apt-get install -y "$package" </dev/null &>/dev/null
+            if ! live_package_installed "$package"; then
                 echo -e "${RED}FAILED${RESET}"
                 exit 1
             fi
@@ -34,8 +34,9 @@ for ((i=0; i<daemon_count; i++)); do
         systemctl unmask "$service" 2>/dev/null
         systemctl --now enable "$service" 2>/dev/null
 
-        enabled=$(systemctl list-unit-files | awk -v svc="$service" '$1==svc{print $2}')
-        active=$(systemctl list-units | awk -v svc="$service" '$1==svc{print $3}')
+        # Direct systemctl predicates — no output-format parsing
+        enabled=$(systemctl is-enabled "$service" 2>/dev/null)
+        active=$(systemctl is-active  "$service" 2>/dev/null)
 
         if [[ "$enabled" != "enabled" ]] || [[ "$active" != "active" ]]; then
             echo -e "${RED}FAILED${RESET}"

@@ -217,7 +217,7 @@
     },
     {
       "name": "kernel.yama.ptrace_scope",
-      "value": "(1|2|3)"
+      "value": "1"
     },
     {
       "name": "fs.suid_dumpable",

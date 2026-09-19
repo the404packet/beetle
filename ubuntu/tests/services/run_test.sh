@@ -107,7 +107,7 @@ for script in "${HARDEN_SCRIPTS[@]}"; do
     [ -z "$name" ] && name="$(basename "$script")"
 
     # Skip interactive scripts that read directly from /dev/tty
-    if grep -q '/dev/tty' "$script"; then
+    if grep -q '/dev/tty' "$script" && ! grep -q '\[ -t 0 \]' "$script"; then
         printf "  Harden: %-51s | Result: ${YELLOW}%s${RESET}\n" "$name" "SKIPPED (Interactive)"
         continue
     fi
@@ -123,6 +123,9 @@ for script in "${HARDEN_SCRIPTS[@]}"; do
         printf "  Harden: %-51s | Result: ${RED}%s${RESET}\n" "$name" "FAILED"
     fi
 done
+
+echo -e "\n${YELLOW}[STEP 3.5] Refreshing package state after harden...${RESET}"
+load_dpkg
 
 # Step 4: Final Audit
 echo -e "\n${YELLOW}[STEP 4] Running Final Audit after Hardening (Expected: HARDENED)...${RESET}"

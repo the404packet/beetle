@@ -24,7 +24,7 @@ while IFS= read -r pkg; do
 
             apt-get remove --purge -y "$pkg" &>/dev/null
             unset_package "$pkg"
-            if is_package_installed "$pkg"; then
+            if live_package_installed "$pkg"; then
                 echo -e "${RED}FAILED${RESET}"
                 exit 1
             fi
@@ -33,7 +33,7 @@ while IFS= read -r pkg; do
         if is_package_installed "$pkg"; then
             if ! is_version_ok "$pkg" "$version"; then
                 apt-get upgrade -y "$pkg" &>/dev/null
-                if ! is_version_ok "$pkg" $version"; then
+                if ! is_version_ok "$pkg" "$version"; then
                     echo -e "${RED}FAILED${RESET}"
                     exit 1
                 fi
