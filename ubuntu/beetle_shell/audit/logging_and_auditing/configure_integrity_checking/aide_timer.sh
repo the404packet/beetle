@@ -2,6 +2,7 @@
 NAME="ensure filesystem integrity is regularly checked"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg aide
 
 timer_enabled=$(systemctl list-unit-files 2>/dev/null \
     | awk -v t="$AI_timer" '$1==t{print $2}')

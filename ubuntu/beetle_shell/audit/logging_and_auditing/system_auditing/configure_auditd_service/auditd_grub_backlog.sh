@@ -2,6 +2,7 @@
 NAME="ensure audit_backlog_limit is sufficient"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg auditd
 
 param_name="AD_grub_1_name"; name="${!param_name}"
 

@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
 # run_test.sh - Automated test runner for Beetle logging_and_auditing module
-# Workflow:
-# 1. Store backup & Unsecure all settings
-# 2. Run Beetle Audit (Expected: NOT HARDENED, Actual: verified)
-# 3. Run Beetle Harden
-# 4. Run Beetle Audit again (Expected: HARDENED, Actual: verified)
-# 5. Output comparison table with NAME variable, expected state, and actual state
-# 6. Restore original system state from backup
 
 set -euo pipefail
 
@@ -20,7 +13,7 @@ RESTORE_SCRIPT="$SCRIPT_DIR/restore.sh"
 
 LIB_DIR="$BEETLE_SHELL_ROOT/lib"
 source "$LIB_DIR/ram_store.sh"  || { echo "ERROR: cannot load ram_store.sh"; exit 1; }
-source "$LIB_DIR/find_json.sh"  || { echo "ERROR: cannot load find_json.sh"; exit 1; }
+[ -f "$LIB_DIR/find_json.sh" ] && source "$LIB_DIR/find_json.sh" || true
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -32,8 +25,12 @@ cleanup() {
     echo -e "\n${CYAN}=== Restoring original system state ===${RESET}"
     bash "$RESTORE_SCRIPT" || true
     unload_all || true
+    sudo rm -f /dev/shm/beetle_*.env 2>/dev/null || rm -f /dev/shm/beetle_*.env 2>/dev/null || true
 }
 trap cleanup EXIT
+
+# Clean any stale ram stores from previous runs
+sudo rm -f /dev/shm/beetle_*.env 2>/dev/null || rm -f /dev/shm/beetle_*.env 2>/dev/null || true
 
 echo -e "${CYAN}====================================================${RESET}"
 echo -e "${CYAN}   Beetle Logging & Auditing Test Suite Runner      ${RESET}"
@@ -43,20 +40,18 @@ echo -e "${CYAN}====================================================${RESET}\n"
 echo -e "${YELLOW}[STEP 1] Unsecuring all logging_and_auditing settings...${RESET}"
 bash "$UNSECURE_SCRIPT"
 
-# Load environment dependencies for running audit & harden scripts
+# Load environment dependencies (after unsecure, so package removals are seen)
 load_dpkg
 load_severity "strict"
 load_json_logging_and_auditing "$SCRIPT_DIR/../../config/logging_and_auditing.json"
 
 export DPKG_RAM_STORE LOGGING_RAM_STORE SEVERITY_RAM_STORE
 
-# Find all audit scripts under logging_and_auditing
 mapfile -d '' AUDIT_SCRIPTS < <(
     find "$BEETLE_SHELL_ROOT/audit/logging_and_auditing" \
         -mindepth 1 -type f -name "*.sh" -print0 | sort -z
 )
 
-# Phase 1 Audit Results Data Structures
 declare -A SCRIPT_NAMES
 declare -A INITIAL_ACTUAL
 declare -A INITIAL_STATUS
@@ -67,7 +62,7 @@ for script in "${AUDIT_SCRIPTS[@]}"; do
     rel_path="${script#$BEETLE_SHELL_ROOT/audit/logging_and_auditing/}"
     script_id="${rel_path%.sh}"
 
-    name=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
+    name=$(awk -F= '/^NAME=/{gsub(/["'"'"']/,"",$2); print $2}' "$script")
     [ -z "$name" ] && name="$(basename "$script")"
     SCRIPT_NAMES["$script_id"]="$name"
 
@@ -97,7 +92,7 @@ for script in "${AUDIT_SCRIPTS[@]}"; do
         "$name" "NOT HARDENED" "$ACTUAL" "$STATUS"
 done
 
-# Step 3: Run Beetle Harden for logging_and_auditing
+# Step 3: Harden
 echo -e "\n${YELLOW}[STEP 3] Running Beetle Harden for logging_and_auditing...${RESET}"
 mapfile -d '' HARDEN_SCRIPTS < <(
     find "$BEETLE_SHELL_ROOT/harden/logging_and_auditing" \
@@ -105,21 +100,20 @@ mapfile -d '' HARDEN_SCRIPTS < <(
 )
 
 for script in "${HARDEN_SCRIPTS[@]}"; do
-    name=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
+    name=$(awk -F= '/^NAME=/{gsub(/["'"'"']/,"",$2); print $2}' "$script")
     [ -z "$name" ] && name="$(basename "$script")"
-    
-    # Check if script reads from /dev/tty directly (interactive prompt that hangs non-interactive runners)
-    if grep -q '/dev/tty' "$script"; then
+
+    # Skip only scripts that read /dev/tty unconditionally
+    if grep -q '/dev/tty' "$script" && ! grep -q '\[ -t 0 \]' "$script"; then
         printf "  Harden: %-51s | Result: ${YELLOW}%s${RESET}\n" "$name" "SKIPPED (Interactive)"
         continue
     fi
 
     TMP_FILE=$(mktemp)
-    # Pass empty line for default choices
     echo "" | bash "$script" > "$TMP_FILE" 2>/dev/null || true
     harden_res=$(tr -d '\r' < "$TMP_FILE" | tr '\n' ' ' | xargs)
     rm -f "$TMP_FILE"
-    
+
     if [[ "$harden_res" == *"SUCCESS"* ]]; then
         printf "  Harden: %-51s | Result: ${GREEN}%s${RESET}\n" "$name" "SUCCESS"
     else
@@ -127,7 +121,12 @@ for script in "${HARDEN_SCRIPTS[@]}"; do
     fi
 done
 
-# Step 4: Run Final Audit (Expected: HARDENED)
+# Step 3.5: Refresh ram store so Phase 4 sees post-harden state
+echo -e "\n${YELLOW}[STEP 3.5] Refreshing ram store after harden...${RESET}"
+load_dpkg
+load_json_logging_and_auditing "$SCRIPT_DIR/../../config/logging_and_auditing.json"
+
+# Step 4: Final Audit
 echo -e "\n${YELLOW}[STEP 4] Running Final Audit after Hardening (Expected: HARDENED)...${RESET}"
 
 declare -A FINAL_ACTUAL
@@ -164,7 +163,7 @@ for script in "${AUDIT_SCRIPTS[@]}"; do
         "$name" "HARDENED" "$ACTUAL" "$STATUS"
 done
 
-# Step 5: Print Test Output Table with NAME variable
+# Step 5: Summary Table
 echo -e "\n${CYAN}=========================================================================================================${RESET}"
 echo -e "${CYAN}                                   LOGGING & AUDITING TEST RESULTS                                      ${RESET}"
 echo -e "${CYAN}=========================================================================================================${RESET}"
@@ -176,17 +175,14 @@ for script_id in "${!SCRIPT_NAMES[@]}"; do
     p1_act="${INITIAL_ACTUAL[$script_id]}"
     p2_act="${FINAL_ACTUAL[$script_id]}"
 
-    if [ "$p1_act" == "NOT HARDENED" ]; then
-        p1_color="${GREEN}"
-    else
-        p1_color="${RED}"
-    fi
-
-    if [ "$p2_act" == "HARDENED" ]; then
-        p2_color="${GREEN}"
-    else
-        p2_color="${RED}"
-    fi
+    case "$p1_act" in
+        "NOT HARDENED") p1_color="${GREEN}" ;;
+        *)              p1_color="${RED}" ;;
+    esac
+    case "$p2_act" in
+        "HARDENED") p2_color="${GREEN}" ;;
+        *)          p2_color="${RED}" ;;
+    esac
 
     printf "%-50s | %-15s | ${p1_color}%-15s${RESET} | %-15s | ${p2_color}%-15s${RESET}\n" \
         "$name" "NOT HARDENED" "$p1_act" "HARDENED" "$p2_act"

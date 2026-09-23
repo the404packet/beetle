@@ -2,6 +2,7 @@
 NAME="ensure rsyslog is configured to send logs to a remote log host"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg rsyslog
 
 # check both basic (@@) and advanced (action omfwd target=) formats
 found_basic=$(grep -rHs '^\*\.\*.*@@' \

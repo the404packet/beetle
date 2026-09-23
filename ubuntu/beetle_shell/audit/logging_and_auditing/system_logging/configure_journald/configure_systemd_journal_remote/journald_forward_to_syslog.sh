@@ -2,6 +2,7 @@
 NAME="ensure journald ForwardToSyslog is disabled"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg systemd-journal-remote
 
 analyze_cmd="$(readlink -f /bin/systemd-analyze)"
 actual=$("$analyze_cmd" cat-config systemd/journald.conf 2>/dev/null \
