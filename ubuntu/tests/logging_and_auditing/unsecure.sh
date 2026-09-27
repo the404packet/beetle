@@ -7,6 +7,8 @@ set -e
 BACKUP_DIR="/tmp/beetle_logging_and_auditing_backup"
 mkdir -p "$BACKUP_DIR"
 
+export DEBIAN_FRONTEND=noninteractive
+
 echo "=== Backing up current logging_and_auditing state ==="
 
 # 1. Systemd journald service & configs
@@ -31,9 +33,9 @@ if [ -d "/etc/rsyslog.d" ]; then
     cp -a "/etc/rsyslog.d" "$BACKUP_DIR/rsyslog.d_dir"
 fi
 
-# 3. Logfile permissions in /var/log
-if [ -d "/var/log" ]; then
-    find /var/log -maxdepth 3 -type f -o -type d 2>/dev/null | while read -r p; do
+# 3. Logfile permissions in /var/log — only top-level dir + known files
+if [ -d "/var/log" ] && [ ! -L "/var/log" ]; then
+    find /var/log -maxdepth 1 \( -type f -o -type d \) 2>/dev/null | while read -r p; do
         safe_p=$(echo "$p" | tr '/' '_')
         stat -c "%a %U %G" "$p" > "$BACKUP_DIR/log_${safe_p}.meta" 2>/dev/null || true
     done
@@ -55,34 +57,39 @@ if [ -f "$GRUB_CONF" ]; then
     cp -a "$GRUB_CONF" "$BACKUP_DIR/grub"
 fi
 
-# Backup auditd and journald service state (enabled/active)
-systemctl is-enabled auditd 2>/dev/null > "$BACKUP_DIR/auditd.enabled" || echo "disabled" > "$BACKUP_DIR/auditd.enabled"
-systemctl is-active auditd 2>/dev/null > "$BACKUP_DIR/auditd.active" || echo "inactive" > "$BACKUP_DIR/auditd.active"
-
-systemctl is-enabled systemd-journald 2>/dev/null > "$BACKUP_DIR/journald.enabled" || echo "disabled" > "$BACKUP_DIR/journald.enabled"
-systemctl is-active systemd-journald 2>/dev/null > "$BACKUP_DIR/journald.active" || echo "inactive" > "$BACKUP_DIR/journald.active"
-
-systemctl is-enabled rsyslog 2>/dev/null > "$BACKUP_DIR/rsyslog.enabled" || echo "disabled" > "$BACKUP_DIR/rsyslog.enabled"
-systemctl is-active rsyslog 2>/dev/null > "$BACKUP_DIR/rsyslog.active" || echo "inactive" > "$BACKUP_DIR/rsyslog.active"
-
-# Backup AIDE timer/service if available
-systemctl is-enabled dailyaidecheck.timer 2>/dev/null > "$BACKUP_DIR/aide.timer.enabled" || echo "disabled" > "$BACKUP_DIR/aide.timer.enabled"
+# 5. AIDE config
 AIDE_CONF="/etc/aide/aide.conf"
 if [ -f "$AIDE_CONF" ]; then
     cp -a "$AIDE_CONF" "$BACKUP_DIR/aide.conf"
 fi
 
+# 6. Service states
+systemctl is-enabled auditd 2>/dev/null > "$BACKUP_DIR/auditd.enabled" || echo "disabled" > "$BACKUP_DIR/auditd.enabled"
+systemctl is-active  auditd 2>/dev/null > "$BACKUP_DIR/auditd.active"  || echo "inactive" > "$BACKUP_DIR/auditd.active"
+
+systemctl is-enabled systemd-journald 2>/dev/null > "$BACKUP_DIR/journald.enabled" || echo "disabled" > "$BACKUP_DIR/journald.enabled"
+systemctl is-active  systemd-journald 2>/dev/null > "$BACKUP_DIR/journald.active"  || echo "inactive" > "$BACKUP_DIR/journald.active"
+
+systemctl is-enabled rsyslog 2>/dev/null > "$BACKUP_DIR/rsyslog.enabled" || echo "disabled" > "$BACKUP_DIR/rsyslog.enabled"
+systemctl is-active  rsyslog 2>/dev/null > "$BACKUP_DIR/rsyslog.active"  || echo "inactive" > "$BACKUP_DIR/rsyslog.active"
+
+systemctl is-enabled dailyaidecheck.timer 2>/dev/null > "$BACKUP_DIR/aide.timer.enabled" || echo "disabled" > "$BACKUP_DIR/aide.timer.enabled"
+
+# 7. Package state backup — needed so restore can reinstall
+for pkg in auditd audispd-plugins aide aide-common rsyslog systemd-journal-remote; do
+    dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null > "$BACKUP_DIR/pkg_${pkg}.status" \
+        || echo "not-installed" > "$BACKUP_DIR/pkg_${pkg}.status"
+done
+
 echo "=== Unsecuring logging_and_auditing settings ==="
 
-# 1. Unsecure journald parameters (Set invalid values / clear settings)
+# 1. Unsecure journald parameters
 if [ -f "$JOURNALD_CONF" ]; then
     sed -i 's/^Storage=.*/Storage=none/' "$JOURNALD_CONF" || echo "Storage=none" >> "$JOURNALD_CONF"
     sed -i 's/^ForwardToSyslog=.*/ForwardToSyslog=yes/' "$JOURNALD_CONF" || echo "ForwardToSyslog=yes" >> "$JOURNALD_CONF"
     sed -i 's/^Compress=.*/Compress=no/' "$JOURNALD_CONF" || echo "Compress=no" >> "$JOURNALD_CONF"
     sed -i 's/^SystemMaxUse=.*/SystemMaxUse=0/' "$JOURNALD_CONF" || echo "SystemMaxUse=0" >> "$JOURNALD_CONF"
 fi
-
-# Remove journald drop-in configs
 rm -rf /etc/systemd/journald.conf.d/* 2>/dev/null || true
 
 # 2. Unsecure rsyslog config & permissions
@@ -92,13 +99,16 @@ if [ -f "$RSYSLOG_CONF" ]; then
 fi
 rm -rf /etc/rsyslog.d/* 2>/dev/null || true
 
-# 3. Unsecure /var/log file permissions
-if [ -d "/var/log" ]; then
-    chmod 777 /var/log
-    find /var/log -type f -exec chmod 777 {} + 2>/dev/null || true
+# 3. Unsecure /var/log — top-level only, known files
+if [ -d "/var/log" ] && [ ! -L "/var/log" ]; then
+    chmod 755 /var/log
+    for f in /var/log/syslog /var/log/auth.log /var/log/messages \
+             /var/log/kern.log /var/log/dpkg.log; do
+        [ -f "$f" ] && [ ! -L "$f" ] && chmod 640 "$f" 2>/dev/null || true
+    done
 fi
 
-# 4. Unsecure auditd config & GRUB parameters
+# 4. Unsecure auditd config
 if [ -f "$AUDITD_CONF" ]; then
     chmod 777 "$AUDITD_CONF"
     sed -i 's/^max_log_file_action = .*/max_log_file_action = rotate/' "$AUDITD_CONF" 2>/dev/null || true
@@ -126,7 +136,17 @@ if [ -f "$GRUB_CONF" ]; then
     sed -i 's/audit_backlog_limit=[0-9]*//g' "$GRUB_CONF"
 fi
 
-# Disable AIDE timer if present
+# Disable AIDE timer
 systemctl disable --now dailyaidecheck.timer 2>/dev/null || true
+
+# 5. Uninstall auditd, aide, and journal-remote packages
+# Use --no-auto-remove so apt doesn't cascade into removing base packages
+apt-get remove -y -q --no-auto-remove auditd </dev/null >/dev/null 2>&1 || true
+apt-get remove -y -q --no-auto-remove audispd-plugins </dev/null >/dev/null 2>&1 || true
+apt-get remove -y -q --no-auto-remove aide </dev/null >/dev/null 2>&1 || true
+apt-get remove -y -q --no-auto-remove aide-common </dev/null >/dev/null 2>&1 || true
+apt-get remove -y -q --no-auto-remove systemd-journal-remote </dev/null >/dev/null 2>&1 || true
+
+# Don't uninstall rsyslog by default — removing it can disrupt logging.
 
 echo "Unsecure completed successfully for logging_and_auditing."

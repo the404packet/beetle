@@ -3,19 +3,24 @@ NAME="ensure cryptographic mechanisms are used to protect the integrity of audit
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 
+require_present pkg aide
+
 aide_cmd=$(whereis aide 2>/dev/null | awk '{print $2}')
 [ -z "$aide_cmd" ] && { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 
-aide_conf=$(find -L /etc -type f -name 'aide.conf' 2>/dev/null | head -1)
+aide_conf=$(find /etc -xdev -maxdepth 4 -type f -name 'aide.conf' 2>/dev/null | head -1)
 [ -z "$aide_conf" ] && { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 
 tool_dir=$(readlink -f /sbin)
+[ -z "$tool_dir" ] && tool_dir="/sbin"
+
 count="$AI_tools_count"
 required_opts=(p i n u g s b acl xattrs sha512)
 fail=0
 
 for ((i=0; i<count; i++)); do
     t_var="AI_tool_${i}"; tool="${!t_var}"
+    [ -z "$tool" ] && continue
     bin="${tool_dir}/$(basename "$tool")"
     [ -f "$bin" ] || continue
     out=$("$aide_cmd" --config "$aide_conf" -p f:"$bin" 2>/dev/null)

@@ -8,25 +8,28 @@ RESET="\e[0m"
 
 [ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-# get all listening services
+# Gather all listening ports
 listening=$(ss -plntu 2>/dev/null)
 
-# get all approved packages from server_services in RAM
+# Gather all "approved" ports — packages with restrict:false that are installed
 approved_ports=()
 while IFS= read -r category; do
+    [ -z "$category" ] && continue
     while IFS= read -r pkg; do
+        [ -z "$pkg" ] && continue
         restrict=$(get_svc "$category" "$pkg" "restrict")
         if [[ "$restrict" == "false" ]] && is_package_installed "$pkg"; then
-            # allowed package — get its ports
             while IFS= read -r svc; do
-                port=$(systemctl show "$svc" -p Listen 2>/dev/null | grep -oP ':\K[0-9]+')
-                [ -n "$port" ] && approved_ports+=("$port")
+                [ -z "$svc" ] && continue
+                while IFS= read -r p; do
+                    [ -n "$p" ] && approved_ports+=("$p")
+                done < <(systemctl show "$svc" -p Listen 2>/dev/null | grep -oP ':\K[0-9]+')
             done < <(get_svc_services "$category" "$pkg")
         fi
     done < <(get_svc_packages "$category")
 done < <(echo -e "web\nweb_proxy\nmail")
 
-# find non-approved listening ports
+# Find non-approved listening ports
 not_approved=()
 while IFS= read -r line; do
     port=$(echo "$line" | grep -oP ':\K[0-9]+(?=\s)')
@@ -38,7 +41,7 @@ while IFS= read -r line; do
         [[ "$ap" == "$port" ]] && approved=true && break
     done
 
-    $approved || not_approved+=("$proc on port $port")
+    $approved || not_approved+=("${proc:-unknown} on port $port")
 done < <(echo "$listening" | tail -n +2)
 
 if [[ ${#not_approved[@]} -eq 0 ]]; then

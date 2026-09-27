@@ -20,16 +20,19 @@ f_get_rule() {
                 [[ "$basename" =~ ^($pat)$ ]] || continue ;;
             default)
                 ;;
-            *)  continue ;;
+            *) continue ;;
         esac
-        # matched — export rule vars
         rule_index=$i
         return 0
     done
-    rule_index=$(( count - 1 ))  # fallback to default
+    rule_index=$(( count - 1 ))
 }
 
 while IFS= read -r -d $'\0' l_file; do
+    # Do NOT follow symlinks. Only operate on real regular files.
+    [ -L "$l_file" ] && continue
+    [ -f "$l_file" ] || continue
+
     while IFS=: read -r l_fname l_mode l_user l_group; do
         f_get_rule "$l_fname"
         i=$rule_index
@@ -40,8 +43,8 @@ while IFS= read -r -d $'\0' l_file; do
         [ $(( 8#$l_mode & 8#$perm_mask )) -gt 0 ]  && { fail=1; break; }
         [[ ! "$l_user"  =~ $l_aowner ]]             && { fail=1; break; }
         [[ ! "$l_group" =~ $l_agroup ]]             && { fail=1; break; }
-    done < <(stat -Lc '%n:%#a:%U:%G' "$l_file")
-done < <(find -L "$LP_search_dir" -type f \( -perm /0137 -o ! -user root -o ! -group root \) -print0)
+    done < <(stat -c '%n:%a:%U:%G' "$l_file")
+done < <(find "$LP_search_dir" -xdev -type f -print0)
 
 [ "$fail" -eq 0 ] \
     && echo -e "${GREEN}HARDENED${RESET}" \

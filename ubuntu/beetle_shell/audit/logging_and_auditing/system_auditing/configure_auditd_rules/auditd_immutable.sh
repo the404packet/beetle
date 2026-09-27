@@ -2,6 +2,7 @@
 NAME="ensure the audit configuration is immutable"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg auditd
 
 result=$(grep -Ph -- '^\s*-e\s+2\b' "$AR_rules_dir"/*.rules 2>/dev/null | tail -1)
 

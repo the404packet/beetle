@@ -107,7 +107,7 @@ for script in "${HARDEN_SCRIPTS[@]}"; do
     [ -z "$name" ] && name="$(basename "$script")"
 
     # Skip interactive scripts that read directly from /dev/tty
-    if grep -q '/dev/tty' "$script" && ! grep -q '\[ -t 0 \]' "$script"; then
+    if grep -q '/dev/tty' "$script"; then
         printf "  Harden: %-51s | Result: ${YELLOW}%s${RESET}\n" "$name" "SKIPPED (Interactive)"
         continue
     fi

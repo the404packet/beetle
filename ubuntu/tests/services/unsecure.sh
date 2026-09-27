@@ -92,6 +92,12 @@ rm -f /etc/at.allow 2>/dev/null || true
 systemctl stop    cron.service 2>/dev/null || true
 systemctl disable cron.service 2>/dev/null || true
 
+# ── 2b. Break time_sync state so audits report NOT HARDENED ──
+for svc in chrony.service systemd-timesyncd.service; do
+    systemctl stop    "$svc" 2>/dev/null || true
+    systemctl disable "$svc" 2>/dev/null || true
+done
+
 # ── 3. Install the restricted-package subset ──
 for pkg in "${UNSECURE_PKGS[@]}"; do
     if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
