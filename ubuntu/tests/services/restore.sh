@@ -77,7 +77,7 @@ for status_file in "$BACKUP_DIR"/pkg_*.status; do
     if [[ "$orig" != *"install ok installed"* ]]; then
         systemctl stop    "$pkg" 2>/dev/null || true
         systemctl disable "$pkg" 2>/dev/null || true
-        apt-get remove -y -q --purge "$pkg" </dev/null >/dev/null 2>&1 || true
+        apt-get remove -y -q --no-auto-remove "$pkg" </dev/null >/dev/null 2>&1 || true
     fi
 done
 

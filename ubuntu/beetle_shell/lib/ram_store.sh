@@ -584,11 +584,13 @@ for idx, daemon in enumerate(daemons):
     package = daemon.get("package", "")
     service = daemon.get("service", "")
     required = daemon.get("required", False)
+    check_if_installed = daemon.get("check_if_installed", False)
     name_key = name.replace("-", "_").replace(".", "_")
     print(f'JS_daemon_{idx}_name={name}')
     print(f'JS_daemon_{idx}_package={package}')
     print(f'JS_daemon_{idx}_service={service}')
     print(f'JS_daemon_{idx}_required={str(required).lower()}')
+    print(f'JS_daemon_{idx}_check_if_installed={str(check_if_installed).lower()}')
     print(f'JS_daemon_name_{name_key}_idx={idx}')
 
 cron_dirs = job_service.get("cron_dirs", [])
@@ -613,8 +615,8 @@ for section_key in ["cron_access", "at_access"]:
 
 time_sync = data.get("time_sync", {})
 ts_daemons = time_sync.get("daemons", [])
-ts_policy = time_sync.get("policy", "exactly_one")
-print(f'TS_policy={ts_policy}')
+ts_default = time_sync.get("default", "")
+print(f'TS_default={ts_default}')
 print(f'TS_daemon_count={len(ts_daemons)}')
 for idx, daemon in enumerate(ts_daemons):
     name_key = daemon.get("name","").replace("-","_").replace(".","_")

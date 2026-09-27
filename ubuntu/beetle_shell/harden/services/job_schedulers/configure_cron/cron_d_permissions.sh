@@ -19,7 +19,7 @@ mode=""
 owner=""
 group=""
 
-dir_count="$JS_cron_dir_count"
+dir_count="${JS_cron_dir_count:-0}"
 for ((i=0; i<dir_count; i++)); do
     file_var="JS_cron_dir_${i}_file"
     if [[ "${!file_var}" == "/etc/cron.d" ]]; then
@@ -34,8 +34,11 @@ for ((i=0; i<dir_count; i++)); do
     fi
 done
 
-chown "${owner}:${group}" "$file"
-chmod "$mode" "$file"
+# Nothing to harden if JSON does not define /etc/cron.d
+[ -z "$file" ] && { echo -e "${GREEN}SUCCESS${RESET}"; exit 0; }
+
+chown "${owner}:${group}" -- "$file" 2>/dev/null || true
+chmod "$mode"             -- "$file" 2>/dev/null || true
 
 actual_mode=$(stat -Lc '%a' "$file" 2>/dev/null)
 actual_owner=$(stat -Lc '%U' "$file" 2>/dev/null)
