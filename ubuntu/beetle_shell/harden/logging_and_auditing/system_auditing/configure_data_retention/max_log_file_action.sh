@@ -3,6 +3,8 @@ NAME="ensure audit logs are not automatically deleted"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
+umask 0027
+
 if [ -z "$AC_config_file" ]; then
     echo -e "${RED}FAILED${RESET} (config file not set)"
     exit 1
@@ -23,6 +25,9 @@ if grep -Pq "^\s*${key}\s*=" "$AC_config_file" 2>/dev/null; then
 else
     echo "${key} = ${val}" >> "$AC_config_file"
 fi
+
+# Ensure auditd.conf has correct permissions
+[ -n "$AC_config_file" ] && [ -f "$AC_config_file" ] && chmod 0640 "$AC_config_file" 2>/dev/null || true
 
 systemctl reload-or-restart auditd 2>/dev/null || true
 
