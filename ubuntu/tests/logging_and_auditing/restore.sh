@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# restore.sh - Restores settings from /tmp/beetle_logging_and_auditing_backup and cleans up test entries.
+# restore.sh - Restores settings from /tmp/beetle_logging_and_auditing_backup
 
 set -e
 
@@ -83,15 +83,13 @@ if [ -f "$BACKUP_DIR/aide.conf" ]; then
     cp -a "$BACKUP_DIR/aide.conf" /etc/aide/aide.conf
 fi
 
-# ── 5. Reinstall packages that were originally present ──
-# Unsecure may have purged auditd/aide/journal-remote. Restore them.
+# 5. Reinstall packages that were originally present
 for status_file in "$BACKUP_DIR"/pkg_*.status; do
     [ -f "$status_file" ] || continue
     pkg=$(basename "$status_file" .status | sed 's/^pkg_//')
     orig=$(cat "$status_file")
     if [[ "$orig" == *"install ok installed"* ]]; then
         if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
-            echo "  Reinstalling $pkg..."
             apt-get install -y -q "$pkg" </dev/null >/dev/null 2>&1 || true
         fi
     fi
@@ -124,6 +122,14 @@ if [ -f "$BACKUP_DIR/aide.timer.enabled" ]; then
     en_state=$(cat "$BACKUP_DIR/aide.timer.enabled")
     [ "$en_state" == "enabled" ] && systemctl enable --now dailyaidecheck.timer 2>/dev/null || true
 fi
+
+# 7. Safety check — verify basic tools still exist
+for tool in sed awk grep find sudo; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "WARNING: $tool is missing after restore — reinstalling"
+        apt-get install --reinstall -y "$tool" </dev/null >/dev/null 2>&1 || true
+    fi
+done
 
 rm -rf "$BACKUP_DIR"
 echo "Restore completed successfully for logging_and_auditing."

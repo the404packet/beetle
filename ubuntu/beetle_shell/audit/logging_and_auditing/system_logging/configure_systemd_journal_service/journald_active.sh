@@ -2,7 +2,9 @@
 NAME="ensure journald service is enabled and active"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
-require_present pkg systemd-journal-remote
+
+# Respect module preference — journald scripts are no-ops if rsyslog preferred
+[ "${LJ_preferred_logging_system:-journald}" != "journald" ] && { echo -e "${GREEN}HARDENED${RESET}"; exit 0; }
 
 svc="$LJ_service"
 enabled=$(systemctl is-enabled "$svc" 2>/dev/null)

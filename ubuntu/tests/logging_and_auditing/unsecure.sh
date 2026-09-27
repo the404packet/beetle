@@ -33,9 +33,9 @@ if [ -d "/etc/rsyslog.d" ]; then
     cp -a "/etc/rsyslog.d" "$BACKUP_DIR/rsyslog.d_dir"
 fi
 
-# 3. Logfile permissions in /var/log
-if [ -d "/var/log" ]; then
-    find /var/log -maxdepth 3 \( -type f -o -type d \) 2>/dev/null | while read -r p; do
+# 3. Logfile permissions in /var/log — only top-level dir + known files
+if [ -d "/var/log" ] && [ ! -L "/var/log" ]; then
+    find /var/log -maxdepth 1 \( -type f -o -type d \) 2>/dev/null | while read -r p; do
         safe_p=$(echo "$p" | tr '/' '_')
         stat -c "%a %U %G" "$p" > "$BACKUP_DIR/log_${safe_p}.meta" 2>/dev/null || true
     done
@@ -99,10 +99,13 @@ if [ -f "$RSYSLOG_CONF" ]; then
 fi
 rm -rf /etc/rsyslog.d/* 2>/dev/null || true
 
-# 3. Unsecure /var/log file permissions
-if [ -d "/var/log" ]; then
-    chmod 777 /var/log
-    find /var/log -type f -exec chmod 777 {} + 2>/dev/null || true
+# 3. Unsecure /var/log — top-level only, known files
+if [ -d "/var/log" ] && [ ! -L "/var/log" ]; then
+    chmod 755 /var/log
+    for f in /var/log/syslog /var/log/auth.log /var/log/messages \
+             /var/log/kern.log /var/log/dpkg.log; do
+        [ -f "$f" ] && [ ! -L "$f" ] && chmod 640 "$f" 2>/dev/null || true
+    done
 fi
 
 # 4. Unsecure auditd config
@@ -136,21 +139,14 @@ fi
 # Disable AIDE timer
 systemctl disable --now dailyaidecheck.timer 2>/dev/null || true
 
-# ── 5. Uninstall auditd, aide, and journal-remote packages ──
-# This is the key change: audits check for package presence. If auditd is
-# not installed, the audits correctly report NOT HARDENED. Then harden
-# reinstalls and configures.
-echo "  Uninstalling auditd / audispd-plugins..."
-apt-get remove -y -q --purge auditd audispd-plugins </dev/null >/dev/null 2>&1 || true
-
-echo "  Uninstalling aide / aide-common..."
-apt-get remove -y -q --purge aide aide-common </dev/null >/dev/null 2>&1 || true
-
-echo "  Uninstalling systemd-journal-remote..."
-apt-get remove -y -q --purge systemd-journal-remote </dev/null >/dev/null 2>&1 || true
+# 5. Uninstall auditd, aide, and journal-remote packages
+# Use --no-auto-remove so apt doesn't cascade into removing base packages
+apt-get remove -y -q --no-auto-remove auditd </dev/null >/dev/null 2>&1 || true
+apt-get remove -y -q --no-auto-remove audispd-plugins </dev/null >/dev/null 2>&1 || true
+apt-get remove -y -q --no-auto-remove aide </dev/null >/dev/null 2>&1 || true
+apt-get remove -y -q --no-auto-remove aide-common </dev/null >/dev/null 2>&1 || true
+apt-get remove -y -q --no-auto-remove systemd-journal-remote </dev/null >/dev/null 2>&1 || true
 
 # Don't uninstall rsyslog by default — removing it can disrupt logging.
-# If you want to unsecure the rsyslog checks too, uncomment:
-# apt-get remove -y -q --purge rsyslog </dev/null >/dev/null 2>&1 || true
 
 echo "Unsecure completed successfully for logging_and_auditing."

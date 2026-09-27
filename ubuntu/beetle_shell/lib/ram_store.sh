@@ -798,6 +798,8 @@ def q(v):
 with open(sys.argv[1]) as f:
     data = json.load(f)
 
+print('LJ_preferred_logging_system=' + q(data.get('logging_system', 'journald')))
+
 jd = data.get('journald', {})
 print('LJ_service='         + q(jd.get('service','')))
 print('LJ_config_file='     + q(jd.get('config_file','')))
