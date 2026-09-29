@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 NAME="/etc/security/opasswd.old file permissions"
-SEVERITY="basic"
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -15,19 +14,30 @@ EXPECTED_MODE=$(get_perm "$FILE" mode)
 EXPECTED_OWNER=$(get_perm "$FILE" owner)
 EXPECTED_GROUP=$(get_perm "$FILE" group)
 
-# Create file if it does not exist
-if [ ! -e "$FILE" ]; then
-    install -m "$EXPECTED_MODE" -o "$EXPECTED_OWNER" -g "$EXPECTED_GROUP" /dev/null "$FILE" || {
-        echo -e "${RED}FAILED${RESET}: could not create $FILE"
-        exit 1
-    }
-fi
-
-if chmod "$EXPECTED_MODE" "$FILE" && chown "${EXPECTED_OWNER}:${EXPECTED_GROUP}" "$FILE"; then
-    echo -e "${GREEN}SUCCESS${RESET}"
-else
-    echo -e "${RED}FAILED${RESET}"
+# Sanity: JSON must define expected values
+if [ -z "$EXPECTED_MODE" ] || [ -z "$EXPECTED_OWNER" ] || [ -z "$EXPECTED_GROUP" ]; then
+    echo -e "${RED}FAILED${RESET}: expected values not defined in JSON"
     exit 1
 fi
 
-exit 0
+# Create file if it does not exist
+if [ ! -e "$FILE" ]; then
+    install -m "$EXPECTED_MODE" -o "$EXPECTED_OWNER" -g "$EXPECTED_GROUP" /dev/null "$FILE" 2>/dev/null || true
+fi
+
+# Apply expected permissions
+chmod "$EXPECTED_MODE" "$FILE"          2>/dev/null || true
+chown "${EXPECTED_OWNER}:${EXPECTED_GROUP}" "$FILE" 2>/dev/null || true
+
+# Verify
+mode=$(stat -Lc '%a' "$FILE" 2>/dev/null)
+owner=$(stat -Lc '%U' "$FILE" 2>/dev/null)
+group=$(stat -Lc '%G' "$FILE" 2>/dev/null)
+
+if [[ -n "$mode" && "$owner" == "$EXPECTED_OWNER" && "$group" == "$EXPECTED_GROUP" && "$mode" -le "$EXPECTED_MODE" ]]; then
+    echo -e "${GREEN}SUCCESS${RESET}"
+    exit 0
+fi
+
+echo -e "${RED}FAILED${RESET}"
+exit 1
