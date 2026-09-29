@@ -1,0 +1,28 @@
+# Beetle execution order — network module
+# Mirrors CIS Ubuntu 22.04 §3
+
+# ── 3.1 network devices ──
+configure_network_devices/ipv6_status.sh
+configure_network_devices/wireless_status.sh
+configure_network_devices/bluetooth_service.sh
+
+# ── 3.2 network kernel modules ──
+configure_network_kernel_modules/dccp.sh
+configure_network_kernel_modules/tipc.sh
+configure_network_kernel_modules/rds.sh
+configure_network_kernel_modules/sctp.sh
+
+# ── 3.3.1 IPv4 parameters ──
+configure_network_kernel_parameters/ip_forwarding.sh
+configure_network_kernel_parameters/packet_redirect.sh
+configure_network_kernel_parameters/broadcast_icmp.sh
+configure_network_kernel_parameters/bogus_icmp.sh
+configure_network_kernel_parameters/icmp_redirects.sh
+configure_network_kernel_parameters/secure_redirects.sh
+configure_network_kernel_parameters/reverse_path_filter.sh
+configure_network_kernel_parameters/source_route.sh
+configure_network_kernel_parameters/log_martians.sh
+configure_network_kernel_parameters/tcp_syncookies.sh
+
+# ── 3.3.2 IPv6 parameters ──
+configure_network_kernel_parameters/ipv6_router_advertisements.sh
