@@ -26,9 +26,20 @@ while IFS= read -r pkg; do
                 systemctl disable "$svc" 2>/dev/null || true
             done < <(get_svc_services "$category" "$pkg")
 
-            apt-get remove --purge -y -q "$pkg" </dev/null >/dev/null 2>&1 || true
+            # Do not purge avahi while a GUI session is running — gnome-keyring
+            # and Seahorse dynamically load avahi shared libs; removing the package
+            # mid-session causes an immediate segfault/crash.
+            _gui_active=false
+            if systemctl is-active display-manager.service &>/dev/null || \
+               [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" || -n "${XDG_CURRENT_DESKTOP:-}" ]]; then
+                _gui_active=true
+            fi
+
+            if ! $_gui_active; then
+                apt-get remove --purge -y -q "$pkg" </dev/null >/dev/null 2>&1 || true
+            fi
             unset_package "$pkg"
-            if live_package_installed "$pkg"; then
+            if ! $_gui_active && live_package_installed "$pkg"; then
                 echo -e "${RED}FAILED${RESET}"
                 exit 1
             fi
