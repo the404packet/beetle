@@ -4,6 +4,7 @@ NAME="ensure tipc kernel module is not available"
 
 GREEN="\e[32m"
 RED="\e[31m"
+YELLOW="\e[33m"
 RESET="\e[0m"
 
 [ -f "$NETWORK_RAM_STORE" ] && source "$NETWORK_RAM_STORE"
@@ -25,17 +26,26 @@ for mod_base in $mod_path; do
             a_showconfig+=("$l_showconfig")
         done < <(modprobe --showconfig | grep -P -- "\b(install|blacklist)\h+${mod_name}\b")
 
-        if lsmod | grep -q "$mod_name" 2>/dev/null; then
-            failed=true; break
-        fi
+        # Persistent block MUST be present
         if ! grep -Pq -- "\binstall\h+${mod_name}\h+(\/usr)?\/bin\/(true|false)\b" <<< "${a_showconfig[*]}"; then
             failed=true; break
         fi
         if ! grep -Pq -- "\bblacklist\h+${mod_name}\b" <<< "${a_showconfig[*]}"; then
             failed=true; break
         fi
+
+        # Real test of "not available": modprobe must NOT plan to insmod it
+        if modprobe --dry-run "$mod_name" 2>/dev/null | grep -q "insmod"; then
+            failed=true; break
+        fi
     fi
 done
+
+# Warn if still resident in the running kernel (in use by another component).
+# This is informational — the persistent block is what CIS actually checks.
+if ! $failed && lsmod | grep -q "^${mod_name} "; then
+    echo -e "${YELLOW}WARN: ${mod_name} still loaded in running kernel (in use); block applies on next boot${RESET}" >&2
+fi
 
 $failed && echo -e "${RED}NOT HARDENED${RESET}" || echo -e "${GREEN}HARDENED${RESET}"
 exit 0

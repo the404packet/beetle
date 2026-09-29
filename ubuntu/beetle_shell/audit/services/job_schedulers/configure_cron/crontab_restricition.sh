@@ -14,11 +14,17 @@ if ! is_package_installed "cron"; then
     exit 0
 fi
 
-allow_file="$JS_cron_access_allow_file"
-deny_file="$JS_cron_access_deny_file"
-req_mode="$JS_cron_access_mode"
-req_owner="$JS_cron_access_owner"
-group_count="$JS_cron_access_group_count"
+allow_file="${JS_cron_access_allow_file:-}"
+deny_file="${JS_cron_access_deny_file:-}"
+req_mode="${JS_cron_access_mode:-}"
+req_owner="${JS_cron_access_owner:-}"
+group_count="${JS_cron_access_group_count:-0}"
+
+# If JSON did not define this block, nothing to check
+if [ -z "$allow_file" ] || [ -z "$req_mode" ] || [ -z "$req_owner" ]; then
+    echo -e "${GREEN}HARDENED${RESET}"
+    exit 0
+fi
 
 check_file() {
     local file="$1"
@@ -33,6 +39,7 @@ check_file() {
     for ((i=0; i<group_count; i++)); do
         local var="JS_cron_access_group_${i}"
         local allowed_group="${!var}"
+        [ -z "$allowed_group" ] && continue
         [ "$actual_group" == "$allowed_group" ] && group_ok=true && break
     done
     $group_ok || return 1

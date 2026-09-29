@@ -9,9 +9,12 @@ RESET="\e[0m"
 [ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
 [ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
+export DEBIAN_FRONTEND=noninteractive
+
 category="xwindow"
 
 while IFS= read -r pkg; do
+    [ -z "$pkg" ] && continue
     restrict=$(get_svc "$category" "$pkg" "restrict")
     version=$(get_svc "$category" "$pkg" "version")
 
@@ -41,17 +44,17 @@ while IFS= read -r pkg; do
                 systemctl disable "$svc" 2>/dev/null
             done < <(get_svc_services "$category" "$pkg")
 
-            apt-get remove --purge -y "$pkg" &>/dev/null
+            apt-get remove --purge -y -q "$pkg" </dev/null >/dev/null 2>&1 || true
             unset_package "$pkg"
-            if is_package_installed "$pkg"; then
+            if live_package_installed "$pkg"; then
                 echo -e "${RED}FAILED${RESET}"
                 exit 1
             fi
         fi
     elif [[ "$restrict" == "false" ]]; then
-        if is_package_installed "$pkg"; then
+        if live_package_installed "$pkg"; then
             if ! is_version_ok "$pkg" "$version"; then
-                apt-get upgrade -y "$pkg" &>/dev/null
+                apt-get upgrade -y -q "$pkg" </dev/null >/dev/null 2>&1 || true
                 if ! is_version_ok "$pkg" "$version"; then
                     echo -e "${RED}FAILED${RESET}"
                     exit 1

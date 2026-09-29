@@ -2,6 +2,7 @@
 NAME="ensure audit logs are not automatically deleted"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg auditd
 
 key="$AC_1_name"; valid="$AC_1_valid_values"
 

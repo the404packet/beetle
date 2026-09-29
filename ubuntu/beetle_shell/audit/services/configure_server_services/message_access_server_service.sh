@@ -9,9 +9,12 @@ RESET="\e[0m"
 [ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
 [ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
+export DEBIAN_FRONTEND=noninteractive
+
 category="message_access"
 
 while IFS= read -r pkg; do
+    [ -z "$pkg" ] && continue
     restrict=$(get_svc "$category" "$pkg" "restrict")
     version=$(get_svc "$category" "$pkg" "version")
 

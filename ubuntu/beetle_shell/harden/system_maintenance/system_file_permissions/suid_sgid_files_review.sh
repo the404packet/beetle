@@ -5,6 +5,7 @@ NAME="ensure SUID and SGID files are reviewed"
 GREEN="\e[32m"
 RED="\e[31m"
 CYAN="\e[36m"
+YELLOW="\e[33m"
 RESET="\e[0m"
 
 [ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
@@ -53,11 +54,23 @@ done
 echo ""
 echo -e "  Beetle recommends removing SUID/SGID bits from suspicious binaries above"
 echo ""
-echo -e "  Press ${GREEN}ENTER${RESET} to apply beetle recommended hardening"
-echo -e "  Type   ${RED}no${RESET}   to skip and mark as failed"
-read -r -p "  Choice: " response
 
-if [[ "$response" == "no" ]]; then
+# Interactive prompt only when we have a terminal; otherwise default to "y"
+response="y"
+if [ -t 0 ] && [ -c /dev/tty ]; then
+    while true; do
+        echo -e "Apply default hardening? [${GREEN}y${RESET}/${RED}n${RESET}] (default: y): "
+        read -r response </dev/tty
+        response="${response:-y}"
+        case "${response,,}" in
+            y|yes) response="y"; break ;;
+            n|no)  response="n"; break ;;
+            *) echo -e "${RED}Please answer y or n.${RESET}" ;;
+        esac
+    done
+fi
+
+if [[ "$response" == "n" ]]; then
     echo -e "${RED}FAILED${RESET}"
     exit 1
 fi

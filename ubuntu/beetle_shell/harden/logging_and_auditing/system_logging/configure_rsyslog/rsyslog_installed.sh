@@ -4,12 +4,18 @@ GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$DPKG_RAM_STORE" ]    && source "$DPKG_RAM_STORE"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
+[ "${LJ_preferred_logging_system:-journald}" != "rsyslog" ] && { echo -e "${GREEN}SUCCESS${RESET}"; exit 0; }
+
+export DEBIAN_FRONTEND=noninteractive
+
 if ! is_package_installed "$RS_package"; then
-    apt-get install -y "$RS_package" 2>/dev/null \
-        || { echo -e "${RED}FAILED${RESET}"; exit 1; }
+    apt-get install -y -q "$RS_package" </dev/null >/dev/null 2>&1 || true
 fi
 
-is_package_installed "$RS_package" \
-    && echo -e "${GREEN}SUCCESS${RESET}" \
-    || { echo -e "${RED}FAILED${RESET}"; exit 1; }
-exit 0
+if live_package_installed "$RS_package"; then
+    echo -e "${GREEN}SUCCESS${RESET}"
+    exit 0
+fi
+
+echo -e "${RED}FAILED${RESET}"
+exit 1

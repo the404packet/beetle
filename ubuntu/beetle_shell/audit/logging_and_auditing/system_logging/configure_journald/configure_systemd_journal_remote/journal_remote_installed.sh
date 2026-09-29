@@ -6,5 +6,5 @@ GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 
 is_package_installed "$JR_package" \
     && echo -e "${GREEN}HARDENED${RESET}" \
-    || { echo -e "${RED}NOT HARDENED${RESET}"; }
+    || echo -e "${RED}NOT HARDENED${RESET}"
 exit 0

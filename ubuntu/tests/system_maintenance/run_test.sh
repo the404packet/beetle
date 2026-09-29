@@ -56,7 +56,6 @@ mapfile -d '' AUDIT_SCRIPTS < <(
         -mindepth 1 -type f -name "*.sh" -print0 | sort -z
 )
 
-# Phase 1 Audit Results Data Structures
 declare -A SCRIPT_NAMES
 declare -A INITIAL_ACTUAL
 declare -A INITIAL_STATUS
@@ -107,19 +106,21 @@ mapfile -d '' HARDEN_SCRIPTS < <(
 for script in "${HARDEN_SCRIPTS[@]}"; do
     name=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
     [ -z "$name" ] && name="$(basename "$script")"
-    
-    # Check if script reads from /dev/tty directly (interactive prompt that hangs non-interactive runners)
-    if grep -q '/dev/tty' "$script"; then
+
+    # Skip only scripts that read from /dev/tty unconditionally.
+    # Scripts with the [ -t 0 ] guard are safe to run non-interactively.
+    if grep -q '/dev/tty' "$script" && ! grep -q '\[ -t 0 \]' "$script"; then
         printf "  Harden: %-47s | Result: ${YELLOW}%s${RESET}\n" "$name" "SKIPPED (Interactive)"
         continue
     fi
 
     TMP_FILE=$(mktemp)
-    # Pass empty line for default choices
+    # Pipe an empty line as safety net for any stray read; the [ -t 0 ] guard
+    # makes scripts that implement it use their non-interactive default.
     echo "" | bash "$script" > "$TMP_FILE" 2>/dev/null || true
     harden_res=$(tr -d '\r' < "$TMP_FILE" | tr '\n' ' ' | xargs)
     rm -f "$TMP_FILE"
-    
+
     if [[ "$harden_res" == *"SUCCESS"* ]]; then
         printf "  Harden: %-47s | Result: ${GREEN}%s${RESET}\n" "$name" "SUCCESS"
     else
@@ -164,3 +165,23 @@ for script in "${AUDIT_SCRIPTS[@]}"; do
         "$name" "HARDENED" "$ACTUAL" "$STATUS"
 done
 
+# Step 5: Summary Table
+echo -e "\n${CYAN}=========================================================================================================${RESET}"
+echo -e "${CYAN}                                   SYSTEM MAINTENANCE TEST RESULTS                                      ${RESET}"
+echo -e "${CYAN}=========================================================================================================${RESET}"
+printf "%-50s | %-15s | %-15s | %-15s | %-15s\n" "SCRIPT NAME (NAME variable)" "PHASE 1 EXP" "PHASE 1 ACT" "PHASE 2 EXP" "PHASE 2 ACT"
+echo -e "---------------------------------------------------------------------------------------------------------"
+
+for script_id in "${!SCRIPT_NAMES[@]}"; do
+    name="${SCRIPT_NAMES[$script_id]}"
+    p1_act="${INITIAL_ACTUAL[$script_id]}"
+    p2_act="${FINAL_ACTUAL[$script_id]}"
+
+    [ "$p1_act" == "NOT HARDENED" ] && p1_color="${GREEN}" || p1_color="${RED}"
+    [ "$p2_act" == "HARDENED"     ] && p2_color="${GREEN}" || p2_color="${RED}"
+
+    printf "%-50s | %-15s | ${p1_color}%-15s${RESET} | %-15s | ${p2_color}%-15s${RESET}\n" \
+        "$name" "NOT HARDENED" "$p1_act" "HARDENED" "$p2_act"
+done
+
+echo -e "---------------------------------------------------------------------------------------------------------\n"

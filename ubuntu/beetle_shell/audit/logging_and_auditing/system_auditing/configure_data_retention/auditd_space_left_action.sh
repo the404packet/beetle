@@ -2,6 +2,7 @@
 NAME="ensure system warns when audit logs are low on space"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg auditd
 
 key1="$AC_4_name"; valid1="$AC_4_valid_values"
 key2="$AC_5_name"; valid2="$AC_5_valid_values"

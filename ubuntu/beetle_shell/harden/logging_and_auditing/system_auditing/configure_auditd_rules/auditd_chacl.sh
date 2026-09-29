@@ -3,6 +3,15 @@ NAME="ensure successful and unsuccessful attempts to use chacl are collected"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
+umask 0027
+
+export DEBIAN_FRONTEND=noninteractive
+if ! dpkg-query -W -f='${Status}' auditd 2>/dev/null | grep -q "install ok installed"; then
+    apt-get install -y -q auditd audispd-plugins </dev/null >/dev/null 2>&1 || true
+fi
+[ -z "$AR_rules_dir" ] && { echo -e "${RED}FAILED${RESET} (rules dir not set)"; exit 1; }
+mkdir -p "$AR_rules_dir"
+
 UID_MIN=$(awk '/^\s*UID_MIN/{print $2}' /etc/login.defs)
 [ -z "$UID_MIN" ] && { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
@@ -13,6 +22,9 @@ key_var="AR_${idx}_key";   key="${!key_var}"
 
 rule="-a always,exit -F path=${path} -F perm=x -F auid>=${UID_MIN} -F auid!=unset -k ${key}"
 grep -qF -- "$rule" "$rules_file" 2>/dev/null || echo "$rule" >> "$rules_file"
+
+# Ensure rule files have correct permissions
+[ -n "$rules_file" ] && [ -f "$rules_file" ] && chmod 0640 "$rules_file" 2>/dev/null || true
 
 augenrules --load 2>/dev/null; 
 
