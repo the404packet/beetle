@@ -13,6 +13,7 @@ count="$IPT_pkg_count"
 for ((i=0; i<count; i++)); do
     n_var="IPT_pkg_${i}_name"; name="${!n_var}"
     is_package_installed "$name" && continue
-    apt-get install -y "$name" &>/dev/null || { echo -e "${RED}FAILED${RESET}"; exit 1; }
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "$name" &>/dev/null || true
+    dpkg-query -W -f='${Status}' "$name" 2>/dev/null | grep -q "install ok installed" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 done
 echo -e "${GREEN}SUCCESS${RESET}"; exit 0

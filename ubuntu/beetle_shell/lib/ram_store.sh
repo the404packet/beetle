@@ -118,6 +118,39 @@ is_check_enabled() {
     local folder
     folder=$(dirname "$rel_path")
 
+    # Host-based firewall: Only allow checks matching FW_active_tool
+    if [[ "$rel_path" == *host_based_firewall/* ]]; then
+        local fw_tool="${FW_active_tool:-}"
+        if [ -z "$fw_tool" ]; then
+            if [ -f "$FW_RAM_STORE" ]; then
+                source "$FW_RAM_STORE"
+                fw_tool="${FW_active_tool:-}"
+            fi
+            if [ -z "$fw_tool" ]; then
+                local fw_json="${CONFIG_DIR:-${SEVERITY_CONFIG_DIR:-/etc/beetle}}/firewall.json"
+                [ ! -f "$fw_json" ] && fw_json="/etc/beetle/firewall.json"
+                [ ! -f "$fw_json" ] && fw_json="${CONFIG_DIR:-/etc/beetle}/host_based_firewall.json"
+                if [ -f "$fw_json" ]; then
+                    fw_tool=$(grep -oP '"active_tool"\s*:\s*"\K[^"]+' "$fw_json" 2>/dev/null || echo "ufw")
+                else
+                    fw_tool="ufw"
+                fi
+            fi
+        fi
+
+        case "$rel_path" in
+            *host_based_firewall/configure_uncomplicatedfirewall*)
+                [[ "$fw_tool" != "ufw" ]] && return 1
+                ;;
+            *host_based_firewall/configure_nftables*)
+                [[ "$fw_tool" != "nftables" ]] && return 1
+                ;;
+            *host_based_firewall/configure_iptables*)
+                [[ "$fw_tool" != "iptables" ]] && return 1
+                ;;
+        esac
+    fi
+
     local key="${folder}/${script_name}"
 
     # Must normalize exactly the same way as python in load_severity
@@ -660,26 +693,105 @@ get_acc() {
 load_json_host_based_firewall() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-    rm -f "$FIREWALL_RAM_STORE"
+    rm -f "$FW_RAM_STORE"
 
-    python3 - <<EOF > "$FIREWALL_RAM_STORE"
-import json
-with open("$json_file") as f:
-    data = json.load(f)
-for entry in data.get("firewall_rules", []):
-    key = entry["name"].replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    for field, val in entry.items():
-        if field == "name":
-            continue
-        print(f'FW_{key}_{field}={val}')
+    python3 - <<EOF > "$FW_RAM_STORE"
+import json, sys, os
+
+fw_file = "$json_file"
+if os.path.exists(fw_file):
+    with open(fw_file) as f:
+        data = json.load(f)
+
+    def q(v):
+        return "'" + str(v).replace("'", "'\\''") + "'"
+
+    fw = data.get('firewall', {})
+    print('FW_active_tool=' + q(fw.get('active_tool', 'ufw')))
+
+    ufw = data.get('ufw', {})
+    req_pkgs = ufw.get('required_packages', [])
+    print('UFW_pkg_count=' + q(len(req_pkgs)))
+    for i, p in enumerate(req_pkgs):
+        print(f'UFW_pkg_{i}_name=' + q(p.get('name', '')))
+
+    banned_ufw = ufw.get('banned_with_ufw', [])
+    print('UFW_banned_count=' + q(len(banned_ufw)))
+    for i, p in enumerate(banned_ufw):
+        print(f'UFW_banned_{i}_name=' + q(p.get('name', '')))
+
+    lb_u = ufw.get('loopback', {})
+    print('UFW_lb_allow_in=' + q(lb_u.get('allow_in', 'lo')))
+    print('UFW_lb_allow_out=' + q(lb_u.get('allow_out', 'lo')))
+    print('UFW_lb_deny_in=' + q(lb_u.get('deny_in', '127.0.0.0/8')))
+    print('UFW_lb_deny_in6=' + q(lb_u.get('deny_in6', '::1')))
+
+    dp_u = ufw.get('default_policies', {})
+    print('UFW_policy_incoming=' + q(dp_u.get('incoming', 'deny')))
+    print('UFW_policy_outgoing=' + q(dp_u.get('outgoing', 'allow')))
+    print('UFW_policy_routed=' + q(dp_u.get('routed', 'disabled')))
+
+    nft = data.get('nftables', {})
+    nft_pkgs = nft.get('required_packages', [])
+    print('NFT_pkg_count=' + q(len(nft_pkgs)))
+    for i, p in enumerate(nft_pkgs):
+        print(f'NFT_pkg_{i}_name=' + q(p.get('name', '')))
+
+    banned_nft = nft.get('banned_with_nftables', [])
+    print('NFT_banned_count=' + q(len(banned_nft)))
+    for i, p in enumerate(banned_nft):
+        print(f'NFT_banned_{i}_name=' + q(p.get('name', '')))
+
+    tbl = nft.get('table', {})
+    print('NFT_table_name=' + q(tbl.get('name', 'filter')))
+    print('NFT_table_family=' + q(tbl.get('family', 'inet')))
+
+    chains = nft.get('base_chains', [])
+    print('NFT_chain_count=' + q(len(chains)))
+    for i, c in enumerate(chains):
+        print(f'NFT_chain_{i}_name=' + q(c.get('name', '')))
+        print(f'NFT_chain_{i}_hook=' + q(c.get('hook', '')))
+        print(f'NFT_chain_{i}_policy=' + q(c.get('policy', '')))
+
+    lb_n = nft.get('loopback', {})
+    print('NFT_lb_iface=' + q(lb_n.get('iface', 'lo')))
+    print('NFT_lb_deny_in=' + q(lb_n.get('deny_in', '127.0.0.0/8')))
+    print('NFT_lb_deny_in6=' + q(lb_n.get('deny_in6', '::1')))
+    print('NFT_rules_file=' + q(nft.get('rules_file', '/etc/nftables.conf')))
+
+    ipt = data.get('iptables', {})
+    ipt_pkgs = ipt.get('required_packages', [])
+    print('IPT_pkg_count=' + q(len(ipt_pkgs)))
+    for i, p in enumerate(ipt_pkgs):
+        print(f'IPT_pkg_{i}_name=' + q(p.get('name', '')))
+
+    banned_ipt = ipt.get('banned_with_iptables', [])
+    print('IPT_banned_count=' + q(len(banned_ipt)))
+    for i, p in enumerate(banned_ipt):
+        print(f'IPT_banned_{i}_name=' + q(p.get('name', '')))
+
+    lb_i = ipt.get('loopback', {})
+    print('IPT_lb_iface=' + q(lb_i.get('iface', 'lo')))
+    print('IPT_lb_deny_in=' + q(lb_i.get('deny_in', '127.0.0.0/8')))
+    print('IPT_lb_deny_in6=' + q(lb_i.get('deny_in6', '::1')))
+
+    dp_i = ipt.get('default_policies', {})
+    print('IPT_policy_input=' + q(dp_i.get('input', 'DROP')))
+    print('IPT_policy_forward=' + q(dp_i.get('forward', 'DROP')))
+    print('IPT_policy_output=' + q(dp_i.get('output', 'ACCEPT')))
+
+    states = ipt.get('established_states', ['ESTABLISHED', 'RELATED'])
+    print('IPT_states=' + q(','.join(states)))
+    print('IPT_rules_file=' + q(ipt.get('rules_file', '/etc/iptables/rules.v4')))
+    print('IPT_rules_file_v6=' + q(ipt.get('rules_file_v6', '/etc/iptables/rules.v6')))
 EOF
 
-    chmod 600 "$FIREWALL_RAM_STORE"
-    source "$FIREWALL_RAM_STORE"
+    chmod 600 "$FW_RAM_STORE"
+    source "$FW_RAM_STORE"
 }
 
 unload_json_host_based_firewall() {
-    [ -f "$FIREWALL_RAM_STORE" ] && shred -u "$FIREWALL_RAM_STORE" 2>/dev/null || rm -f "$FIREWALL_RAM_STORE"
+    [ -f "$FW_RAM_STORE" ] && shred -u "$FW_RAM_STORE" 2>/dev/null || rm -f "$FW_RAM_STORE"
 }
 
 get_fw() {

@@ -9,6 +9,7 @@
 NAME="ensure ufw firewall rules exist for all open ports"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 
+command -v ufw &>/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y ufw &>/dev/null || true
 open_ports=$(ss -tuln 2>/dev/null | awk 'NR>1{print $5}' \
              | grep -oP '(?<=:)\d+$' | sort -un)
 ufw_rules=$(ufw status 2>/dev/null)

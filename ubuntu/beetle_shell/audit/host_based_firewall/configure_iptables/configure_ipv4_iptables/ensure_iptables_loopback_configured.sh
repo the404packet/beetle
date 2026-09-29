@@ -8,7 +8,7 @@ NAME="ensure iptables loopback traffic is configured"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$FW_RAM_STORE" ] && source "$FW_RAM_STORE"
 
-iptables -L INPUT  2>/dev/null | grep -q "ACCEPT.*${IPT_lb_iface}" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
-iptables -L OUTPUT 2>/dev/null | grep -q "ACCEPT.*${IPT_lb_iface}" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
-iptables -L INPUT  2>/dev/null | grep -q "DROP.*${IPT_lb_deny_in}" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+iptables -L INPUT  -v 2>/dev/null | grep -q "ACCEPT.*${IPT_lb_iface}" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+iptables -L OUTPUT -v 2>/dev/null | grep -q "ACCEPT.*${IPT_lb_iface}" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+iptables -L INPUT  -v 2>/dev/null | grep -q "DROP.*${IPT_lb_deny_in}" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 echo -e "${GREEN}HARDENED${RESET}"; exit 0

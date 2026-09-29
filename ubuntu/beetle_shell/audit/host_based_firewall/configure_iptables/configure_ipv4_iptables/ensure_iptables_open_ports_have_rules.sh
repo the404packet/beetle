@@ -9,7 +9,7 @@ GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 
 open_ports=$(ss -tuln 2>/dev/null | awk 'NR>1{print $5}' \
              | grep -oP '(?<=:)\d+$' | sort -un)
-ipt_rules=$(iptables -L INPUT 2>/dev/null)
+ipt_rules=$(iptables -L INPUT -n 2>/dev/null)
 for port in $open_ports; do
     echo "$ipt_rules" | grep -qw "dpt:${port}" \
         || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }

@@ -17,7 +17,16 @@ find_module_json() {
     elif [[ "$rel_path" == audit/access_control/* || "$rel_path" == harden/access_control/* ]]; then
         json_type="access_control"; json_file="$CONFIG_DIR/access_control.json"
     elif [[ "$rel_path" == audit/host_based_firewall/* || "$rel_path" == harden/host_based_firewall/* ]]; then
-        json_type="host_based_firewall"; json_file="$CONFIG_DIR/host_based_firewall.json"
+        json_type="host_based_firewall"
+        if [ -f "$CONFIG_DIR/firewall.json" ]; then
+            json_file="$CONFIG_DIR/firewall.json"
+        elif [ -f "$CONFIG_DIR/host_based_firewall.json" ]; then
+            json_file="$CONFIG_DIR/host_based_firewall.json"
+        elif [ -f "/etc/beetle/firewall.json" ]; then
+            json_file="/etc/beetle/firewall.json"
+        else
+            json_file="$CONFIG_DIR/firewall.json"
+        fi
     elif [[ "$rel_path" == audit/logging_and_auditing/* || "$rel_path" == harden/logging_and_auditing/* ]]; then
         json_type="logging_and_auditing"; json_file="$CONFIG_DIR/logging_and_auditing.json"
     elif [[ "$rel_path" == audit/initial_setup/* || "$rel_path" == harden/initial_setup/* ]]; then

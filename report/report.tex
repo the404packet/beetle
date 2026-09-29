@@ -1,0 +1,239 @@
+%----------------------------------------------------------
+% Beetle - Major Project Report
+% SPIT BE Major Project ESE Report Format
+%----------------------------------------------------------
+\documentclass[12pt,oneside,a4paper]{article}
+\usepackage{epsfig}
+\usepackage{cite}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{float}
+\geometry{left=20mm,right=20mm,top=20mm,bottom=50mm}
+\pagestyle{plain}
+
+% Code listing style
+\lstdefinestyle{codestyle}{
+    backgroundcolor=\color{gray!10},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{gray!40},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue!70},
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{red!60},
+    tabsize=4,
+}
+\lstset{style=codestyle}
+
+\begin{document}
+\pagenumbering{arabic}
+
+% ══════════════════════════════════════════════════════════
+% TITLE PAGE
+% ══════════════════════════════════════════════════════════
+\begin{titlepage}
+\vspace*{0.025cm}
+{\centering
+\\
+{\Large\textbf {Beetle -- The exOSkeleton for your OS}}\\
+\vspace{0.55cm}
+submitted in partial fulfillment of the requirement\\
+for the award of the Degree of\\\vspace{0.65cm}
+{\large\textbf {Bachelor of Technology}}\\
+in \\
+{\large\textbf {Information Technology}}\\
+\vspace{0.50cm}
+by\\
+\vspace{0.55cm}
+{\large \textbf {Student1 Name and Surname}}\\
+{\large \textbf {Student2 Name and Surname}}\\
+{\large \textbf {Student3 Name and Surname}}\\
+\vspace{0.55cm}
+under the guidance of\\
+\vspace{0.55cm}
+\hspace{.05cm} {\large \textbf {Guide Name}}\\
+\begin{figure}[h]
+\centering
+\includegraphics[scale=0.7]{spitlogo.pdf}
+\end{figure}
+\hspace{.05cm}
+\hspace{.05cm}
+\textbf{Department of Information Technology}\\
+Bharatiya  Vidya Bhavan's\\
+Sardar Patel Institute of Technology\\
+(Autonomous Institute Affiliated to University of Mumbai)\\
+Munshi Nagar, Andheri-West, Mumbai-400058\\
+University of Mumbai\\
+\hspace{7.25cm}2025-2026}
+\end{titlepage}
+
+% ══════════════════════════════════════════════════════════
+% CERTIFICATE
+% ══════════════════════════════════════════════════════════
+\thispagestyle{empty}
+\vspace*{0.2cm}
+\vspace{1cm}
+\begin{center}
+\large\textbf{Certificate}
+\end{center}
+\vspace{1cm}
+This is to certify that the Project entitled ``Beetle -- The exOSkeleton for your OS'' by Student1 Name, Student2 Name and Student3 Name is approved for the partial fulfillment of Major Project for Final Year Project under the guidance of Guide Name for the award of Degree of Bachelor of Technology in Information Technology from University of Mumbai.\\
+\vspace{1cm}
+\begin{center}
+\textbf{Certified by}
+\end{center}
+\vspace{1cm}
+
+\textbf{Guide Name} \hspace{3.3in} \textbf{Dr. P. B. Bhavathankar}\\ \hspace*{0.5cm}
+\textbf{Project Guide} \hspace{3.3in} \textbf{Head of Department} \\
+\vspace{1cm}
+
+\begin{center}
+\textbf{Dr. B. N. Chaudhari}\\
+\textbf{Principal}
+\end{center}
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale=0.8]{spitlogo.pdf}
+\end{figure}
+
+\begin{center}
+\textbf{Department of Information Technology}\\
+Bharatiya  Vidya Bhavan's\\
+Sardar Patel Institute of Technology\\
+(Autonomous Institute Affiliated to University of Mumbai)\\
+Munshi Nagar, Andheri(W), Mumbai-400058\\
+University of Mumbai\\
+April 2026\\
+\end{center}
+
+% ══════════════════════════════════════════════════════════
+% APPROVAL CERTIFICATE
+% ══════════════════════════════════════════════════════════
+\newpage
+\thispagestyle{empty}
+\vspace*{0.2cm}
+\vspace{1cm}
+\begin{center}
+\large\textbf{Approval Certificate}
+\end{center}
+\vspace{2cm}
+This is to certify that the Project entitled ``Beetle -- The exOSkeleton for your OS'' by Student1 Name, Student2 Name and Student3 Name is approved for the partial fulfillment of Major Project for the Final Year Project towards obtaining the Degree of Bachelor of Technology in Information Technology from University of Mumbai.\\
+\\
+\\
+\\
+\\
+\\
+\textbf{Project Guide} \hspace{3.5in} \textbf{External Examiner}\\
+\\
+\\
+\\
+\\
+\textbf{(signature)} \hspace{3.75in} \textbf{(signature)} \\
+\\
+\vspace{1cm}
+\textbf{Name:} \hspace{4.1in} \textbf{Name:}\\
+\vspace{1cm}
+\textbf{Date:} \hspace{4.2in} \textbf{Date:}\\
+\vspace{1cm}
+\\
+\\
+\textbf{Head of Department} \hspace{3in} \textbf{Principal}\\
+\vspace{2cm}
+\begin{center}
+\textbf{Seal of the Institute}\\
+\end{center}
+
+% ══════════════════════════════════════════════════════════
+% DECLARATION
+% ══════════════════════════════════════════════════════════
+\newpage
+\section*{\centering{Declaration}}
+
+\vspace{3.5cm}
+I wish to state that the work embodied in this work titled ``Beetle -- The exOSkeleton for your OS'' forms my own contribution to the work carried out under the guidance of Guide Name at the Sardar Patel Institute of Technology. I declare that this written submission represents my ideas in my own words and where others' ideas or words have been included, I have adequately cited and referenced the original sources. I also declare that I have adhered to all principles of academic honesty and integrity and have not misrepresented or fabricated or falsified any idea/data/fact/source in my submission.
+\\
+\\
+\\
+\textbf{Student1 Name} \hspace{2cm} \textbf{Student2 Name} \hspace{2cm} \textbf{Student3 Name}\\
+\vspace{4cm}
+\textbf{Student1 UID} \hspace{3cm} \textbf{Student2 UID} \hspace{2cm} \textbf{Student3 UID}\\
+\vspace{1cm}
+
+% ══════════════════════════════════════════════════════════
+% ABSTRACT
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section*{Abstract}
+
+Operating system hardening is a critical aspect of cybersecurity that involves reducing the attack surface of a system by configuring it according to established security benchmarks. Despite the availability of standards such as the CIS (Center for Internet Security) Benchmarks, the process of auditing and remediating Linux systems remains largely manual, error-prone, and time-consuming. System administrators often lack a unified, automated tool that can both assess system compliance and apply remediation in a controlled, reversible manner.
+
+This project presents \textbf{Beetle}, an automated OS hardening framework for Ubuntu Linux that implements a client--server architecture using Unix domain sockets. The system consists of a privileged daemon (\texttt{beetled}) written in C that listens for commands from a lightweight C client (\texttt{beetle}), routing them through a Bash-based handler to modular shell scripts. The framework is organized into seven auditing and hardening categories: access control, host-based firewall, initial setup, logging and auditing, network configuration, services management, and system maintenance.
+
+Beetle features a JSON-driven, severity-tiered configuration system (basic, moderate, strict) that allows administrators to control which checks are executed. An in-memory RAM store mechanism using \texttt{/dev/shm} accelerates data access during audit and harden operations. A snapshot and restore subsystem captures the complete system state---including packages, services, firewall rules, file permissions, users, and groups---before any hardening operation, enabling safe rollback. The framework also provides a web-based dashboard built with FastAPI and React that streams audit and hardening results in real time via NDJSON, offering an interactive graphical interface with compliance visualization through donut charts and filterable result tables.
+
+\textbf{Keywords:} OS Hardening, CIS Benchmarks, Linux Security, Automated Auditing, System Compliance, Unix Domain Sockets, Client-Server Architecture, Snapshot and Restore
+
+% ══════════════════════════════════════════════════════════
+% LIST OF FIGURES
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section*{List of Figures}
+\begin{enumerate}
+    \item Figure 1: High-Level System Architecture of Beetle
+    \item Figure 2: Client--Server Communication via Unix Domain Sockets
+    \item Figure 3: Beetled Daemon Process Flow
+    \item Figure 4: Audit Module Execution Pipeline
+    \item Figure 5: RAM Store Data Flow Diagram
+    \item Figure 6: Severity Configuration Layering
+    \item Figure 7: Snapshot and Restore Workflow
+    \item Figure 8: State Snapshot JSON Structure
+    \item Figure 9: FastAPI Backend Architecture
+    \item Figure 10: React Frontend -- Audit Dashboard
+    \item Figure 11: React Frontend -- Harden Dashboard
+    \item Figure 12: Donut Chart Compliance Visualization
+    \item Figure 13: NDJSON Streaming Flow
+    \item Figure 14: Deployment Pipeline (test.sh)
+    \item Figure 15: Audit Module Category Breakdown
+    \item Figure 16: Beetle CLI Usage and Output
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════
+% LIST OF TABLES
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section*{List of Tables}
+\begin{enumerate}
+    \item Table 1: Literature Survey Summary
+    \item Table 2: Comparison of Existing OS Hardening Tools
+    \item Table 3: Audit Module Categories and Check Counts
+    \item Table 4: Severity Tier Configuration
+    \item Table 5: RAM Store Types and Paths
+    \item Table 6: Snapshot State Components
+    \item Table 7: FastAPI REST Endpoints
+    \item Table 8: Technology Stack Summary
+    \item Table 9: Audit Result Output Format
+    \item Table 10: Test Results Summary
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════
+% TABLE OF CONTENTS
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\tableofcontents
+
+% Include the remaining content sections
+\input{sections.tex}
+
+\end{document}

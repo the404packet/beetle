@@ -11,6 +11,6 @@ GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 out=$(ufw status verbose 2>/dev/null)
 echo "$out" | grep -qi "Default:.*${UFW_policy_incoming}.*\(incoming\)" \
     || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
-echo "$out" | grep -qi "${UFW_policy_routed}.*\(routed\)"               \
+echo "$out" | grep -qiE "(${UFW_policy_routed}|deny).*\(routed\)" \
     || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 echo -e "${GREEN}HARDENED${RESET}"; exit 0

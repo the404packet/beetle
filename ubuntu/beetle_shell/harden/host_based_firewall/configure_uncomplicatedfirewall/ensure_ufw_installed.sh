@@ -13,6 +13,6 @@ count="$UFW_pkg_count"
 for ((i=0; i<count; i++)); do
     n_var="UFW_pkg_${i}_name"; name="${!n_var}"
     is_package_installed "$name" && continue
-    apt-get install -y "$name" &>/dev/null || { echo -e "${RED}FAILED${RESET}"; exit 1; }
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "$name" &>/dev/null || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 done
 echo -e "${GREEN}SUCCESS${RESET}"; exit 0

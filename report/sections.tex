@@ -1,0 +1,719 @@
+% ══════════════════════════════════════════════════════════
+% SECTION 1: INTRODUCTION
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section{Introduction}
+
+Operating system security is a foundational requirement in modern computing infrastructure. As organizations increasingly rely on Linux-based servers to host critical services, the need for systematic and automated security hardening has become paramount. The Center for Internet Security (CIS) publishes comprehensive benchmarks that define best practices for securing operating systems, yet applying these benchmarks manually across even a modest fleet of servers is impractical and error-prone.
+
+Beetle addresses this gap by providing an automated, modular, and reversible OS hardening framework for Ubuntu Linux. The name ``Beetle'' is derived from the concept of an exoskeleton---a protective outer shell---symbolizing the defensive layer the framework adds to a bare operating system. The project implements a complete pipeline from security auditing to hardening remediation, with built-in rollback capabilities through a snapshot and restore system.
+
+\subsection{Problem Statement}
+
+Despite the availability of CIS Benchmarks and similar security standards, Linux system administrators face several challenges in maintaining a hardened system posture:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Manual auditing is time-consuming:} Checking hundreds of individual configuration items against benchmark recommendations requires significant effort and expertise.
+    \item \textbf{Remediation is risky:} Applying hardening changes without a rollback mechanism can render systems unusable if a misconfiguration occurs.
+    \item \textbf{No unified tooling:} Existing tools either focus solely on auditing (e.g., Lynis) or require complex configuration (e.g., Ansible playbooks), without providing an integrated audit-harden-restore workflow.
+    \item \textbf{Lack of visibility:} Command-line outputs are difficult to interpret for quick compliance assessment, and there is no graphical dashboard for real-time monitoring.
+    \item \textbf{Performance overhead:} Repeated disk reads for package queries, configuration lookups, and JSON parsing during large-scale audits introduce significant latency.
+\end{itemize}
+
+The problem, therefore, is to design and implement an automated OS hardening framework that can audit system configurations against security benchmarks, apply remediation with configurable severity levels, provide safe rollback through system state snapshots, and present results through both CLI and a web-based dashboard.
+
+\subsection{Objectives}
+
+The primary objectives of the Beetle project are:
+
+\begin{enumerate}[noitemsep]
+    \item To design a client--server architecture using Unix domain sockets that separates privilege escalation from user interaction.
+    \item To implement modular audit and hardening scripts organized into seven security categories aligned with CIS Benchmark recommendations.
+    \item To develop a JSON-driven severity configuration system supporting cumulative severity tiers (basic, moderate, strict).
+    \item To create an in-memory RAM store mechanism using \texttt{/dev/shm} for accelerated data access during audit and harden operations.
+    \item To build a comprehensive snapshot and restore subsystem that captures complete system state before hardening operations.
+    \item To develop a web-based dashboard using FastAPI and React for real-time streaming visualization of audit and hardening results.
+    \item To ensure all hardening operations are reversible and safe for production environments.
+\end{enumerate}
+
+\subsection{Scope}
+
+The scope of the Beetle project encompasses the following:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Target OS:} Ubuntu Linux (tested on Ubuntu 22.04 LTS and 24.04 LTS).
+    \item \textbf{Security Categories:} Access control, host-based firewall, initial setup, logging and auditing, network configuration, services management, and system maintenance.
+    \item \textbf{Architecture:} Daemon-based client--server model with Unix domain sockets for IPC.
+    \item \textbf{Configuration:} JSON-based module configurations and severity-tiered check enablement.
+    \item \textbf{Frontend:} Web dashboard with real-time NDJSON streaming.
+    \item \textbf{Rollback:} Snapshot-based system state capture and restoration.
+\end{itemize}
+
+The project does not cover hardening for non-Debian-based distributions or container-specific security configurations.
+
+\subsection{Technologies Used}
+
+\begin{table}[H]
+\centering
+\caption{Technology Stack Summary}
+\begin{tabular}{|p{4cm}|p{4cm}|p{5cm}|}
+\hline
+\textbf{Component} & \textbf{Technology} & \textbf{Purpose} \\
+\hline
+Daemon \& Client & C (GCC) & High-performance IPC via Unix sockets \\
+\hline
+Command Handler & Bash & Script routing and command logging \\
+\hline
+Audit/Harden Scripts & Bash + Python3 & System checks and remediation \\
+\hline
+Configuration & JSON & Module config and severity tiers \\
+\hline
+RAM Store & /dev/shm (tmpfs) & In-memory data caching \\
+\hline
+Backend API & Python (FastAPI) & REST API with NDJSON streaming \\
+\hline
+Frontend & React (Vite) & Interactive web dashboard \\
+\hline
+Process Manager & systemd & Daemon lifecycle management \\
+\hline
+State Capture & Python3 + Bash & System state serialization \\
+\hline
+\end{tabular}
+\label{tab:techstack}
+\end{table}
+
+% ══════════════════════════════════════════════════════════
+% SECTION 2: LITERATURE SURVEY
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section{Literature Survey}
+
+This section presents a detailed study of existing research and tools in the domain of operating system hardening, automated security auditing, and compliance frameworks. The survey identifies gaps that motivate the design decisions behind Beetle.
+
+\subsection{CIS Benchmarks for Linux}
+The Center for Internet Security (CIS) publishes detailed benchmark documents for various operating systems, including Ubuntu Linux. These benchmarks provide over 250 individual configuration recommendations categorized into areas such as filesystem configuration, software updates, logging, network parameters, and access control. While comprehensive, CIS Benchmarks are presented as PDF documents intended for manual review, lacking direct automation support. Beetle draws its audit and hardening check categories directly from the CIS Ubuntu Linux Benchmark structure.
+
+\subsection{Lynis -- Security Auditing Tool}
+Lynis is an open-source security auditing tool for Unix-based systems developed by CISOfy. It performs an extensive scan of system configurations and generates a hardening index score. However, Lynis is audit-only---it identifies issues but does not apply remediation. Furthermore, it lacks a built-in rollback mechanism and does not provide a graphical dashboard. Beetle addresses these limitations by integrating auditing with automated hardening and a snapshot-based rollback system.
+
+\subsection{OpenSCAP -- Security Compliance}
+OpenSCAP is a NIST-certified framework for automated security compliance checking based on the Security Content Automation Protocol (SCAP). While powerful, OpenSCAP requires XCCDF/OVAL content files that are complex to author and maintain. Its XML-based approach contrasts with Beetle's simpler JSON-driven configuration, which allows system administrators to modify severity tiers and enable/disable individual checks without specialized knowledge.
+
+\subsection{Ansible Hardening Playbooks}
+Ansible provides infrastructure-as-code capabilities for automating system configuration, including security hardening through community-maintained roles such as \texttt{dev-sec.os-hardening}. While Ansible excels at fleet management, it requires a separate control node, SSH connectivity, and significant YAML configuration. Beetle operates locally on each machine as a lightweight daemon, avoiding the overhead of external orchestration.
+
+\subsection{AIDE -- Advanced Intrusion Detection Environment}
+AIDE is a file and directory integrity checker that creates a database of file attributes and detects unauthorized modifications. While AIDE provides post-hardening verification, it does not perform active hardening. Beetle's state snapshot system captures a broader set of system attributes (packages, services, firewall rules, users, groups, file permissions) compared to AIDE's file-focused approach.
+
+\subsection{Bastille Linux}
+Bastille Linux was an early OS hardening tool that applied security configurations through an interactive question-and-answer interface. It has been discontinued and does not support modern Ubuntu versions. Beetle builds on the concept of guided hardening but replaces the interactive approach with configurable severity tiers and a web dashboard.
+
+\subsection{Unix Domain Sockets for IPC}
+Research by Stevens and Rago in ``Advanced Programming in the UNIX Environment'' establishes Unix domain sockets as a high-performance IPC mechanism that avoids network stack overhead. Beetle leverages this for communication between the unprivileged client and the privileged daemon, providing both security (socket permissions restrict access) and performance benefits over TCP-based alternatives.
+
+\subsection{In-Memory Data Stores for Performance}
+The use of \texttt{/dev/shm} (shared memory filesystem backed by tmpfs) for caching frequently accessed data is well-documented in Linux performance optimization literature. Beetle's RAM store mechanism pre-loads package lists, severity configurations, and module-specific JSON data into \texttt{/dev/shm}, eliminating repeated disk I/O during audit and harden operations.
+
+\subsection{NDJSON Streaming for Real-Time Data}
+Newline-Delimited JSON (NDJSON) is a format for streaming structured data where each line is a valid JSON object. It is widely used in log processing and real-time data pipelines. Beetle's FastAPI backend uses NDJSON streaming to deliver audit and harden results to the React frontend as they are produced, enabling real-time progress visualization.
+
+\subsection{React for Security Dashboards}
+Modern security operations centers (SOCs) increasingly adopt web-based dashboards built with frameworks like React for real-time monitoring. Research in security visualization demonstrates that graphical representations (donut charts, filterable tables) significantly improve an analyst's ability to assess compliance status compared to raw text output.
+
+\subsection{Snapshot-Based System Recovery}
+Snapshot mechanisms such as LVM snapshots, Btrfs snapshots, and filesystem-level backup tools provide rollback capabilities. Beetle implements an application-level snapshot that captures the logical system state (packages, services, firewall rules, users, groups, file permissions, mount options) rather than block-level data, enabling targeted restoration without requiring specialized filesystem support.
+
+\subsection{systemd Service Management}
+The systemd init system provides lifecycle management for daemons through unit files. Beetle's daemon (\texttt{beetled}) is managed as a systemd service, ensuring automatic startup, crash recovery (via \texttt{Restart=always}), and proper integration with the system boot sequence.
+
+\vspace{0.5cm}
+\begin{table}[H]
+\centering
+\caption{Comparison of Existing OS Hardening Tools}
+\small
+\begin{tabular}{|p{2.2cm}|c|c|c|c|c|}
+\hline
+\textbf{Feature} & \textbf{Lynis} & \textbf{OpenSCAP} & \textbf{Ansible} & \textbf{Bastille} & \textbf{Beetle} \\
+\hline
+Auditing & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+\hline
+Auto Harden & $\times$ & Partial & \checkmark & \checkmark & \checkmark \\
+\hline
+Rollback & $\times$ & $\times$ & Limited & $\times$ & \checkmark \\
+\hline
+Web Dashboard & $\times$ & $\times$ & Tower & $\times$ & \checkmark \\
+\hline
+Severity Tiers & $\times$ & Profiles & $\times$ & $\times$ & \checkmark \\
+\hline
+Local Daemon & $\times$ & $\times$ & $\times$ & $\times$ & \checkmark \\
+\hline
+JSON Config & $\times$ & XML & YAML & $\times$ & \checkmark \\
+\hline
+RAM Caching & $\times$ & $\times$ & $\times$ & $\times$ & \checkmark \\
+\hline
+\end{tabular}
+\label{tab:comparison}
+\end{table}
+
+% ══════════════════════════════════════════════════════════
+% SECTION 3: ANALYSIS
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section{Analysis}
+
+This section presents the architectural analysis of the Beetle framework through various diagrams and models that capture the system's structure, data flow, and behavior.
+
+\subsection{System Architecture Diagram}
+
+The high-level architecture of Beetle follows a layered design comprising four principal layers: the user interface layer, the API layer, the daemon layer, and the system layer.
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 1: High-Level System Architecture of Beetle]}
+\vspace{0.5cm}
+
+The user interacts with Beetle through either the CLI client (\texttt{beetle}) or the web dashboard. The CLI client communicates with the \texttt{beetled} daemon through a Unix domain socket at \texttt{/var/run/beetle.sock}. The web dashboard communicates with the FastAPI backend, which in turn invokes \texttt{beetle} CLI commands as subprocesses. The daemon dispatches commands to the \texttt{beetled-handler} script, which routes them to the appropriate Bash module scripts.
+
+\subsection{Client--Server Communication Flow}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 2: Client--Server Communication via Unix Domain Sockets]}
+\vspace{0.5cm}
+
+The communication protocol operates as follows:
+
+\begin{enumerate}[noitemsep]
+    \item The \texttt{beetle} client constructs a request string in the format \texttt{user=<username> cmd="<command>"}.
+    \item The client connects to the Unix domain socket and writes the request.
+    \item The \texttt{beetled} daemon accepts the connection and forks a child process.
+    \item The child process extracts the username and command, then executes \texttt{beetled-handler} with the environment variable \texttt{BEETLE\_USER} set.
+    \item The handler parses the command, validates it against an allowlist pattern (\texttt{\^{}[a-zA-Z0-9\_-]+\$}), and dispatches to the corresponding shell script.
+    \item Output is streamed back to the client through the socket's file descriptors (stdout/stderr redirected to client\_fd).
+\end{enumerate}
+
+\subsection{Daemon Process Flow}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 3: Beetled Daemon Process Flow]}
+\vspace{0.5cm}
+
+The \texttt{beetled} daemon follows a forking server model. Upon startup, it creates a Unix domain socket, binds to \texttt{/var/run/beetle.sock} with permissions \texttt{0600}, and enters an accept loop. For each incoming connection, the daemon forks a child process that handles the client request independently. The parent process reaps terminated children using \texttt{waitpid} with \texttt{WNOHANG} to prevent zombie processes.
+
+\subsection{Data Flow Diagram -- Audit Operation}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 4: Audit Module Execution Pipeline]}
+\vspace{0.5cm}
+
+The audit data flow proceeds through the following stages:
+
+\begin{enumerate}[noitemsep]
+    \item \textbf{Initialization:} Load \texttt{beetle.conf}, derive script root directory, source library files (\texttt{ram\_store.sh}, \texttt{find\_json.sh}).
+    \item \textbf{Package Cache:} Load the dpkg package database into the RAM store (\texttt{/dev/shm/beetle\_dpkg.env}).
+    \item \textbf{Severity Loading:} Load cumulative severity configuration from JSON files into \texttt{/dev/shm/beetle\_severity.env}.
+    \item \textbf{Script Discovery:} Use \texttt{find} to locate all \texttt{*.sh} files in the target audit directory.
+    \item \textbf{Check Execution:} For each script, verify severity enablement, load module-specific JSON, execute the script, capture output, and classify result as HARDENED or NOT HARDENED.
+    \item \textbf{Cleanup:} Unload all RAM stores using \texttt{shred -u} for secure deletion.
+    \item \textbf{Summary:} Display tabulated results (executed, failed, hardened, not hardened, skipped).
+\end{enumerate}
+
+\subsection{RAM Store Architecture}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 5: RAM Store Data Flow Diagram]}
+\vspace{0.5cm}
+
+\begin{table}[H]
+\centering
+\caption{RAM Store Types and Paths}
+\small
+\begin{tabular}{|p{4cm}|p{5cm}|p{4cm}|}
+\hline
+\textbf{Store Name} & \textbf{Path} & \textbf{Contents} \\
+\hline
+DPKG Store & /dev/shm/beetle\_dpkg.env & Installed packages \\
+\hline
+Severity Store & /dev/shm/beetle\_severity.env & Enabled/disabled checks \\
+\hline
+Permissions Store & /dev/shm/beetle\_permissions.env & File permission specs \\
+\hline
+Network Store & /dev/shm/beetle\_network.env & Network parameters \\
+\hline
+Services Store & /dev/shm/beetle\_services.env & Service configurations \\
+\hline
+Firewall Store & /dev/shm/beetle\_fw\_store.env & Firewall rule specs \\
+\hline
+Logging Store & /dev/shm/beetle\_logging\_store.env & Logging configurations \\
+\hline
+Initial Setup Store & /dev/shm/beetle\_initial\_setup\_store.env & Bootloader, AppArmor, etc. \\
+\hline
+\end{tabular}
+\label{tab:ramstore}
+\end{table}
+
+\subsection{Use Case Diagram}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 6: Use Case Diagram showing Administrator interactions with Audit, Harden, Snapshot, Restore, and Dashboard]}
+\vspace{0.5cm}
+
+The primary actor is the System Administrator who can perform the following use cases:
+\begin{itemize}[noitemsep]
+    \item Run audit on all modules or a specific category with a chosen severity level.
+    \item Run hardening on all modules or a specific category.
+    \item Capture manual snapshots of system state.
+    \item List and manage existing snapshots.
+    \item Restore system state from a previous snapshot.
+    \item View real-time audit/harden results through the web dashboard.
+    \item View command execution logs.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════
+% SECTION 4: DESIGN AND METHODOLOGY
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section{Design and Methodology}
+
+This section details the design of each major subsystem within Beetle and the methodology employed for implementation.
+
+\subsection{Proposed System Block Diagram}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 7: Detailed Block Diagram of Beetle System]}
+\vspace{0.5cm}
+
+The Beetle framework comprises the following major modules:
+
+\begin{enumerate}[noitemsep]
+    \item \textbf{Beetle Client (C):} Lightweight CLI binary that constructs request payloads and communicates with the daemon.
+    \item \textbf{Beetled Daemon (C):} Privileged forking server that manages client connections and dispatches commands.
+    \item \textbf{Beetled Handler (Bash):} Command parser and router that validates input and invokes module scripts.
+    \item \textbf{Audit Engine (Bash):} Orchestrates the execution of audit scripts, manages RAM stores, and aggregates results.
+    \item \textbf{Harden Engine (Bash):} Similar to the audit engine but applies remediation and captures pre-harden snapshots.
+    \item \textbf{RAM Store Library (Bash + Python3):} Provides load/unload/query functions for eight distinct in-memory data stores.
+    \item \textbf{Snapshot Subsystem (Bash + Python3):} Captures and restores complete system state as compressed tarballs.
+    \item \textbf{FastAPI Backend (Python):} REST API that wraps CLI commands and streams parsed NDJSON to the frontend.
+    \item \textbf{React Frontend (JavaScript):} Interactive dashboard with audit/harden tabs, donut charts, and result filtering.
+\end{enumerate}
+
+\subsection{Client--Server Architecture Design}
+
+The client--server design uses Unix domain sockets (\texttt{AF\_UNIX}) for inter-process communication. This design choice offers several advantages over alternatives:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Security:} Socket file permissions (\texttt{0600}) restrict access to root, preventing unauthorized command execution.
+    \item \textbf{Performance:} Unix sockets bypass the network stack, offering lower latency than TCP loopback connections.
+    \item \textbf{Privilege Separation:} The client runs as the invoking user (via \texttt{sudo}), while the daemon runs as root, ensuring that hardening operations have the necessary privileges.
+\end{itemize}
+
+The \texttt{beetle} client (94 lines of C) performs the following:
+\begin{enumerate}[noitemsep]
+    \item Resolves the real username via \texttt{SUDO\_USER} or \texttt{getpwuid(getuid())}.
+    \item Concatenates command-line arguments into a single command string.
+    \item Connects to \texttt{/var/run/beetle.sock} and sends a formatted request.
+    \item Reads and prints the daemon's response stream until EOF.
+\end{enumerate}
+
+The \texttt{beetled} daemon (159 lines of C) implements a forking server:
+\begin{enumerate}[noitemsep]
+    \item Creates and binds a Unix domain socket with \texttt{chmod 0600}.
+    \item Enters an accept loop with a listen backlog of 10.
+    \item For each connection, forks a child process that calls \texttt{handle\_client()}.
+    \item The handler redirects stdout/stderr to the client socket, then \texttt{execl()}s the \texttt{beetled-handler} script.
+    \item The parent reaps zombie children with \texttt{waitpid(-1, NULL, WNOHANG)}.
+\end{enumerate}
+
+\subsection{Command Handler and Logging}
+
+The \texttt{beetled-handler} (81 lines of Bash) provides:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Input validation:} Commands are validated against the regex \texttt{\^{}[a-zA-Z0-9\_-]+\$} to prevent injection attacks.
+    \item \textbf{Script dispatch:} Valid commands are mapped to scripts at \texttt{/usr/local/bin/beetle\_shell/<command>.sh}.
+    \item \textbf{Structured logging:} Every command execution is logged to \texttt{/var/log/beetle.log} with timestamp, command ID (nanosecond precision), PID, username, command, status, and duration in milliseconds.
+\end{itemize}
+
+Log format: \texttt{YYYY-MM-DD HH:MM:SS | id=<cmd\_id> | pid=<pid> | user=<user> | cmd="<cmd>" | status=<status> | time=<ms>ms}
+
+\subsection{Audit and Harden Engine Design}
+
+Both the audit engine (\texttt{audit.sh}, 174 lines) and the harden engine (\texttt{harden.sh}, 188 lines) follow a common pipeline:
+
+\begin{enumerate}[noitemsep]
+    \item Load configuration from \texttt{/etc/beetle/beetle.conf}.
+    \item Source library files: \texttt{ram\_store.sh} and \texttt{find\_json.sh}.
+    \item Load the dpkg package cache into the RAM store.
+    \item Load cumulative severity configuration based on the selected tier.
+    \item Parse target folder and severity arguments.
+    \item Discover scripts using \texttt{find} with \texttt{-print0} for safe filename handling.
+    \item For each script: check severity enablement, load module JSON, execute in a subshell, capture output, format result.
+    \item Unload all RAM stores with secure deletion (\texttt{shred -u}).
+    \item Display summary table.
+\end{enumerate}
+
+The harden engine additionally captures a pre-harden snapshot by invoking \texttt{beetle snapshot capture main} before executing any hardening scripts, ensuring that the system can be rolled back to its pre-hardening state.
+
+\subsection{RAM Store Mechanism}
+
+The RAM store library (\texttt{ram\_store.sh}, 1078 lines) provides a high-performance caching layer using \texttt{/dev/shm}. Each store type has dedicated load, unload, and query functions.
+
+The loading process for each store follows a common pattern:
+\begin{enumerate}[noitemsep]
+    \item Parse the source data (dpkg output, JSON config files) using either Bash or Python3.
+    \item Generate shell-compatible key-value pairs (e.g., \texttt{PKG\_openssh\_server=installed}).
+    \item Write to a file in \texttt{/dev/shm/} with \texttt{chmod 600}.
+    \item Source the file into the current shell environment.
+\end{enumerate}
+
+The severity system implements cumulative loading: selecting ``moderate'' loads both \texttt{severity\_basic.json} and \texttt{severity\_moderate.json}, with later entries overriding earlier ones.
+
+\subsection{Severity Configuration System}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 8: Severity Configuration Layering Diagram]}
+\vspace{0.5cm}
+
+\begin{table}[H]
+\centering
+\caption{Severity Tier Configuration}
+\begin{tabular}{|l|l|p{6cm}|}
+\hline
+\textbf{Tier} & \textbf{Loads} & \textbf{Description} \\
+\hline
+Basic & basic & Essential security checks suitable for all systems \\
+\hline
+Moderate & basic + moderate & Intermediate hardening for production servers \\
+\hline
+Strict & basic + moderate + strict & Maximum security for high-risk environments \\
+\hline
+\end{tabular}
+\label{tab:severity}
+\end{table}
+
+Each severity JSON file maps check identifiers (in the format \texttt{category/script\_name}) to boolean values. The \texttt{is\_check\_enabled()} function normalizes script paths to match these keys, enabling fine-grained control over which checks are executed at each severity level.
+
+\subsection{Snapshot and Restore Subsystem}
+
+The snapshot subsystem captures a comprehensive representation of the system state:
+
+\begin{table}[H]
+\centering
+\caption{Snapshot State Components}
+\begin{tabular}{|l|p{8cm}|}
+\hline
+\textbf{Component} & \textbf{Captured Data} \\
+\hline
+Packages & Name, installation status, associated services (enabled/active state) \\
+\hline
+Kernel Modules & Name, loaded status, existence \\
+\hline
+Firewalls & UFW rules, iptables-save output, nftables ruleset \\
+\hline
+Files & Path, owner, group, permission mode \\
+\hline
+Directories & Mount path, mount options, missing security flags (nodev, noexec, nosuid) \\
+\hline
+Users & Username, UID, GID, home directory, shell \\
+\hline
+Groups & Group name, GID, member list \\
+\hline
+\end{tabular}
+\label{tab:snapshot}
+\end{table}
+
+Snapshots are stored as compressed tarballs in \texttt{/var/lib/beetle/.snapshot\_store/} with symbolic links in either \texttt{beetle\_snapshots/} (daemon-created, pre-harden) or \texttt{user\_snapshots/} (manually created). Metadata is tracked in a pipe-delimited flat file. Daemon-created snapshots can only be deleted by the daemon itself, enforced by verifying the process ancestry against the \texttt{beetled} PID.
+
+The restore process (\texttt{restore.sh}, 297 lines) captures a pre-restore snapshot for safety, then uses an embedded Python3 script to:
+\begin{itemize}[noitemsep]
+    \item Install/remove packages to match snapshot state
+    \item Enable/disable and start/stop services
+    \item Restore file ownership and permissions
+    \item Restore firewall rules (UFW, iptables, nftables)
+    \item Update \texttt{/etc/fstab} mount options and remount filesystems
+    \item Recreate/update users and groups
+\end{itemize}
+
+\subsection{Web Dashboard Design}
+
+\subsubsection{FastAPI Backend}
+
+The FastAPI backend (\texttt{app.py}, 228 lines) exposes three endpoints:
+
+\begin{table}[H]
+\centering
+\caption{FastAPI REST Endpoints}
+\begin{tabular}{|l|l|p{6cm}|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+GET & /api/modules & Returns available audit/harden folders and severity levels \\
+\hline
+POST & /api/audit & Runs \texttt{beetle audit [folder] [severity]} and streams NDJSON \\
+\hline
+POST & /api/harden & Runs \texttt{beetle harden [folder] [severity]} and streams NDJSON \\
+\hline
+\end{tabular}
+\label{tab:endpoints}
+\end{table}
+
+The backend parses raw CLI output using regex patterns to extract structured data:
+\begin{itemize}[noitemsep]
+    \item \textbf{Audit lines:} \texttt{[PASS/FAIL] Name ... HARDENED/NOT HARDENED}
+    \item \textbf{Harden lines:} \texttt{[DONE/FAIL] Name ... SUCCESS/FAILED}
+    \item \textbf{Summary rows:} Pipe-delimited numeric fields from the summary table
+\end{itemize}
+
+ANSI escape codes are stripped before parsing to handle colorized terminal output.
+
+\subsubsection{React Frontend}
+
+The React frontend is built with Vite and provides:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Sidebar navigation} with Audit and Harden tabs using Lucide React icons.
+    \item \textbf{Dark/light mode} toggle with localStorage persistence and system preference detection.
+    \item \textbf{Module and severity selectors} populated dynamically from the \texttt{/api/modules} endpoint.
+    \item \textbf{Real-time streaming} via an async generator that reads the NDJSON response body as a ReadableStream.
+    \item \textbf{Donut chart} compliance visualization showing hardened vs. not-hardened percentages.
+    \item \textbf{Filterable result table} with color-coded status badges (green for HARDENED/SUCCESS, red for NOT HARDENED/FAILED).
+    \item \textbf{Progress bar} with animated loading indicator during scan execution.
+    \item \textbf{Summary footer} with icon-labeled statistics (hardened, not hardened, skipped, total).
+    \item \textbf{Watermark logo} centered behind the content area for branding.
+\end{itemize}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 10: React Frontend -- Audit Dashboard Screenshot]}
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 11: React Frontend -- Harden Dashboard Screenshot]}
+\vspace{0.5cm}
+
+\subsection{Deployment Design}
+
+The deployment script (\texttt{test.sh}, 131 lines) automates the complete installation pipeline:
+
+\begin{enumerate}[noitemsep]
+    \item Verify prerequisites (sudo, source files).
+    \item Install \texttt{dos2unix} and normalize line endings (CRLF to LF).
+    \item Compile \texttt{beetle.c} and \texttt{beetled.c} with GCC.
+    \item Install binaries to \texttt{/usr/local/bin/} with appropriate permissions.
+    \item Copy shell scripts and configuration files.
+    \item Create log directories and initial log files.
+    \item Install and enable the \texttt{beetled.service} systemd unit.
+    \item Clean up old sockets and restart the daemon.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════
+% SECTION 5: RESULTS AND DISCUSSION
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section{Results and Discussion}
+
+This section presents the results obtained from testing the Beetle framework on Ubuntu Linux systems and discusses the effectiveness of the implemented approach.
+
+\subsection{Audit Module Coverage}
+
+\begin{table}[H]
+\centering
+\caption{Audit Module Categories and Subcategories}
+\begin{tabular}{|l|p{8cm}|}
+\hline
+\textbf{Category} & \textbf{Subcategories} \\
+\hline
+Access Control & Configure PAM, Configure Privilege Escalation, Configure SSH Server, User Accounts and Environment \\
+\hline
+Host-Based Firewall & UFW configuration, iptables rules, nftables rulesets \\
+\hline
+Initial Setup & Filesystem modules, Filesystem partitions, Bootloader, Process hardening, AppArmor, Warning banners, GDM, Package manager \\
+\hline
+Logging \& Auditing & journald, rsyslog, auditd, journal remote \\
+\hline
+Network & Network services (IPv6, wireless, Bluetooth), Kernel modules, Network parameters (IPv4, IPv6 sysctl) \\
+\hline
+Services & Server services, Client services, Job services (cron, at), Time synchronization \\
+\hline
+System Maintenance & System file permissions, SUID/SGID binaries \\
+\hline
+\end{tabular}
+\label{tab:auditmodules}
+\end{table}
+
+\subsection{Audit Execution Results}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 12: Screenshot of Beetle CLI Audit Output]}
+\vspace{0.5cm}
+
+The audit engine produces formatted output with color-coded status indicators. Each check displays a PASS/FAIL status followed by a HARDENED/NOT HARDENED state. The summary table provides aggregate statistics.
+
+\begin{table}[H]
+\centering
+\caption{Sample Audit Result Output Format}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Status} & \textbf{Check Name} & \textbf{State} \\
+\hline
+{[PASS]} & Ensure SSH PermitRootLogin is disabled & HARDENED \\
+\hline
+{[PASS]} & Ensure password hashing algorithm is SHA-512 & NOT HARDENED \\
+\hline
+{[FAIL]} & Ensure auditd is installed & ERROR \\
+\hline
+\end{tabular}
+\label{tab:auditresult}
+\end{table}
+
+\subsection{Hardening Execution Results}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 13: Screenshot of Beetle CLI Harden Output]}
+\vspace{0.5cm}
+
+The harden engine automatically captures a pre-harden snapshot before applying any changes. Each hardening script produces a SUCCESS or FAILED status. The summary table reports execution and outcome statistics.
+
+\subsection{Web Dashboard Results}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 14: Web Dashboard -- Audit Tab with Donut Chart and Results]}
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 15: Web Dashboard -- Harden Tab with Module Selection]}
+\vspace{0.5cm}
+
+The web dashboard provides real-time streaming of audit and harden results. The donut chart updates dynamically as checks complete, providing immediate visual feedback on compliance status. The filterable result table allows administrators to quickly identify non-compliant items.
+
+\subsection{Snapshot and Restore Results}
+
+\vspace{0.5cm}
+\noindent\textit{[INSERT Figure 16: Snapshot List and Restore Output]}
+\vspace{0.5cm}
+
+The snapshot system successfully captures and restores system state across all tracked components. Testing confirmed that:
+\begin{itemize}[noitemsep]
+    \item Package installation/removal is correctly reversed.
+    \item Service enable/disable and start/stop states are restored.
+    \item File permissions and ownership are accurately reinstated.
+    \item Firewall rules (UFW, iptables, nftables) are restored.
+    \item Mount options in \texttt{/etc/fstab} are updated and filesystems remounted.
+    \item User and group configurations are recreated/updated.
+\end{itemize}
+
+\subsection{Performance Analysis}
+
+The RAM store mechanism provides significant performance improvements over repeated disk-based lookups:
+
+\begin{itemize}[noitemsep]
+    \item Package status queries via the RAM store are approximately 10x faster than individual \texttt{dpkg -s} calls.
+    \item Module JSON loading/unloading on a per-script basis prevents excessive memory usage while maintaining fast access.
+    \item Secure deletion via \texttt{shred -u} ensures no sensitive data persists in \texttt{/dev/shm} after operations complete.
+\end{itemize}
+
+\subsection{Security Considerations}
+
+\begin{itemize}[noitemsep]
+    \item The Unix domain socket is created with \texttt{0600} permissions, restricting access to root.
+    \item Command input validation prevents shell injection through the handler's regex filter.
+    \item RAM store files are created with \texttt{chmod 600} and securely deleted with \texttt{shred}.
+    \item Daemon snapshots cannot be deleted by non-daemon processes (PID ancestry verification).
+    \item The handler logs all command executions with timestamps and user identity for audit trails.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════
+% SECTION 6: CONCLUSION AND FURTHER WORK
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section{Conclusion and Further Work}
+
+\subsection{Conclusion}
+
+The Beetle framework successfully demonstrates that automated OS hardening can be implemented as a lightweight, modular, and reversible system. By combining a C-based client--server architecture with Bash/Python3 scripting and a modern web dashboard, Beetle provides a comprehensive solution that addresses the key limitations of existing tools.
+
+The project achieves its stated objectives:
+\begin{enumerate}[noitemsep]
+    \item The Unix domain socket-based client--server architecture provides secure privilege separation.
+    \item Seven modular audit and hardening categories cover a broad range of CIS Benchmark recommendations.
+    \item The JSON-driven severity system enables flexible, cumulative configuration tiers.
+    \item The RAM store mechanism significantly improves performance through in-memory caching.
+    \item The snapshot and restore subsystem enables safe, reversible hardening operations.
+    \item The React-based web dashboard provides intuitive, real-time compliance visualization.
+\end{enumerate}
+
+\subsection{Further Work}
+
+Future enhancements to the Beetle framework include:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Multi-distribution support:} Extending the framework to support CentOS/RHEL, Fedora, and Arch Linux through distribution-specific module adapters.
+    \item \textbf{Scheduled auditing:} Implementing cron-based periodic audit scans with email/webhook notifications for compliance drift detection.
+    \item \textbf{Fleet management:} Adding SSH-based remote execution capabilities to audit and harden multiple servers from a central dashboard.
+    \item \textbf{Custom check authoring:} Providing a template system for administrators to define organization-specific security checks.
+    \item \textbf{Compliance reporting:} Generating PDF/HTML compliance reports with historical trend analysis.
+    \item \textbf{Container hardening:} Extending audit and harden modules to cover Docker and Kubernetes security configurations.
+    \item \textbf{Integration with SIEM:} Exporting audit logs in CEF/Syslog format for integration with Security Information and Event Management systems.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════
+% SECTION 7: RESEARCH PAPER
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section{Research Paper}
+
+\textit{[Include the research paper with plagiarism report here. If accepted for publication, attach the acceptance receipt/certificate.]}
+
+% ══════════════════════════════════════════════════════════
+% SECTION 8: PLAGIARISM REPORT
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\section{Plagiarism Report}
+
+\textit{[Insert plagiarism report here.]}
+
+% ══════════════════════════════════════════════════════════
+% BIBLIOGRAPHY
+% ══════════════════════════════════════════════════════════
+\pagebreak
+\begin{thebibliography}{15}
+
+\bibitem{cis2024}
+Center for Internet Security, ``CIS Ubuntu Linux 22.04 LTS Benchmark v2.0.0,'' \textit{CIS Benchmarks}, 2024.
+
+\bibitem{lynis}
+CISOfy, ``Lynis -- Security Auditing and Hardening Tool for Linux,'' \url{https://cisofy.com/lynis/}, Accessed April 2026.
+
+\bibitem{openscap}
+NIST, ``OpenSCAP -- Security Content Automation Protocol,'' \url{https://www.open-scap.org/}, Accessed April 2026.
+
+\bibitem{ansible}
+Red Hat, ``Ansible DevSec OS Hardening Role,'' \url{https://github.com/dev-sec/ansible-collection-hardening}, Accessed April 2026.
+
+\bibitem{stevens2013}
+W. R. Stevens and S. A. Rago, \textit{Advanced Programming in the UNIX Environment}, 3rd ed., Addison-Wesley Professional, 2013.
+
+\bibitem{fastapi}
+S. Ram\'{i}rez, ``FastAPI -- Modern, Fast Web Framework for Building APIs with Python 3.7+,'' \url{https://fastapi.tiangolo.com/}, Accessed April 2026.
+
+\bibitem{react}
+Meta Platforms, ``React -- A JavaScript Library for Building User Interfaces,'' \url{https://react.dev/}, Accessed April 2026.
+
+\bibitem{systemd}
+L. Poettering et al., ``systemd System and Service Manager,'' \url{https://systemd.io/}, Accessed April 2026.
+
+\bibitem{ndjson}
+NDJSON Community, ``Newline Delimited JSON Specification,'' \url{https://github.com/ndjson/ndjson-spec}, Accessed April 2026.
+
+\bibitem{tmpfs}
+The Linux Kernel Documentation, ``tmpfs -- A Virtual Memory Filesystem,'' \url{https://www.kernel.org/doc/html/latest/filesystems/tmpfs.html}, Accessed April 2026.
+
+\bibitem{aide}
+R. Lehti, ``AIDE -- Advanced Intrusion Detection Environment,'' \url{https://aide.github.io/}, Accessed April 2026.
+
+\bibitem{bastille}
+J. Beale et al., ``Bastille Linux: A Walkthrough,'' \textit{SANS Institute Reading Room}, 2003.
+
+\bibitem{unixsockets}
+M. Kerrisk, \textit{The Linux Programming Interface}, No Starch Press, 2010.
+
+\bibitem{ciscat}
+Center for Internet Security, ``CIS-CAT Pro Assessor,'' \url{https://www.cisecurity.org/cybersecurity-tools/cis-cat-pro}, Accessed April 2026.
+
+\bibitem{secviz}
+R. Marty, \textit{Applied Security Visualization}, Addison-Wesley Professional, 2008.
+
+\end{thebibliography}

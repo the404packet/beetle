@@ -11,6 +11,7 @@ GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$FW_RAM_STORE" ] && source "$FW_RAM_STORE"
 
 family="$NFT_table_family"; table="$NFT_table_name"; count="$NFT_chain_count"
+nft list table "$family" "$table" &>/dev/null || nft add table "$family" "$table" &>/dev/null || true
 for ((i=0; i<count; i++)); do
     n_var="NFT_chain_${i}_name";   name="${!n_var}"
     h_var="NFT_chain_${i}_hook";   hook="${!h_var}"

@@ -11,8 +11,8 @@ GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$FW_RAM_STORE" ] && source "$FW_RAM_STORE"
 
 rules=$(ufw status verbose 2>/dev/null)
-echo "$rules" | grep -q "on ${UFW_lb_allow_in}"     || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
-echo "$rules" | grep -q "out on ${UFW_lb_allow_out}" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+echo "$rules" | grep -qiE "ALLOW IN.*on ${UFW_lb_allow_in}|on ${UFW_lb_allow_in}.*ALLOW IN" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+echo "$rules" | grep -qiE "ALLOW OUT.*on ${UFW_lb_allow_out}|on ${UFW_lb_allow_out}.*ALLOW OUT" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 echo "$rules" | grep -q "${UFW_lb_deny_in}"          || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 grep -qi "^IPV6=yes" /etc/default/ufw 2>/dev/null \
     && { echo "$rules" | grep -q "${UFW_lb_deny_in6}" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }; }
