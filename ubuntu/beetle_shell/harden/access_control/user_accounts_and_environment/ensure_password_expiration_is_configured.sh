@@ -20,10 +20,14 @@ else
 fi
 
 # Apply to all existing users with a password whose value is out of range
-awk -F: -v max="$MAX_DAYS" \
-    '($2~/^\$.+\$/) {if($5 > max || $5 < 1) print $1}' \
-    /etc/shadow 2>/dev/null | while IFS= read -r user; do
-    chage --maxdays "$MAX_DAYS" "$user"
+mapfile -t users < <(awk -F: -v max="$MAX_DAYS" \
+    '($2 !~ /^[*!]/) {if($5 > max || $5 < 1 || $5 == "") print $1}' \
+    /etc/shadow 2>/dev/null)
+
+for user in "${users[@]}"; do
+    [ -n "$user" ] || continue
+    chage --maxdays "$MAX_DAYS" "$user" 2>/dev/null || true
+    awk -F: -v u="$user" -v max="$MAX_DAYS" 'BEGIN{OFS=":"} {if ($1==u && ($5 > max || $5 < 1 || $5 == "")) $5=max; print}' /etc/shadow > /etc/shadow.tmp && mv /etc/shadow.tmp /etc/shadow 2>/dev/null || true
 done
 
 # Validate

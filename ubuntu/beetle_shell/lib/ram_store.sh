@@ -63,7 +63,7 @@ unset_package() {
 # SEVERITY: Load severity config into RAM
 # ─────────────────────────────────────────────
 load_severity() {
-    local target_level="$1"
+    local target_level="${1,,}"
     rm -f "$SEVERITY_RAM_STORE"
 
     local levels=("basic")

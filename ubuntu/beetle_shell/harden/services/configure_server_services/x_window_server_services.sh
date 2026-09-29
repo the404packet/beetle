@@ -17,7 +17,26 @@ while IFS= read -r pkg; do
 
     if [[ "$restrict" == "true" ]]; then
         if is_package_installed "$pkg"; then
+            # Protect graphical desktop / display manager from being terminated
+            is_gui_active=false
+            if systemctl is-active display-manager.service &>/dev/null || \
+               systemctl is-active gdm3 &>/dev/null || \
+               systemctl is-active lightdm &>/dev/null || \
+               systemctl is-active sddm &>/dev/null || \
+               [[ -n "${DISPLAY:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]] || \
+               [[ -n "${XDG_CURRENT_DESKTOP:-}" ]]; then
+                is_gui_active=true
+            fi
+
+            if $is_gui_active; then
+                unset_package "$pkg"
+                continue
+            fi
+
             while IFS= read -r svc; do
+                if [[ "$svc" == *"display-manager"* || "$svc" == *"gdm"* || "$svc" == *"lightdm"* || "$svc" == *"sddm"* ]]; then
+                    continue
+                fi
                 systemctl stop "$svc" 2>/dev/null
                 systemctl disable "$svc" 2>/dev/null
             done < <(get_svc_services "$category" "$pkg")

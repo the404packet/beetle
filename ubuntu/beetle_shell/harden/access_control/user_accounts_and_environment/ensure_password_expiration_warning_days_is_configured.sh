@@ -19,11 +19,15 @@ else
     echo "PASS_WARN_AGE ${WARN_AGE}" >> "$LOGIN_DEFS"
 fi
 
-# Apply to all existing users with a password whose PASS_WARN_AGE is below minimum
-awk -F: -v warn="$WARN_AGE" \
-    '($2~/^\$.+\$/) {if($6 < warn) print $1}' \
-    /etc/shadow 2>/dev/null | while IFS= read -r user; do
-    chage --warndays "$WARN_AGE" "$user"
+# Apply to all existing users with a password whose value is below minimum
+mapfile -t users < <(awk -F: -v warn="$WARN_AGE" \
+    '($2 !~ /^[*!]/) {if($6 < warn || $6 == "") print $1}' \
+    /etc/shadow 2>/dev/null)
+
+for user in "${users[@]}"; do
+    [ -n "$user" ] || continue
+    chage --warndays "$WARN_AGE" "$user" 2>/dev/null || true
+    awk -F: -v u="$user" -v warn="$WARN_AGE" 'BEGIN{OFS=":"} {if ($1==u && ($6 < warn || $6 == "")) $6=warn; print}' /etc/shadow > /etc/shadow.tmp && mv /etc/shadow.tmp /etc/shadow 2>/dev/null || true
 done
 
 # Validate
