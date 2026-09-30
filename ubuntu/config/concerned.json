@@ -126,7 +126,29 @@
     "/etc/fstab",
     "/etc/audit/auditd.conf",
     "/etc/rsyslog.conf",
-    "/etc/systemd/journald.conf"
+    "/etc/systemd/journald.conf",
+    "/etc/default/grub",
+  "/etc/sudo.conf",
+  "/etc/cron.allow",
+  "/etc/cron.deny",
+  "/etc/at.allow",
+  "/etc/at.deny",
+  "/root/.bash_profile",
+  "/root/.bashrc",
+  "/etc/profile",
+  "/etc/bash.bashrc",
+  "/etc/systemd/timesyncd.conf.d/60-timesyncd.conf",
+  "/etc/chrony/sources.d/60-sources.sources",
+  "/etc/chrony/chrony.conf",
+  "/etc/systemd/journald.conf",
+  "/etc/systemd/logind.conf",
+  "/etc/default/ufw",
+  "/etc/hosts",
+  "/etc/resolv.conf",
+  "/etc/hostname",
+  "/etc/nsswitch.conf",
+  "/etc/kernel/cmdline",
+  "/etc/default/grub.d"
   ],
   "directories": [
     "/tmp",
@@ -144,5 +166,32 @@
     "/etc/audit",
     "/etc/audit/rules.d",
     "/etc/systemd"
-  ]
+  ],
+  "config_dirs": [
+  "/etc/modprobe.d",
+  "/etc/sudoers.d",
+  "/etc/pam.d",
+  "/etc/ssh/sshd_config.d",
+  "/etc/systemd/timesyncd.conf.d",
+  "/etc/systemd/journald.conf.d",
+  "/etc/rsyslog.d",
+  "/etc/audit/rules.d",
+  "/etc/profile.d",
+  "/etc/apparmor.d",
+  "/etc/chrony/sources.d",
+  "/etc/chrony/conf.d",
+  "/etc/default/grub.d"
+],
+"sysctl_keys": [
+  "net.ipv4.ip_forward",
+  "net.ipv6.conf.all.forwarding",
+  "net.ipv4.conf.all.rp_filter",
+  "net.ipv4.tcp_syncookies",
+  "net.ipv4.conf.all.accept_redirects",
+  "net.ipv4.conf.all.accept_source_route",
+  "kernel.randomize_va_space",
+  "kernel.yama.ptrace_scope",
+  "fs.suid_dumpable",
+  "kernel.core_pattern"
+]
 }
