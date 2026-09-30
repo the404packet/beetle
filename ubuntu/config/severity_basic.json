@@ -90,7 +90,7 @@
   "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_active": true,
   "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_rotation": true,
   "logging_and_auditing/system_logging/configure_systemd_journal_service/single_logging_system": true,
-  "logging_and_auditing/system_auditing/configure_auditd_service/auditd_grub_audit": true,
+
   
   "initial_setup/filesystem/configure_filesystem_kernel_modules/cramfs": true,
   "initial_setup/filesystem/configure_filesystem_kernel_modules/freexvfs": true,
@@ -102,7 +102,6 @@
   "initial_setup/filesystem/configure_filesystem_kernel_modules/udf": true,
   "initial_setup/filesystem/configure_filesystem_kernel_modules/unused_filesystem": true,
   "initial_setup/filesystem/configure_filesystem_kernel_modules/usb_storage": true,
-  "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_partition": true,
   "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_nodev": true,
   "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_nosuid": true,
   "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_noexec": true,
@@ -129,6 +128,5 @@
   "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_nosuid": true,
   "initial_setup/filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_noexec": true,
   "initial_setup/mandatory_access_control/configure_apparmor/apparmor_installed": true,
-  "initial_setup/package_management/configure_package_repositories/apt_repositories": true,
   "initial_setup/package_management/configure_package_repositories/gpg_keys": true
   }

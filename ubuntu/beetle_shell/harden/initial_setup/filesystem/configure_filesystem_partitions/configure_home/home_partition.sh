@@ -22,7 +22,7 @@ if ! is_partition_mounted "/home"; then
     echo -e "${GREEN}SUCCESS${RESET}"
     echo -e "${YELLOW:-\e[33m}MANUAL CHECK${RESET} /home is not a separate partition."
     echo -e "${YELLOW:-\e[33m}FIX:${RESET} Create a separate partition for /home, mount it, copy existing /home data, and add it to /etc/fstab."
-    echo 
+    echo " "
     exit 0
 fi
 
