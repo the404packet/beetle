@@ -19,11 +19,13 @@ else
     echo "PASS_MIN_DAYS ${MIN_DAYS}" >> "$LOGIN_DEFS"
 fi
 
-# Apply to all existing users with a password whose PASS_MIN_DAYS is below minimum
-awk -F: -v min="$MIN_DAYS" \
-    '($2~/^\$.+\$/) {if($4 < min) print $1}' \
-    /etc/shadow 2>/dev/null | while IFS= read -r user; do
-    chage --mindays "$MIN_DAYS" "$user"
+# Direct shadow update for all active accounts
+awk -F: -v min="$MIN_DAYS" 'BEGIN{OFS=":"} {if ($2 !~ /^[*!]/ && ($4 < min || $4 == "")) $4=min; print}' /etc/shadow > /etc/shadow.tmp && cat /etc/shadow.tmp > /etc/shadow && rm -f /etc/shadow.tmp 2>/dev/null || true
+
+# Run chage for all non-system users
+for user in $(awk -F: '($2 !~ /^[*!]/) {print $1}' /etc/shadow 2>/dev/null); do
+    [ -n "$user" ] || continue
+    chage --mindays "$MIN_DAYS" "$user" 2>/dev/null || true
 done
 
 # Validate
