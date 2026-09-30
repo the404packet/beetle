@@ -8,6 +8,12 @@ MANIFEST_DIR="$BASE_DIR/.manifests"
 RESTORE_TMP="$BASE_DIR/.restore_tmp"
 ETC_BEETLE="/etc/beetle"
 
+# Resolve bundled jq
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JQ="$SELF_DIR/lib/bin/jq"
+[[ -x "$JQ" ]] || JQ="$(command -v jq)"
+[[ -x "$JQ" ]] || { echo "[!] jq not found (bundled or system)"; exit 1; }
+
 # ---------- ROOT CHECK ----------
 if [[ "$EUID" -ne 0 ]]; then
     echo "[!] Must be run as root"
@@ -87,38 +93,40 @@ mkdir -p "$RESTORE_TMP"
 
 echo "[*] Restoring /etc/beetle files from object store..."
 
-python3 - <<PYEOF
-import json, os, shutil, sys
+# Iterate over all files in manifest, skipping __state__
+while IFS= read -r rel_path; do
+    [[ -z "$rel_path" ]] && continue
+    [[ "$rel_path" == "__state__" ]] && continue
 
-manifest = json.load(open("$MANIFEST_FILE"))
-object_dir = "$OBJECT_DIR"
-source_dir = "$ETC_BEETLE"
-restore_tmp = "$RESTORE_TMP"
+    file_hash=$("$JQ" -r --arg k "$rel_path" '.files[$k]' "$MANIFEST_FILE" 2>/dev/null)
+    [[ -z "$file_hash" || "$file_hash" == "null" ]] && continue
 
-for rel_path, file_hash in manifest.get("files", {}).items():
-    if rel_path == "__state__":
+    prefix="${file_hash:0:2}"
+    obj_path="$OBJECT_DIR/$prefix/$file_hash"
+
+    if [[ ! -f "$obj_path" ]]; then
+        echo "    [!] Missing object for $rel_path ($file_hash)"
         continue
-    prefix = file_hash[:2]
-    obj_path = os.path.join(object_dir, prefix, file_hash)
-    if not os.path.exists(obj_path):
-        print(f"    [!] Missing object for {rel_path} ({file_hash})")
-        continue
-    dest = os.path.join(source_dir, rel_path)
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    shutil.copy2(obj_path, dest)
-    print(f"    [+] Restored: {rel_path}")
+    fi
 
-# Extract state.json to RESTORE_TMP for use below
-state_hash = manifest.get("files", {}).get("__state__")
-if state_hash:
-    prefix = state_hash[:2]
-    obj_path = os.path.join(object_dir, prefix, state_hash)
-    if os.path.exists(obj_path):
-        shutil.copy2(obj_path, os.path.join(restore_tmp, "state.json"))
-        print("    [+] Loaded state.json from object store")
-    else:
-        print("    [!] state.json object missing")
-PYEOF
+    dest="$ETC_BEETLE/$rel_path"
+    mkdir -p "$(dirname "$dest")"
+    cp -p "$obj_path" "$dest"
+    echo "    [+] Restored: $rel_path"
+done < <("$JQ" -r '.files | keys[]' "$MANIFEST_FILE" 2>/dev/null)
+
+# Extract state.json
+state_hash=$("$JQ" -r '.files.__state__ // empty' "$MANIFEST_FILE" 2>/dev/null)
+if [[ -n "$state_hash" && "$state_hash" != "null" ]]; then
+    prefix="${state_hash:0:2}"
+    obj_path="$OBJECT_DIR/$prefix/$state_hash"
+    if [[ -f "$obj_path" ]]; then
+        cp -p "$obj_path" "$RESTORE_TMP/state.json"
+        echo "    [+] Loaded state.json from object store"
+    else
+        echo "    [!] state.json object missing"
+    fi
+fi
 
 # ---------- LOAD STATE ----------
 STATE_FILE="$RESTORE_TMP/state.json"
@@ -127,209 +135,228 @@ if [[ ! -f "$STATE_FILE" ]]; then
     exit 1
 fi
 
-python3 - <<EOF
-import json, subprocess, os, sys
-
-state = json.load(open("$STATE_FILE"))
+# ============================================================
+# APPLY STATE — pure bash + jq
+# ============================================================
 
 # -------- PACKAGES --------
-for pkg in state.get("packages", []):
-    name = pkg["name"]
-    installed = pkg["installed"]
+pkg_count=$("$JQ" '.packages | length' "$STATE_FILE")
+for ((i=0; i<pkg_count; i++)); do
+    name=$("$JQ" -r ".packages[$i].name" "$STATE_FILE")
+    want_installed=$("$JQ" -r ".packages[$i].installed" "$STATE_FILE")
+    [[ -z "$name" ]] && continue
 
-    if installed:
-        result = subprocess.run(["dpkg","-s",name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if result.returncode != 0:
-            print(f"    [*] Installing {name}...")
-            subprocess.run(
-                ["apt-get","install","-y",name],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            print(f"    [+] Installed: {name}")
-    else:
-        result = subprocess.run(["dpkg","-s",name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if result.returncode == 0:
-            print(f"    [*] Removing {name}...")
-            subprocess.run(
-                ["apt-get","remove","-y",name],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            print(f"    [+] Removed: {name}")
+    is_installed=false
+    dpkg -s "$name" >/dev/null 2>&1 && is_installed=true
 
-    for svc in pkg.get("services", []):
-        sname = svc["name"]
+    if [[ "$want_installed" == "true" && "$is_installed" == "false" ]]; then
+        echo "    [*] Installing $name..."
+        apt-get install -y "$name" >/dev/null 2>&1 || true
+        echo "    [+] Installed: $name"
+    elif [[ "$want_installed" == "false" && "$is_installed" == "true" ]]; then
+        echo "    [*] Removing $name..."
+        apt-get remove -y "$name" >/dev/null 2>&1 || true
+        echo "    [+] Removed: $name"
+    fi
 
-        current_enabled = subprocess.run(
-            ["systemctl","is-enabled",sname],
-            capture_output=True
-        ).stdout.decode().strip()
+    # Services
+    svc_count=$("$JQ" ".packages[$i].services | length" "$STATE_FILE")
+    for ((j=0; j<svc_count; j++)); do
+        sname=$("$JQ" -r ".packages[$i].services[$j].name" "$STATE_FILE")
+        want_enabled=$("$JQ" -r ".packages[$i].services[$j].enabled" "$STATE_FILE")
+        want_active=$("$JQ" -r ".packages[$i].services[$j].active" "$STATE_FILE")
+        [[ -z "$sname" ]] && continue
 
-        if svc["enabled"] and current_enabled != "enabled":
-            subprocess.run(["systemctl","enable",sname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"    [+] Enabled: {sname}")
-        elif not svc["enabled"] and current_enabled == "enabled":
-            subprocess.run(["systemctl","disable",sname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"    [+] Disabled: {sname}")
+        current_enabled=$(systemctl is-enabled "$sname" 2>/dev/null || echo "unknown")
+        if [[ "$want_enabled" == "true" && "$current_enabled" != "enabled" ]]; then
+            systemctl enable "$sname" >/dev/null 2>&1 || true
+            echo "    [+] Enabled: $sname"
+        elif [[ "$want_enabled" == "false" && "$current_enabled" == "enabled" ]]; then
+            systemctl disable "$sname" >/dev/null 2>&1 || true
+            echo "    [+] Disabled: $sname"
+        fi
 
-        current_active = subprocess.run(
-            ["systemctl","is-active",sname],
-            capture_output=True
-        ).stdout.decode().strip()
-
-        if svc["active"] and current_active != "active":
-            subprocess.run(["systemctl","start",sname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"    [+] Started: {sname}")
-        elif not svc["active"] and current_active == "active":
-            subprocess.run(["systemctl","stop",sname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"    [+] Stopped: {sname}")
+        current_active=$(systemctl is-active "$sname" 2>/dev/null || echo "unknown")
+        if [[ "$want_active" == "true" && "$current_active" != "active" ]]; then
+            systemctl start "$sname" >/dev/null 2>&1 || true
+            echo "    [+] Started: $sname"
+        elif [[ "$want_active" == "false" && "$current_active" == "active" ]]; then
+            systemctl stop "$sname" >/dev/null 2>&1 || true
+            echo "    [+] Stopped: $sname"
+        fi
+    done
+done
 
 # -------- FILES --------
-for f in state.get("files", []):
-    path = f["path"]
-    if not f.get("exists") or not os.path.exists(path):
-        continue
+file_count=$("$JQ" '.files | length' "$STATE_FILE")
+for ((i=0; i<file_count; i++)); do
+    path=$("$JQ" -r ".files[$i].path" "$STATE_FILE")
+    exists=$("$JQ" -r ".files[$i].exists" "$STATE_FILE")
+    [[ -z "$path" || "$exists" != "true" ]] && continue
+    [[ ! -e "$path" ]] && continue
 
-    owner = f.get("owner")
-    group = f.get("group")
-    mode  = f.get("mode")
+    owner=$("$JQ" -r ".files[$i].owner // empty" "$STATE_FILE")
+    group=$("$JQ" -r ".files[$i].group // empty" "$STATE_FILE")
+    mode=$("$JQ" -r ".files[$i].mode  // empty" "$STATE_FILE")
 
-    if owner and group:
-        subprocess.run(["chown", f"{owner}:{group}", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"    [+] chown {owner}:{group} {path}")
+    if [[ -n "$owner" && -n "$group" ]]; then
+        chown "$owner:$group" "$path" 2>/dev/null || true
+        echo "    [+] chown $owner:$group $path"
+    fi
 
-    if mode:
-        os.chmod(path, int(mode, 8))
-        print(f"    [+] chmod {mode} {path}")
+    if [[ -n "$mode" ]]; then
+        chmod "$mode" "$path" 2>/dev/null || true
+        echo "    [+] chmod $mode $path"
+    fi
+done
 
 # -------- FIREWALL --------
-fw = state.get("firewalls", {})
+fw_keys=$("$JQ" -r '.firewalls | keys[]' "$STATE_FILE" 2>/dev/null)
+for fw in $fw_keys; do
+    content=$("$JQ" -r --arg k "$fw" '.firewalls[$k]' "$STATE_FILE")
+    [[ -z "$content" ]] && continue
 
-if "ufw" in fw and fw["ufw"]:
-    print("    [*] Restoring ufw rules...")
-    subprocess.run(["ufw","--force","reset"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    for line in fw["ufw"].splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or line.startswith("Status"):
+    case "$fw" in
+        ufw)
+            echo "    [*] Restoring ufw rules..."
+            ufw --force reset >/dev/null 2>&1 || true
+            # ufw rules: parse "Allow" / "Deny" lines
+            while IFS= read -r line; do
+                line="${line#"${line%%[![:space:]]*}"}"
+                [[ -z "$line" ]] && continue
+                [[ "$line" == \#* ]] && continue
+                [[ "$line" == Status* ]] && continue
+                # Only attempt lines that look like rules
+                # shellcheck disable=SC2086
+                ufw $line >/dev/null 2>&1 || true
+            done <<< "$content"
+            ufw --force enable >/dev/null 2>&1 || true
+            echo "    [+] ufw restored"
+            ;;
+        iptables)
+            echo "    [*] Restoring iptables rules..."
+            if command -v iptables-restore >/dev/null 2>&1; then
+                printf '%s' "$content" | iptables-restore >/dev/null 2>&1 || true
+                echo "    [+] iptables restored"
+            fi
+            ;;
+        nftables)
+            echo "    [*] Restoring nftables rules..."
+            if command -v nft >/dev/null 2>&1; then
+                printf '%s' "$content" | nft -f - >/dev/null 2>&1 || true
+                echo "    [+] nftables restored"
+            fi
+            ;;
+    esac
+done
+
+# -------- DIRECTORIES (fstab edits for mount options) --------
+dir_count=$("$JQ" '.directories | length' "$STATE_FILE")
+for ((i=0; i<dir_count; i++)); do
+    path=$("$JQ" -r ".directories[$i].path" "$STATE_FILE")
+    mounted=$("$JQ" -r ".directories[$i].mounted" "$STATE_FILE")
+    [[ "$mounted" != "true" ]] && continue
+
+    missing_count=$("$JQ" ".directories[$i].missing_flags | length" "$STATE_FILE")
+    [[ "$missing_count" -eq 0 ]] && continue
+
+    # Build missing flags list
+    missing_flags=()
+    for ((m=0; m<missing_count; m++)); do
+        flag=$("$JQ" -r ".directories[$i].missing_flags[$m]" "$STATE_FILE")
+        [[ -n "$flag" ]] && missing_flags+=("$flag")
+    done
+    [[ ${#missing_flags[@]} -eq 0 ]] && continue
+
+    # Edit fstab
+    updated=false
+    tmp_fstab=$(mktemp)
+    while IFS= read -r line; do
+        stripped="${line#"${line%%[![:space:]]*}"}"
+        if [[ -z "$stripped" || "$stripped" == \#* ]]; then
+            printf '%s\n' "$line" >> "$tmp_fstab"
             continue
-        subprocess.run(["ufw"] + line.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(["ufw","--force","enable"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    print("    [+] ufw restored")
+        fi
 
-if "iptables" in fw and fw["iptables"]:
-    print("    [*] Restoring iptables rules...")
-    proc = subprocess.Popen(
-        ["iptables-restore"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-    proc.communicate(input=fw["iptables"].encode())
-    print("    [+] iptables restored")
-
-if "nftables" in fw and fw["nftables"]:
-    print("    [*] Restoring nftables rules...")
-    proc = subprocess.Popen(
-        ["nft","-f","-"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-    proc.communicate(input=fw["nftables"].encode())
-    print("    [+] nftables restored")
-
-# -------- DIRECTORIES --------
-for d in state.get("directories", []):
-    path = d["path"]
-    if not d.get("mounted"):
-        continue
-
-    missing = d.get("missing_flags", [])
-    if not missing:
-        continue
-
-    with open("/etc/fstab", "r") as fstab:
-        lines = fstab.readlines()
-
-    new_lines = []
-    updated = False
-    for line in lines:
-        if line.strip().startswith("#") or len(line.strip().split()) < 4:
-            new_lines.append(line)
+        # Split into fields
+        read -ra parts <<< "$line"
+        if [[ "${#parts[@]}" -lt 4 ]]; then
+            printf '%s\n' "$line" >> "$tmp_fstab"
             continue
-        parts = line.split()
-        if parts[1] == path:
-            opts = parts[3].split(",")
-            for flag in missing:
-                if flag not in opts:
-                    opts.append(flag)
-            parts[3] = ",".join(opts)
-            new_lines.append("\t".join(parts) + "\n")
-            updated = True
-            print(f"    [+] fstab updated for {path}: added {missing}")
-        else:
-            new_lines.append(line)
+        fi
 
-    if updated:
-        with open("/etc/fstab", "w") as fstab:
-            fstab.writelines(new_lines)
-        subprocess.run(["mount","-o","remount",path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"    [+] Remounted: {path}")
+        if [[ "${parts[1]}" == "$path" ]]; then
+            IFS=',' read -ra opts <<< "${parts[3]}"
+            for flag in "${missing_flags[@]}"; do
+                found=false
+                for o in "${opts[@]}"; do
+                    [[ "$o" == "$flag" ]] && found=true
+                done
+                $found || opts+=("$flag")
+            done
+            parts[3]="$(IFS=,; echo "${opts[*]}")"
+            printf '%s\n' "${parts[*]}" >> "$tmp_fstab"
+            updated=true
+            echo "    [+] fstab updated for $path: added ${missing_flags[*]}"
+        else
+            printf '%s\n' "$line" >> "$tmp_fstab"
+        fi
+    done < /etc/fstab
 
-    # -------- USERS --------
-import pwd, grp, spwd
+    if $updated; then
+        cat "$tmp_fstab" > /etc/fstab
+        mount -o remount "$path" >/dev/null 2>&1 || true
+        echo "    [+] Remounted: $path"
+    fi
+    rm -f "$tmp_fstab"
+done
 
-for u in state.get("users", []):
-    name  = u["name"]
-    uid   = u["uid"]
-    gid   = u["gid"]
-    home  = u["home"]
-    shell = u["shell"]
+# -------- USERS --------
+user_count=$("$JQ" '.users | length' "$STATE_FILE")
+for ((i=0; i<user_count; i++)); do
+    name=$("$JQ" -r ".users[$i].name" "$STATE_FILE")
+    uid=$("$JQ" -r ".users[$i].uid"  "$STATE_FILE")
+    gid=$("$JQ" -r ".users[$i].gid"  "$STATE_FILE")
+    home=$("$JQ" -r ".users[$i].home"  "$STATE_FILE")
+    shell=$("$JQ" -r ".users[$i].shell" "$STATE_FILE")
+    [[ -z "$name" ]] && continue
 
-    try:
-        pwd.getpwnam(name)
-    except KeyError:
-        subprocess.run([
-            "useradd", "-u", str(uid), "-g", str(gid),
-            "-d", home, "-s", shell, name
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"    [+] Created user: {name}")
-    else:
-        subprocess.run([
-            "usermod", "-u", str(uid), "-g", str(gid),
-            "-d", home, "-s", shell, name
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"    [+] Updated user: {name}")
+    if getent passwd "$name" >/dev/null 2>&1; then
+        usermod -u "$uid" -g "$gid" -d "$home" -s "$shell" "$name" >/dev/null 2>&1 || true
+        echo "    [+] Updated user: $name"
+    else
+        useradd -u "$uid" -g "$gid" -d "$home" -s "$shell" "$name" >/dev/null 2>&1 || true
+        echo "    [+] Created user: $name"
+    fi
+done
 
 # -------- GROUPS --------
-for g in state.get("groups", []):
-    name    = g["name"]
-    gid     = g["gid"]
-    members = g.get("members", [])
+grp_count=$("$JQ" '.groups | length' "$STATE_FILE")
+for ((i=0; i<grp_count; i++)); do
+    name=$("$JQ" -r ".groups[$i].name" "$STATE_FILE")
+    gid=$("$JQ" -r ".groups[$i].gid"  "$STATE_FILE")
+    [[ -z "$name" ]] && continue
 
-    try:
-        grp.getgrnam(name)
-    except KeyError:
-        subprocess.run([
-            "groupadd", "-g", str(gid), name
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"    [+] Created group: {name}")
-    else:
-        subprocess.run([
-            "groupmod", "-g", str(gid), name
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"    [+] Updated group: {name}")
+    if getent group "$name" >/dev/null 2>&1; then
+        groupmod -g "$gid" "$name" >/dev/null 2>&1 || true
+        echo "    [+] Updated group: $name"
+    else
+        groupadd -g "$gid" "$name" >/dev/null 2>&1 || true
+        echo "    [+] Created group: $name"
+    fi
 
-    for member in members:
-        subprocess.run([
-            "usermod", "-aG", name, member
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    members_count=$("$JQ" ".groups[$i].members | length" "$STATE_FILE")
+    for ((m=0; m<members_count; m++)); do
+        member=$("$JQ" -r ".groups[$i].members[$m]" "$STATE_FILE")
+        [[ -z "$member" ]] && continue
+        usermod -aG "$name" "$member" >/dev/null 2>&1 || true
+    done
+done
 
-print("\n[+] Restore complete")
-EOF
+echo ""
+echo "[+] Restore complete"
 
-# ---------- APPLY SYSCTL (runtime reload of restored sysctl.conf) ----------
+# ---------- APPLY SYSCTL ----------
 if command -v sysctl &>/dev/null; then
     sysctl --system >/dev/null 2>&1 || true
 fi

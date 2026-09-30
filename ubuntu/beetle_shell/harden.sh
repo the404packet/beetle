@@ -11,6 +11,7 @@ export BEETLE_SHELL_ROOT
 LIB_DIR="$BEETLE_SHELL_ROOT/lib"
 source "$LIB_DIR/ram_store.sh"  || { echo "ERROR: cannot load ram_store.sh"; exit 1; }
 source "$LIB_DIR/find_json.sh"  || { echo "ERROR: cannot load find_json.sh"; exit 1; }
+source "$LIB_DIR/order.sh"    || { echo "ERROR: cannot load order.sh"; exit 1; }
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -150,13 +151,7 @@ else
     SEARCH_PATH="$BEETLE_SHELL_ROOT/harden"
 fi
 
-mapfile -d '' scripts < <(
-    find "$SEARCH_PATH" \
-        -mindepth 1 \
-        -type f \
-        -name "*.sh" \
-        -print0
-)
+mapfile -t scripts < <(ordered_scripts "$SEARCH_PATH")
 
 echo -e "${CYAN}Capturing pre-harden snapshot...${RESET}"
 

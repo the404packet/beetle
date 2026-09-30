@@ -260,12 +260,7 @@ _gc_objects() {
     while IFS= read -r -d '' manifest; do
         while IFS= read -r hash; do
             active_hashes["$hash"]=1
-        done < <(python3 -c "
-import json, sys
-data = json.load(open('$manifest'))
-for h in data.get('files', {}).values():
-    print(h)
-" 2>/dev/null)
+        done < <("$JQ" -r '.files | to_entries | .[].value' "$manifest" 2>/dev/null)
     done < <(find "$MANIFEST_DIR" -type f -name "*.json" -print0)
 
     # Remove any object not in active_hashes

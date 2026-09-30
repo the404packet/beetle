@@ -1,0 +1,71 @@
+# Beetle execution order — services module
+# Mirrors CIS Ubuntu 22.04 §2 ordering
+#
+# Notes:
+#   * 2.1.x  server services (restrict)
+#   * 2.1.22 approved listening services (manual, runs after restricts)
+#   * 2.2.x  client services
+#   * 2.3.1  single time daemon (must run before per-daemon scripts)
+#   * 2.3.2  systemd-timesyncd
+#   * 2.3.3  chrony
+#   * 2.4.1  cron
+#   * 2.4.2  at
+
+# ── 2.1.x server services (restrict) ──
+configure_server_services/autofs_service.sh
+configure_server_services/avahi_service.sh
+configure_server_services/dhcp_service.sh
+configure_server_services/dns_service.sh
+configure_server_services/dnsmasq_service.sh
+configure_server_services/ftp_service.sh
+configure_server_services/ldap_service.sh
+configure_server_services/message_access_server_service.sh
+configure_server_services/network_file_system_service.sh
+configure_server_services/nis_server_service.sh
+configure_server_services/print_service.sh
+configure_server_services/rpcbind_service.sh
+configure_server_services/rsync_service.sh
+configure_server_services/samba_file_server_service.sh
+configure_server_services/snmp_service.sh
+configure_server_services/tftp_service.sh
+configure_server_services/web_proxy_server_service.sh
+configure_server_services/web_server_service.sh
+configure_server_services/xinetd_service.sh
+configure_server_services/x_window_server_services.sh
+configure_server_services/mta_not_listening_on_loopback.sh
+
+# ── 2.1.22 approved listening services (manual) ──
+configure_server_services/approved_services.sh
+
+# ── 2.2.x client services ──
+configure_client_services/nis_client.sh
+configure_client_services/rsh_client.sh
+configure_client_services/talk_client.sh
+configure_client_services/telnet_client.sh
+configure_client_services/ldap_client.sh
+configure_client_services/ftp_client.sh
+
+# ── 2.3.1 single time daemon (must precede per-daemon scripts) ──
+configure_time_synchronization/time_sync_single_daemon.sh
+
+# ── 2.3.2 systemd-timesyncd ──
+configure_time_synchronization/timesyncd/timesyncd_configured.sh
+configure_time_synchronization/timesyncd/timesyncd_enabled.sh
+
+# ── 2.3.3 chrony ──
+configure_time_synchronization/chrony/chrony_configured.sh
+configure_time_synchronization/chrony/chrony_user.sh
+configure_time_synchronization/chrony/chrony_enabled.sh
+
+# ── 2.4.1 cron ──
+job_schedulers/configure_cron/cron_daemon.sh
+job_schedulers/configure_cron/crontab_permissions.sh
+job_schedulers/configure_cron/cron_hourly_permissions.sh
+job_schedulers/configure_cron/cron_daily_permissions.sh
+job_schedulers/configure_cron/cron_weekly_permissions.sh
+job_schedulers/configure_cron/cron_monthly_permissions.sh
+job_schedulers/configure_cron/cron_d_permissions.sh
+job_schedulers/configure_cron/crontab_restricition.sh
+
+# ── 2.4.2 at ──
+job_schedulers/configure_at/at_restriction.sh

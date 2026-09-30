@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
+# state_snapshot.sh — capture current system state into JSON
+#
+# No Python dependency. Uses bundled jq at lib/bin/jq.
+
+set -u
 
 CONCERNED_JSON="/etc/beetle/concerned.json"
 OUTPUT_JSON=""
 
+# Resolve our own directory so we can find the bundled jq
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JQ="$SELF_DIR/bin/jq"
+[[ -x "$JQ" ]] || JQ="$(command -v jq)"  # fallback to system jq
+[[ -x "$JQ" ]] || { echo "[!] jq not found (bundled or system)"; exit 1; }
+
 # ---------- ROOT CHECK ----------
-if [[ "$EUID" -ne 0 ]]; then
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
     echo "[!] This script must be run as root"
     exit 1
 fi
@@ -24,212 +35,214 @@ done
 # ---------- HELPERS ----------
 
 json_escape() {
-    printf '%s' "$1" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//'
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
 }
+
+jstr() { printf '"%s"' "$(json_escape "$1")"; }
+jbool() { if [[ "$1" == "true" ]]; then printf 'true'; else printf 'false'; fi; }
 
 pkg_installed() {
-    dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed" && echo "true" || echo "false"
+    dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"
 }
 
-svc_enabled() {
-    [[ "$(systemctl is-enabled "$1" 2>/dev/null)" == "enabled" ]] && echo "true" || echo "false"
-}
+svc_enabled() { [[ "$(systemctl is-enabled "$1" 2>/dev/null)" == "enabled" ]]; }
+svc_active()  { [[ "$(systemctl is-active  "$1" 2>/dev/null)" == "active"  ]]; }
 
-svc_active() {
-    [[ "$(systemctl is-active "$1" 2>/dev/null)" == "active" ]] && echo "true" || echo "false"
-}
+km_loaded() { grep -qw "^$1" /proc/modules 2>/dev/null; }
+km_exists() { modinfo "$1" &>/dev/null; }
 
-km_loaded() {
-    grep -qw "^$1" /proc/modules 2>/dev/null && echo "true" || echo "false"
-}
-
-km_exists() {
-    modinfo "$1" &>/dev/null && echo "true" || echo "false"
-}
-
-fw_rules() {
+dump_firewall() {
     case "$1" in
-        ufw) command -v ufw &>/dev/null && ufw status verbose 2>/dev/null || echo "" ;;
-        iptables) command -v iptables-save &>/dev/null && iptables-save 2>/dev/null || echo "" ;;
-        nftables) command -v nft &>/dev/null && nft list ruleset 2>/dev/null || echo "" ;;
+        ufw)      command -v ufw      &>/dev/null && ufw status verbose 2>/dev/null ;;
+        iptables) command -v iptables-save &>/dev/null && iptables-save 2>/dev/null ;;
+        nftables) command -v nft      &>/dev/null && nft list ruleset  2>/dev/null ;;
     esac
 }
 
-file_stat() {
-    [[ ! -e "$1" ]] && { echo ""; return; }
-    case "$2" in
-        owner) stat -c '%U' "$1" ;;
-        group) stat -c '%G' "$1" ;;
-        mode)  stat -c '%a' "$1" ;;
-    esac
-}
+# ---------- BUILD JSON ----------
+umask 077
 
-# ---------- JSON BUILD (SAFE) ----------
+exec 3>"$OUTPUT_JSON"
 
-OUT=$(
-python3 - <<EOF
-import json, subprocess, os
-
-conf = "$CONCERNED_JSON"
-
-data = json.load(open(conf))
-
-result = {}
+{
+printf '{\n'
 
 # -------- PACKAGES --------
-pkgs = []
-for pkg, services in data.get("packages", {}).items():
-    try:
-        subprocess.check_output(["dpkg","-s",pkg], stderr=subprocess.DEVNULL)
-        installed = True
-    except:
-        installed = False
+printf '  "packages": [\n'
+first_pkg=true
+while IFS= read -r pkg; do
+    [[ -z "$pkg" ]] && continue
 
-    svc_list = []
-    for s in services:
-        def run(cmd):
-            try:
-                return subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
-            except:
-                return "unknown"
+    $first_pkg && first_pkg=false || printf ',\n'
 
-        svc_list.append({
-            "name": s,
-            "enabled": run(["systemctl","is-enabled",s]) == "enabled",
-            "active": run(["systemctl","is-active",s]) == "active"
-        })
+    installed=false
+    pkg_installed "$pkg" && installed=true
 
-    pkgs.append({
-        "name": pkg,
-        "installed": installed,
-        "services": svc_list
-    })
+    printf '    {\n'
+    printf '      "name": %s,\n' "$(jstr "$pkg")"
+    printf '      "installed": %s,\n' "$(jbool "$installed")"
+    printf '      "services": ['
 
-result["packages"] = pkgs
+    first_svc=true
+    while IFS= read -r svc; do
+        [[ -z "$svc" ]] && continue
 
-# -------- KERNEL --------
-kmods = []
-loaded = subprocess.check_output(["lsmod"]).decode()
+        $first_svc && first_svc=false || printf ','
 
-for m in data.get("kernel_modules", []):
-    name = m["name"]
-    exists = subprocess.call(["modinfo", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+        enabled=false; svc_enabled "$svc" && enabled=true
+        active=false;  svc_active  "$svc" && active=true
 
-    kmods.append({
-        "name": name,
-        "loaded": name in loaded,
-        "exists": exists
-    })
+        printf '\n        { "name": %s, "enabled": %s, "active": %s }' \
+            "$(jstr "$svc")" "$(jbool "$enabled")" "$(jbool "$active")"
+    done < <("$JQ" -r --arg p "$pkg" '.packages[$p][]?' "$CONCERNED_JSON" 2>/dev/null)
 
-result["kernel_modules"] = kmods
+    $first_svc && printf ']\n' || printf '\n      ]\n'
+    printf '    }'
+done < <("$JQ" -r '.packages | keys[]' "$CONCERNED_JSON" 2>/dev/null)
 
-# -------- FIREWALL --------
-fw = {}
-def safe(cmd):
-    try:
-        return subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode()
-    except:
-        return ""
+printf '\n  ],\n'
 
-for f in data.get("firewalls", []):
-    if f == "ufw":
-        fw[f] = safe(["ufw","status","verbose"])
-    elif f == "iptables":
-        fw[f] = safe(["iptables-save"])
-    elif f == "nftables":
-        fw[f] = safe(["nft","list","ruleset"])
+# -------- KERNEL MODULES --------
+printf '  "kernel_modules": [\n'
+first_km=true
+while IFS= read -r km; do
+    [[ -z "$km" ]] && continue
 
-result["firewalls"] = fw
+    $first_km && first_km=false || printf ',\n'
+
+    loaded=false; km_loaded "$km" && loaded=true
+    exists=false; km_exists "$km" && exists=true
+
+    printf '    { "name": %s, "loaded": %s, "exists": %s }' \
+        "$(jstr "$km")" "$(jbool "$loaded")" "$(jbool "$exists")"
+done < <("$JQ" -r '.kernel_modules[].name' "$CONCERNED_JSON" 2>/dev/null)
+
+printf '\n  ],\n'
+
+# -------- FIREWALLS --------
+printf '  "firewalls": {'
+first_fw=true
+while IFS= read -r fw; do
+    [[ -z "$fw" ]] && continue
+
+    $first_fw && first_fw=false || printf ','
+
+    rules=$(dump_firewall "$fw")
+    printf '\n    %s: %s' "$(jstr "$fw")" "$(jstr "$rules")"
+done < <("$JQ" -r '.firewalls[]' "$CONCERNED_JSON" 2>/dev/null)
+
+$first_fw && printf '},\n' || printf '\n  },\n'
 
 # -------- FILES --------
-files = []
-for f in data.get("files", []):
-    if not os.path.exists(f):
-        files.append({"path": f, "exists": False})
-    else:
-        st = os.stat(f)
-        import pwd, grp
-        files.append({
-            "path": f,
-            "exists": True,
-            "owner": pwd.getpwuid(st.st_uid).pw_name,
-            "group": grp.getgrgid(st.st_gid).gr_name,
-            "mode": oct(st.st_mode & 0o777)
-        })
+printf '  "files": [\n'
+first_file=true
+while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
 
-result["files"] = files
+    $first_file && first_file=false || printf ',\n'
+
+    if [[ ! -e "$path" ]]; then
+        printf '    { "path": %s, "exists": false }' "$(jstr "$path")"
+        continue
+    fi
+
+    owner=$(stat -c '%U' "$path" 2>/dev/null)
+    group=$(stat -c '%G' "$path" 2>/dev/null)
+    mode=$(stat -c '%a'  "$path" 2>/dev/null)
+
+    printf '    { "path": %s, "exists": true, "owner": %s, "group": %s, "mode": %s }' \
+        "$(jstr "$path")" "$(jstr "$owner")" "$(jstr "$group")" "$(jstr "$mode")"
+done < <("$JQ" -r '.files[]' "$CONCERNED_JSON" 2>/dev/null)
+
+printf '\n  ],\n'
 
 # -------- DIRECTORIES --------
-dirs = []
-EXPECTED_FLAGS = {"nodev", "noexec", "nosuid"}
+printf '  "directories": [\n'
+first_dir=true
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
 
-for d in data.get("directories", []):
-    try:
-        out = subprocess.check_output(["findmnt","-no","OPTIONS",d], stderr=subprocess.DEVNULL).decode().strip()
-        options = out.split(",")
-        present = EXPECTED_FLAGS & set(options)
-        missing = EXPECTED_FLAGS - set(options)
-        dirs.append({
-            "path": d,
-            "mounted": True,
-            "options": options,
-            "nodev":   "nodev"   in options,
-            "noexec":  "noexec"  in options,
-            "nosuid":  "nosuid"  in options,
-            "missing_flags": sorted(missing)
-        })
-    except:
-        dirs.append({
-            "path": d,
-            "mounted": False,
-            "options": [],
-            "nodev":   False,
-            "noexec":  False,
-            "nosuid":  False,
-            "missing_flags": sorted(EXPECTED_FLAGS)
-        })
+    $first_dir && first_dir=false || printf ',\n'
 
-result["directories"] = dirs
+    opts=""
+    mounted=false
+    if opts=$(findmnt -no OPTIONS "$dir" 2>/dev/null); then
+        mounted=true
+    fi
+
+    nodev=false;  [[ ",$opts," == *,nodev,*  ]] && nodev=true
+    noexec=false; [[ ",$opts," == *,noexec,* ]] && noexec=true
+    nosuid=false; [[ ",$opts," == *,nosuid,* ]] && nosuid=true
+
+    missing=""
+    $nodev  || missing+="\"nodev\","
+    $noexec || missing+="\"noexec\","
+    $nosuid || missing+="\"nosuid\","
+    missing="${missing%,}"
+
+    printf '    {\n'
+    printf '      "path": %s,\n' "$(jstr "$dir")"
+    printf '      "mounted": %s,\n' "$(jbool "$mounted")"
+    printf '      "options": ['
+    first_opt=true
+    IFS=',' read -ra opt_arr <<< "$opts"
+    for o in "${opt_arr[@]}"; do
+        [[ -z "$o" ]] && continue
+        $first_opt && first_opt=false || printf ', '
+        printf '%s' "$(jstr "$o")"
+    done
+    printf '],\n'
+    printf '      "nodev": %s,\n' "$(jbool "$nodev")"
+    printf '      "noexec": %s,\n' "$(jbool "$noexec")"
+    printf '      "nosuid": %s,\n' "$(jbool "$nosuid")"
+    printf '      "missing_flags": [%s]\n' "$missing"
+    printf '    }'
+done < <("$JQ" -r '.directories[]' "$CONCERNED_JSON" 2>/dev/null)
+
+printf '\n  ],\n'
 
 # -------- USERS --------
-import pwd
-users = []
-for u in pwd.getpwall():
-    users.append({
-        "name": u.pw_name,
-        "uid": u.pw_uid,
-        "gid": u.pw_gid,
-        "home": u.pw_dir,
-        "shell": u.pw_shell
-    })
-result["users"] = users
+printf '  "users": [\n'
+first_user=true
+while IFS=: read -r name _ uid gid _ home shell; do
+    [[ -z "$name" ]] && continue
+    $first_user && first_user=false || printf ',\n'
+    printf '    { "name": %s, "uid": %s, "gid": %s, "home": %s, "shell": %s }' \
+        "$(jstr "$name")" "$uid" "$gid" "$(jstr "$home")" "$(jstr "$shell")"
+done < /etc/passwd
+printf '\n  ],\n'
 
 # -------- GROUPS --------
-import grp
-groups = []
-for g in grp.getgrall():
-    groups.append({
-        "name": g.gr_name,
-        "gid": g.gr_gid,
-        "members": g.gr_mem
-    })
-result["groups"] = groups
+printf '  "groups": [\n'
+first_grp=true
+while IFS=: read -r name _ gid members; do
+    [[ -z "$name" ]] && continue
+    $first_grp && first_grp=false || printf ',\n'
 
-print(json.dumps(result))
-EOF
-)
+    member_json="["
+    first_m=true
+    IFS=',' read -ra mem_arr <<< "$members"
+    for m in "${mem_arr[@]}"; do
+        [[ -z "$m" ]] && continue
+        $first_m && first_m=false || member_json+=", "
+        member_json+="$(jstr "$m")"
+    done
+    member_json+="]"
 
-# ---------- WRITE JSON ----------
-if [[ -z "$OUT" ]]; then
-    echo "[!] Failed to generate state JSON"
-    exit 1
-fi
+    printf '    { "name": %s, "gid": %s, "members": %s }' \
+        "$(jstr "$name")" "$gid" "$member_json"
+done < /etc/group
+printf '\n  ]\n'
 
-python3 -c "
-import json, os, sys
-data = json.loads(sys.argv[1])
-json.dump(data, open('$OUTPUT_JSON', 'w'), indent=2)
-os.chmod('$OUTPUT_JSON', 0o600)
-" "$OUT"
+printf '}\n'
+} >&3
+
+exec 3>&-
 
 echo "[+] Snapshot JSON generated: $OUTPUT_JSON"
