@@ -80,7 +80,7 @@ run_harden() {
     spinner "$pid"
     wait "$pid"
     exit_code=$?
-    result=$(tr -d '\n' < "$TMP_FILE")
+    result=$(<"$TMP_FILE")
     rm -f "$TMP_FILE"
 
     # ── Unload this script's JSON from RAM ──

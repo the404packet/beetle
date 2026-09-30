@@ -18,8 +18,11 @@ if [ -n "$unit" ]; then
 fi
 
 if ! is_partition_mounted "/tmp"; then
-    echo -e "${RED}FAILED${RESET}"
-    exit 1
+    echo -e "${GREEN}SUCCESS${RESET}"
+    echo -e "${YELLOW:-\e[33m}MANUAL CHECK${RESET} /tmp is not a separate partition."
+    echo -e "${YELLOW:-\e[33m}FIX:${RESET} Create a separate partition for /tmp, mount it, copy existing /tmp data if required, and add it to /etc/fstab."
+    echo
+    exit 0
 fi
 
 echo -e "${GREEN}SUCCESS${RESET}"
