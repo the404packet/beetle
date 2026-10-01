@@ -180,8 +180,8 @@ unload_all
 
 echo
 echo -e "Harden Summary : "
+echo -e "+----------------------+------------------+------------+---------------+"
+echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Execution Failed") | $(printf "%-10s" "Succeeded") | $(printf "%-13s" "Failed") |"
 echo -e "+----------------------+------------------+------------+---------------+-----------+"
-echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Execution Failed") | $(printf "%-10s" "Succeeded") | $(printf "%-13s" "Failed") | $(printf "%-9s" "Skipped") |"
-echo -e "+----------------------+------------------+------------+---------------+-----------+"
-echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$SUCCESS_COUNT") | $(printf "%-13s" "$FAILED_COUNT") | $(printf "%-9s" "$SKIPPED_COUNT") |"
-echo -e "+----------------------+------------------+------------+---------------+-----------+"
+echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$SUCCESS_COUNT") | $(printf "%-13s" "$FAILED_COUNT") |"
+echo -e "+----------------------+------------------+------------+---------------+"
