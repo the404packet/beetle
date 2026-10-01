@@ -20,6 +20,8 @@
   "initial_setup/configure_bootloader/ensure_access_to_bootloader_config_is_configured": true,
   "initial_setup/package_management/configure_package_updates/package_updates": true,
   "initial_setup/mandatory_access_control/configure_apparmor/apparmor_profile_active": true,
+  "initial_setup/filesystem/configure_filesystem_partitions/configure_tmp/tmp_partition": true,
+  "initial_setup/package_management/configure_package_repositories/apt_repositories": true,
 
   "logging_and_auditing/configure_integrity_checking/aide_installed": true,
   "logging_and_auditing/configure_integrity_checking/aide_timer": true,
@@ -28,7 +30,8 @@
   "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_file_access": true,
   "logging_and_auditing/system_auditing/configure_auditd_service/auditd_installed": true,
   "logging_and_auditing/system_auditing/configure_auditd_service/auditd_enabled":  true,
-
+  "logging_and_auditing/system_auditing/configure_auditd_service/auditd_grub_audit": true,
+  
   "host_based_firewall/configure_a_single_firewall_utility/ensure_single_firewall_utility": true,
 
 
