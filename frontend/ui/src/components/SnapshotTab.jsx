@@ -50,7 +50,7 @@ function Toast({ msg, ok, onDone }) {
 }
 
 /* ── Restore Modal (streaming output) ── */
-function RestoreModal({ snap, onClose }) {
+function RestoreModal({ snap, onClose, onNotify }) {
   const [lines,   setLines]   = useState([])
   const [done,    setDone]    = useState(false)
   const [success, setSuccess] = useState(false)
@@ -86,7 +86,17 @@ function RestoreModal({ snap, onClose }) {
               const obj = JSON.parse(part)
               if (!cancelled) {
                 setLines(l => [...l, obj])
-                if (obj.done) { setDone(true); setSuccess(obj.ok) }
+                if (obj.done) {
+                  setDone(true)
+                  setSuccess(obj.ok)
+                  // Fire toast summary so user sees result after closing modal
+                  onNotify?.(
+                    obj.ok
+                      ? `✓ Restored: ${snap.name || snap.id}`
+                      : `✗ Restore failed: ${snap.name || snap.id}`,
+                    obj.ok
+                  )
+                }
               }
             } catch {}
           }
@@ -278,17 +288,15 @@ export default function SnapshotTab() {
       })
       const d = await r.json()
       if (d.ok) {
-        // Extract the snapshot name from output for a clean toast message
         const nameLine = (d.output || '').split('\n').find(l => l.trim().startsWith('Name'))
         const snapName = nameLine ? nameLine.split(':').slice(1).join(':').trim() : null
-        notify(snapName ? `Snapshot created: ${snapName}` : 'Snapshot created successfully.', true)
+        notify(snapName ? `✓ Snapshot created: ${snapName}` : '✓ Snapshot created successfully.')
         setNameInput(''); loadSnapshots(); loadSize()
       } else {
-        // On failure show the raw output (usually a short error message)
         const errLine = (d.output || '').split('\n').find(l => l.includes('[!]')) || 'Capture failed.'
         notify(errLine.replace('[!]', '').trim() || 'Capture failed.', false)
       }
-    } catch { notify('Request failed', false) }
+    } catch { notify('Network error — is the backend running?', false) }
     setCapturing(false)
   }
 
@@ -299,9 +307,14 @@ export default function SnapshotTab() {
     try {
       const r = await fetch(`/api/snapshots/${encodeURIComponent(snap.id)}`, { method: 'DELETE' })
       const d = await r.json()
-      notify(d.output || (d.ok ? 'Snapshot removed.' : 'Delete failed.'), d.ok)
-      if (d.ok) { loadSnapshots(); loadSize() }
-    } catch { notify('Request failed', false) }
+      if (d.ok) {
+        notify(`✓ Deleted: ${snap.name || snap.id}`)
+        loadSnapshots(); loadSize()
+      } else {
+        const errLine = (d.output || '').split('\n').find(l => l.includes('[!]')) || 'Delete failed.'
+        notify(errLine.replace('[!]', '').trim() || 'Delete failed.', false)
+      }
+    } catch { notify('Network error — is the backend running?', false) }
     setDeletingId(null)
   }
 
@@ -530,6 +543,7 @@ export default function SnapshotTab() {
         <RestoreModal
           snap={restoreSnap}
           onClose={() => { setRestoreSnap(null); loadSnapshots(); loadSize() }}
+          onNotify={notify}
         />
       )}
 

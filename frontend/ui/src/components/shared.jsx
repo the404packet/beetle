@@ -6,10 +6,7 @@ import { ChevronDown, LoaderCircle, CheckCircle2, XCircle } from 'lucide-react'
 /* ── Card ─────────────────────────────────────────────────────────────────── */
 export function Card({ children, style = {} }) {
   return (
-    <div style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 'var(--radius-lg)',
+    <div className="glass-card" style={{
       boxShadow: 'var(--shadow-card)',
       overflow: 'hidden',
       ...style,
@@ -25,9 +22,10 @@ export function CardHead({ children }) {
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '13px 18px',
-      borderBottom: '1px solid var(--border)',
+      borderBottom: '1px solid var(--glass-border-side)',
       gap: 12, flexWrap: 'wrap',
-      background: 'var(--surface-2)',
+      background: 'rgba(255,255,255,0.06)',
+      position: 'relative', zIndex: 1,
     }}>
       {children}
     </div>
@@ -65,8 +63,11 @@ export function Select({ value, onChange, children, label }) {
           onChange={e => onChange(e.target.value)}
           style={{
             appearance: 'none',
-            background: 'var(--surface)',
-            border: '1px solid var(--border-solid)',
+            background: 'var(--glass-bg)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid var(--glass-border-side)',
+            borderTop: '1px solid var(--glass-border-top)',
             borderRadius: 'var(--radius-sm)',
             color: 'var(--text-1)', fontSize: 13, fontWeight: 500,
             padding: '7px 30px 7px 11px', cursor: 'pointer', outline: 'none',
@@ -125,9 +126,12 @@ export function FilterTab({ active, label, color, count, onClick }) {
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: '4px 11px',
-        border: `1px solid ${active ? 'var(--accent-ring)' : 'var(--border-solid)'}`,
+        border: `1px solid ${active ? 'var(--accent-ring)' : 'var(--glass-border-side)'}`,
+        borderTop: `1px solid ${active ? 'var(--accent-ring)' : 'var(--glass-border-top)'}`,
         borderRadius: 'var(--radius-sm)',
-        background: active ? 'var(--accent-light)' : 'var(--surface)',
+        background: active ? 'var(--accent-light)' : 'var(--glass-bg)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         color: active ? 'var(--accent)' : 'var(--text-2)',
         fontSize: 12, fontWeight: 500, cursor: 'pointer',
         transition: 'all var(--transition)',
@@ -264,23 +268,26 @@ export function SummaryFooter({ items }) {
 /* ── EmptyState ───────────────────────────────────────────────────────────── */
 export function EmptyState({ icon: Icon, title, subtitle, accentWord }) {
   return (
-    <div style={{
+    <div className="glass-card" style={{
       textAlign: 'center', padding: '80px 24px', color: 'var(--text-3)',
-      border: '1.5px dashed var(--border-solid)', borderRadius: 'var(--radius-xl)',
-      background: 'var(--surface)',
+      border: '1.5px dashed var(--glass-border-side)',
       boxShadow: 'var(--shadow-sm)',
     }}>
       <div style={{
-        width: 56, height: 56, background: 'var(--surface-2)',
+        width: 56, height: 56,
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(12px)',
         borderRadius: 16,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         margin: '0 auto 16px',
-        border: '1px solid var(--border-solid)',
+        border: '1px solid var(--glass-border-side)',
+        borderTop: '1px solid var(--glass-border-top)',
+        position: 'relative', zIndex: 1,
       }}>
         <Icon size={24} color="var(--text-3)" />
       </div>
-      <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)' }}>{title}</p>
-      <p style={{ fontSize: 12.5, marginTop: 5 }}>
+      <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-2)', position: 'relative', zIndex: 1 }}>{title}</p>
+      <p style={{ fontSize: 12.5, marginTop: 5, position: 'relative', zIndex: 1 }}>
         {subtitle} <strong style={{ color: 'var(--accent)' }}>{accentWord}</strong>.
       </p>
     </div>

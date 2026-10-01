@@ -5,18 +5,14 @@ export default function Sidebar({ tabs, activeTab, setActiveTab }) {
   const { dark, toggle } = useTheme()
 
   return (
-    <aside style={{
+    <aside className="liquid-panel" style={{
       width: 200,
       flexShrink: 0,
-      background: 'var(--sb-bg)',
-      border: '1px solid var(--sb-border)',
-      borderRadius: 'var(--radius-2xl)',
       display: 'flex',
       flexDirection: 'column',
       padding: '14px 10px',
       gap: 0,
-      boxShadow: 'var(--shadow-md)',
-      transition: 'background 300ms ease, border-color 300ms ease',
+      transition: 'background 300ms ease',
     }}>
 
       {/* Brand */}
