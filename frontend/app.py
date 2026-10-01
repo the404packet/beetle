@@ -222,6 +222,126 @@ async def api_harden(request: Request):
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
+# ── Snapshot routes ──────────────────────────────────────────────────────────
+
+SNAP_META = Path("/var/lib/beetle/.snapshot_meta")
+
+
+@app.get("/api/snapshots")
+async def api_snapshots_list():
+    """Return all snapshots parsed from the meta file."""
+    if not SNAP_META.exists():
+        return {"snapshots": []}
+    snapshots = []
+    for line in SNAP_META.read_text(errors="replace").splitlines():
+        parts = line.strip().split("|")
+        if len(parts) >= 4:
+            snapshots.append({
+                "id":      parts[0].strip(),
+                "name":    parts[1].strip(),
+                "created": parts[2].strip(),
+                "type":    parts[3].strip(),
+            })
+    return {"snapshots": snapshots}
+
+
+@app.post("/api/snapshots/capture")
+async def api_snapshots_capture(request: Request):
+    """Run `beetle snapshot capture [--name <name>]` and return output."""
+    body = {}
+    try: body = await request.json()
+    except Exception: pass
+    name = body.get("name", "").strip()
+
+    cmd = ["sudo", "beetle", "snapshot", "capture"]
+    if name:
+        cmd += ["--name", name]
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=str(SHELL_DIR),
+    )
+    stdout, _ = await proc.communicate()
+    output = strip_ansi(stdout.decode("utf-8", errors="replace"))
+    return {"ok": proc.returncode == 0, "output": output}
+
+
+@app.post("/api/snapshots/restore")
+async def api_snapshots_restore(request: Request):
+    """
+    Run restore.sh <id|name> directly (not via daemon — restore.sh is not
+    an installed beetle sub-command, so we invoke the script directly).
+    Body: { "id": "<id>", "name": "<name>" }  — name preferred, id as fallback
+    """
+    body = {}
+    try: body = await request.json()
+    except Exception: pass
+
+    name    = body.get("name", "").strip()
+    snap_id = body.get("id",   "latest").strip() or "latest"
+    target  = name if name else snap_id
+
+    # Prefer installed location; fall back to dev tree
+    installed = Path("/usr/local/bin/beetle_shell/restore.sh")
+    dev_path  = SHELL_DIR / "restore.sh"
+    script    = installed if installed.exists() else dev_path
+
+    cmd = ["sudo", "bash", str(script), target]
+
+    async def generate():
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(SHELL_DIR),
+        )
+        async for raw_bytes in proc.stdout:
+            raw = raw_bytes.decode("utf-8", errors="replace")
+            clean = strip_ansi(raw).rstrip()
+            if clean:
+                ok = clean.startswith("[+]")
+                err = clean.startswith("[!")
+                yield json.dumps({"line": clean, "ok": ok, "err": err}) + "\n"
+        await proc.wait()
+        yield json.dumps({"line": f"[exit code {proc.returncode}]",
+                          "ok": proc.returncode == 0,
+                          "err": proc.returncode != 0,
+                          "done": True}) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+
+@app.get("/api/snapshots/size")
+async def api_snapshots_size():
+    """Run `beetle snapshot size` and return parsed output."""
+    proc = await asyncio.create_subprocess_exec(
+        "sudo", "beetle", "snapshot", "size",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=str(SHELL_DIR),
+    )
+    stdout, _ = await proc.communicate()
+    output = strip_ansi(stdout.decode("utf-8", errors="replace"))
+    return {"output": output}
+
+
+# ── Parameterized route LAST — must come after all specific /snapshots/* routes ──
+@app.delete("/api/snapshots/{snap_id}")
+async def api_snapshots_delete(snap_id: str):
+    """Run `beetle snapshot rm <id|name>`."""
+    proc = await asyncio.create_subprocess_exec(
+        "sudo", "beetle", "snapshot", "rm", snap_id,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=str(SHELL_DIR),
+    )
+    stdout, _ = await proc.communicate()
+    output = strip_ansi(stdout.decode("utf-8", errors="replace"))
+    return {"ok": proc.returncode == 0, "output": output}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=False)
