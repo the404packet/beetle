@@ -560,88 +560,85 @@ load_json_services() {
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
     _clean_ram_store "$SERVICES_RAM_STORE"
 
-    python3 - <<EOF > "$SERVICES_RAM_STORE"
-import json
-with open("$json_file") as f:
-    data = json.load(f)
+    "$JQ" -r '
+        def normkey: gsub("/"; "_") | gsub("-"; "_") | gsub("\\."; "_") | sub("^_"; "");
 
-for section in ["server_services", "client_services"]:
-    for category, packages in data.get(section, {}).items():
-        cat_key = category.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-        print(f'SS_{cat_key}_pkg_count={len(packages)}')
-        for pkg_idx, (pkg_name, fields) in enumerate(packages.items()):
-            pkg_key = pkg_name.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-            restrict = fields.get("restrict", True)
-            version  = fields.get("version", "null")
-            services = fields.get("services", [])
-            print(f'SS_{cat_key}_pkg_{pkg_idx}={pkg_name}')
-            print(f'SS_{cat_key}_{pkg_key}_restrict={str(restrict).lower()}')
-            print(f'SS_{cat_key}_{pkg_key}_version={version if version else "null"}')
-            print(f'SS_{cat_key}_{pkg_key}_svc_count={len(services)}')
-            for svc_idx, svc in enumerate(services):
-                print(f'SS_{cat_key}_{pkg_key}_svc_{svc_idx}={svc}')
+        # ── server_services + client_services ──
+        (["server_services", "client_services"] | .[]) as $section |
+        (. as $root |
+         ($root[$section] // {}) | to_entries[] |
+            (.key | normkey) as $cat_key |
+            (.value | length) as $pkg_count |
+            "SS_\($cat_key)_pkg_count=\($pkg_count)",
+            (.value | to_entries | to_entries[] |
+                (.key) as $pkg_idx |
+                (.value.key) as $pkg_name |
+                (.value.value) as $pkg_fields |
+                ($pkg_name | normkey) as $pkg_key |
+                "SS_\($cat_key)_pkg_\($pkg_idx)=\($pkg_name)",
+                "SS_\($cat_key)_\($pkg_key)_restrict=\(if ($pkg_fields.restrict // true) then "true" else "false" end)",
+                "SS_\($cat_key)_\($pkg_key)_version=\($pkg_fields.version // "null" | if . == null then "null" else . end)",
+                "SS_\($cat_key)_\($pkg_key)_svc_count=\(($pkg_fields.services // []) | length)",
+                (($pkg_fields.services // []) | to_entries[] |
+                    "SS_\($cat_key)_\($pkg_key)_svc_\(.key)=\(.value)"
+                )
+            )
+        ),
 
-job_service = data.get("job_service", {})
-daemons = job_service.get("daemons", [])
-print(f'JS_daemon_count={len(daemons)}')
-any_required = any(d.get("required", False) for d in daemons)
-print(f'JS_daemon_any_required={"true" if any_required else "false"}')
-for idx, daemon in enumerate(daemons):
-    name    = daemon.get("name", "")
-    package = daemon.get("package", "")
-    service = daemon.get("service", "")
-    required = daemon.get("required", False)
-    check_if_installed = daemon.get("check_if_installed", False)
-    name_key = name.replace("-", "_").replace(".", "_")
-    print(f'JS_daemon_{idx}_name={name}')
-    print(f'JS_daemon_{idx}_package={package}')
-    print(f'JS_daemon_{idx}_service={service}')
-    print(f'JS_daemon_{idx}_required={str(required).lower()}')
-    print(f'JS_daemon_{idx}_check_if_installed={str(check_if_installed).lower()}')
-    print(f'JS_daemon_name_{name_key}_idx={idx}')
+        # ── job_service ──
+        (.job_service.daemons // []) as $js_daemons |
+        "JS_daemon_count=\($js_daemons | length)",
+        "JS_daemon_any_required=\(if ($js_daemons | any(.required // false)) then "true" else "false" end)",
+        ($js_daemons | to_entries[] |
+            (.key) as $i |
+            (.value) as $d |
+            ($d.name // "" | gsub("-"; "_") | gsub("\\."; "_")) as $name_key |
+            "JS_daemon_\($i)_name=\($d.name // "")",
+            "JS_daemon_\($i)_package=\($d.package // "")",
+            "JS_daemon_\($i)_service=\($d.service // "")",
+            "JS_daemon_\($i)_required=\(if ($d.required // false) then "true" else "false" end)",
+            "JS_daemon_\($i)_check_if_installed=\(if ($d.check_if_installed // false) then "true" else "false" end)",
+            "JS_daemon_name_\($name_key)_idx=\($i)"
+        ),
 
-cron_dirs = job_service.get("cron_dirs", [])
-print(f'JS_cron_dir_count={len(cron_dirs)}')
-for idx, entry in enumerate(cron_dirs):
-    print(f'JS_cron_dir_{idx}_file={entry.get("file", "")}')
-    print(f'JS_cron_dir_{idx}_mode={entry.get("mode", "")}')
-    print(f'JS_cron_dir_{idx}_owner={entry.get("owner", "")}')
-    print(f'JS_cron_dir_{idx}_group={entry.get("group", "")}')
+        (.job_service.cron_dirs // []) as $cron_dirs |
+        "JS_cron_dir_count=\($cron_dirs | length)",
+        ($cron_dirs | to_entries[] |
+            "JS_cron_dir_\(.key)_file=\(.value.file // "")",
+            "JS_cron_dir_\(.key)_mode=\(.value.mode // "")",
+            "JS_cron_dir_\(.key)_owner=\(.value.owner // "")",
+            "JS_cron_dir_\(.key)_group=\(.value.group // "")"
+        ),
 
-for section_key in ["cron_access", "at_access"]:
-    section = job_service.get(section_key, {})
-    sk = section_key
-    print(f'JS_{sk}_allow_file={section.get("allow_file", "")}')
-    print(f'JS_{sk}_deny_file={section.get("deny_file", "")}')
-    print(f'JS_{sk}_mode={section.get("mode", "")}')
-    print(f'JS_{sk}_owner={section.get("owner", "")}')
-    groups = section.get("groups", [])
-    print(f'JS_{sk}_group_count={len(groups)}')
-    for gidx, grp in enumerate(groups):
-        print(f'JS_{sk}_group_{gidx}={grp}')
+        (["cron_access", "at_access"] | .[]) as $sk |
+        (.job_service[$sk] // {}) as $s |
+        "JS_\($sk)_allow_file=\($s.allow_file // "")",
+        "JS_\($sk)_deny_file=\($s.deny_file // "")",
+        "JS_\($sk)_mode=\($s.mode // "")",
+        "JS_\($sk)_owner=\($s.owner // "")",
+        "JS_\($sk)_group_count=\(($s.groups // []) | length)",
+        (($s.groups // []) | to_entries[] | "JS_\($sk)_group_\(.key)=\(.value)"),
 
-time_sync = data.get("time_sync", {})
-ts_daemons = time_sync.get("daemons", [])
-ts_default = time_sync.get("default", "")
-print(f'TS_default={ts_default}')
-print(f'TS_daemon_count={len(ts_daemons)}')
-for idx, daemon in enumerate(ts_daemons):
-    name_key = daemon.get("name","").replace("-","_").replace(".","_")
-    print(f'TS_daemon_{idx}_name={daemon.get("name","")}')
-    print(f'TS_daemon_{idx}_package={daemon.get("package","")}')
-    print(f'TS_daemon_{idx}_service={daemon.get("service","")}')
-    print(f'TS_daemon_{idx}_config_file={daemon.get("config_file","")}')
-    print(f'TS_daemon_{idx}_config_dir={daemon.get("config_dir","")}')
-    print(f'TS_daemon_{idx}_run_as_user={daemon.get("run_as_user","")}')
-    ntp = daemon.get("ntp_servers",[])
-    fallback = daemon.get("fallback_servers",[])
-    print(f'TS_daemon_{idx}_ntp_count={len(ntp)}')
-    for nidx, srv in enumerate(ntp):
-        print(f'TS_daemon_{idx}_ntp_{nidx}={srv}')
-    print(f'TS_daemon_{idx}_fallback_count={len(fallback)}')
-    for fidx, srv in enumerate(fallback):
-        print(f'TS_daemon_{idx}_fallback_{fidx}={srv}')
-EOF
+        # ── time_sync ──
+        (.time_sync.default // "") as $ts_default |
+        (.time_sync.daemons // []) as $ts_daemons |
+        "TS_default=\($ts_default)",
+        "TS_daemon_count=\($ts_daemons | length)",
+        ($ts_daemons | to_entries[] |
+            (.key) as $i |
+            (.value) as $d |
+            "TS_daemon_\($i)_name=\($d.name // "")",
+            "TS_daemon_\($i)_package=\($d.package // "")",
+            "TS_daemon_\($i)_service=\($d.service // "")",
+            "TS_daemon_\($i)_config_file=\($d.config_file // "")",
+            "TS_daemon_\($i)_config_dir=\($d.config_dir // "")",
+            "TS_daemon_\($i)_run_as_user=\($d.run_as_user // "")",
+            "TS_daemon_\($i)_ntp_count=\(($d.ntp_servers // []) | length)",
+            (($d.ntp_servers // []) | to_entries[] | "TS_daemon_\($i)_ntp_\(.key)=\(.value)"),
+            "TS_daemon_\($i)_fallback_count=\(($d.fallback_servers // []) | length)",
+            (($d.fallback_servers // []) | to_entries[] | "TS_daemon_\($i)_fallback_\(.key)=\(.value)")
+        )
+    ' "$json_file" > "$SERVICES_RAM_STORE"
 
     chmod 600 "$SERVICES_RAM_STORE"
     source "$SERVICES_RAM_STORE"
