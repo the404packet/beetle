@@ -980,97 +980,86 @@ unload_module_json() {
 
 load_json_access_control() {
     local json_file="$1"
-
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
 
     _clean_ram_store "$SSH_RAM_STORE"
 
-    python3 - <<EOF > "$SSH_RAM_STORE"
-import json
+    # ── ssh_config_file_permissions ──
+    "$JQ" -r '
+        def normkey: gsub("/"; "_") | gsub("-"; "_") | gsub("\\."; "_") | sub("^_"; "");
+        (.ssh_config_file_permissions // {}) | to_entries[] |
+            (.key | normkey) as $k |
+            "ACC_\($k)_perm_mask=\(.value.perm_mask // "")",
+            "ACC_\($k)_owner=\(.value.owner // "")",
+            "ACC_\($k)_group=\(.value.group // "")"
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-with open("$json_file") as f:
-    data = json.load(f)
+    # ── sshd_settings ──
+    "$JQ" -r '
+        (.sshd_settings // {}) | to_entries[] |
+            (.key | ascii_upcase) as $setting |
+            (.value | to_entries[] |
+                (.key | ascii_upcase) as $field |
+                if (.value | type) == "array" then
+                    "SSHD_\($setting)_\($field)=\"\(.value | map(tostring) | join("|"))\""
+                else
+                    "SSHD_\($setting)_\($field)=\(.value)"
+                end
+            )
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
+    # ── weak lists ──
+    "$JQ" -r '
+        (["sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"] | .[]) as $k |
+        (.[$k] // []) as $items |
+        if ($items | length) > 0 then
+            (($k | ascii_upcase) + "_PATTERN") as $var |
+            "\($var)=\"\($items | map(gsub("\\."; "\\\\.")) | join("|"))\""
+        else empty end
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-# private/public host key entries use key_name directly (not a file path)
-# already handled above since entry["file"] is set in json
-# if your json uses key_name as lookup instead, add:
-for key_name, entry in data.get("ssh_config_file_permissions", {}).items():
-    safe_key = key_name.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    print(f'ACC_{safe_key}_perm_mask={entry["perm_mask"]}')
-    print(f'ACC_{safe_key}_owner={entry["owner"]}')
-    print(f'ACC_{safe_key}_group={entry["group"]}')
+    # ── sudo_settings ──
+    "$JQ" -r '
+        (.sudo_settings // {}) | to_entries[] |
+            (.key | ascii_upcase) as $setting |
+            (.value | to_entries[] |
+                (.key | ascii_upcase) as $field |
+                "SUDO_\($setting)_\($field)=\(.value)"
+            )
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-# sshd_settings
-for key, val in data.get("sshd_settings", {}).items():
-    safe = key.upper()
-    if isinstance(val, dict):
-        for field, fval in val.items():
-            if isinstance(fval, list):
-                joined = "|".join(str(v) for v in fval)
-                print(f'SSHD_{safe}_{field.upper()}="{joined}"')
-            else:
-                print(f'SSHD_{safe}_{field.upper()}={fval}')
+    # ── pam_settings ──
+    "$JQ" -r '
+        (.pam_settings // {}) | to_entries[] |
+            (.key | ascii_upcase) as $section |
+            (.value | to_entries[] |
+                (.key | ascii_upcase) as $field |
+                "PAM_\($section)_\($field)=\(.value)"
+            )
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-# weak lists
-for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
-    items = data.get(list_key, [])
-    if items:
-        pattern = "|".join(i.replace(".", r"\.") for i in items)
-        env_key = list_key.upper() + "_PATTERN"
-        print(f'{env_key}="{pattern}"')
+    # ── login_defs ──
+    "$JQ" -r '
+        (.login_defs // {}) as $ld |
+        "LD_file=\($ld.file // "/etc/login.defs")",
+        "LD_pass_max_days_max=\($ld.pass_max_days.max // 365)",
+        "LD_pass_min_days_min=\($ld.pass_min_days.min // 1)",
+        "LD_pass_warn_age_min=\($ld.pass_warn_age.min // 7)",
+        "LD_encrypt_method_allowed=\"\(($ld.encrypt_method.allowed // ["SHA512","YESCRYPT"]) | join("|"))\"",
+        "LD_inactive_max=\($ld.inactive.max // 45)"
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-# sudo_settings
-for key, val in data.get("sudo_settings", {}).items():
-    safe = key.upper()
-    if isinstance(val, dict):
-        for field, fval in val.items():
-            print(f'SUDO_{safe}_{field.upper()}={fval}')
-            
-# pam_settings — flatten into PAM_ prefixed vars
-for section, vals in data.get("pam_settings", {}).items():
-    safe_section = section.upper()
-    if isinstance(vals, dict):
-        for field, fval in vals.items():
-            print(f'PAM_{safe_section}_{field.upper()}={fval}')
-
-ld = data.get("login_defs", {})
-print(f'LD_file={ld.get("file", "/etc/login.defs")}')
-
-pmd = ld.get("pass_max_days", {})
-print(f'LD_pass_max_days_max={pmd.get("max", 365)}')
-
-pmind = ld.get("pass_min_days", {})
-print(f'LD_pass_min_days_min={pmind.get("min", 1)}')
-
-pwa = ld.get("pass_warn_age", {})
-print(f'LD_pass_warn_age_min={pwa.get("min", 7)}')
-
-em = ld.get("encrypt_method", {})
-allowed_algos = em.get("allowed", ["SHA512", "YESCRYPT"])
-print(f'LD_encrypt_method_allowed="{"|".join(allowed_algos)}"')
-
-inact = ld.get("inactive", {})
-print(f'LD_inactive_max={inact.get("max", 45)}')
-
-# ── user_env ──
-ue = data.get("user_env", {})
-
-tmout = ue.get("tmout", {})
-print(f'UE_tmout_max={tmout.get("max", 900)}')
-print(f'UE_tmout_profile_d_file={tmout.get("profile_d_file", "/etc/profile.d/50-systemwide_tmout.sh")}')
-
-umask_cfg = ue.get("umask", {})
-print(f'UE_umask_value={umask_cfg.get("value", "027")}')
-print(f'UE_umask_profile_d_file={umask_cfg.get("profile_d_file", "/etc/profile.d/50-systemwide_umask.sh")}')
-
-root_umask = ue.get("root_umask", {})
-root_umask_files = root_umask.get("files", ["/root/.bash_profile", "/root/.bashrc"])
-print(f'UE_root_umask_file_count={len(root_umask_files)}')
-for idx, rf in enumerate(root_umask_files):
-    print(f'UE_root_umask_file_{idx}={rf}')
-
-EOF
+    # ── user_env ──
+    "$JQ" -r '
+        (.user_env // {}) as $ue |
+        "UE_tmout_max=\($ue.tmout.max // 900)",
+        "UE_tmout_profile_d_file=\($ue.tmout.profile_d_file // "/etc/profile.d/50-systemwide_tmout.sh")",
+        "UE_umask_value=\($ue.umask.value // "027")",
+        "UE_umask_profile_d_file=\($ue.umask.profile_d_file // "/etc/profile.d/50-systemwide_umask.sh")",
+        "UE_root_umask_file_count=\(($ue.root_umask.files // ["/root/.bash_profile","/root/.bashrc"]) | length)",
+        (($ue.root_umask.files // ["/root/.bash_profile","/root/.bashrc"]) | to_entries[] |
+            "UE_root_umask_file_\(.key)=\(.value)")
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
     chmod 600 "$SSH_RAM_STORE"
     source "$SSH_RAM_STORE"
