@@ -147,8 +147,8 @@ is_check_enabled() {
 
     local key="${folder}/${script_name}"
 
-    # Must normalize exactly the same way as python in load_severity
-    # python does: / -> __ , - -> _ , . -> _
+    # Must normalize the same way as load_severity
+    # (see jq normkey definition)
     local safe_key
     safe_key=$(echo "$key" | sed 's|/|__|g; s|-|_|g; s|\.|_|g')
 
