@@ -13,6 +13,13 @@ LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
 INITIAL_SETUP_RAM_STORE="/dev/shm/beetle_initial_setup_store.env"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
+
+# Resolve bundled jq (falls back to system jq)
+_BEETLE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JQ="$_BEETLE_LIB_DIR/bin/jq"
+[[ -x "$JQ" ]] || JQ="$(command -v jq)"
+[[ -x "$JQ" ]] || { echo "ERROR: jq not found (bundled or system)" >&2; exit 1; }
+export JQ
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
        NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FW_RAM_STORE FIREWALL_RAM_STORE \
        LOGGING_RAM_STORE SSH_RAM_STORE INITIAL_SETUP_RAM_STORE
@@ -89,36 +96,31 @@ unset_package() {
 # ─────────────────────────────────────────────
 load_severity() {
     local target_level="${1,,}"
-    rm -f "$SEVERITY_RAM_STORE"
+    _clean_ram_store "$SEVERITY_RAM_STORE"
 
     local levels=("basic")
     [[ "$target_level" == "moderate" ]] && levels=("basic" "moderate")
     [[ "$target_level" == "strict"   ]] && levels=("basic" "moderate" "strict")
 
-    local levels_str
-    levels_str=$(printf '"%s",' "${levels[@]}")
-    levels_str="[${levels_str%,}]"
+    # Collect existing severity files
+    local files=()
+    for level in "${levels[@]}"; do
+        local file="$SEVERITY_CONFIG_DIR/severity_${level}.json"
+        [[ -f "$file" ]] && files+=("$file")
+    done
 
-    python3 - <<EOF > "$SEVERITY_RAM_STORE"
-import json, os
+    if [[ ${#files[@]} -eq 0 ]]; then
+        chmod 600 "$SEVERITY_RAM_STORE" 2>/dev/null || true
+        return 0
+    fi
 
-level_list = ${levels_str}
-config_dir = "$SEVERITY_CONFIG_DIR"
-checks = {}
-
-for level in level_list:
-    config = os.path.join(config_dir, f"severity_{level}.json")
-    if not os.path.exists(config):
-        continue
-    with open(config) as f:
-        data = json.load(f)
-    for key, enabled in data.items():
-        checks[key] = enabled
-
-for key, enabled in checks.items():
-    safe_key = key.replace("/", "__").replace("-", "_").replace(".", "_")
-    print(f'SEV_{safe_key}={"true" if enabled else "false"}')
-EOF
+    # Merge all files (later overrides earlier), emit SEV_ vars
+    "$JQ" -r '
+        reduce .[] as $item ({}; . + $item) |
+        to_entries[] |
+        (.key | gsub("/"; "__") | gsub("-"; "_") | gsub("\\."; "_")) as $k |
+        "SEV_\($k)=\(if .value then "true" else "false" end)"
+    ' --slurp "${files[@]}" > "$SEVERITY_RAM_STORE" 2>/dev/null
 
     chmod 600 "$SEVERITY_RAM_STORE"
     source "$SEVERITY_RAM_STORE"
@@ -398,51 +400,56 @@ load_json_network() {
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
     _clean_ram_store "$NETWORK_RAM_STORE"
 
-    python3 - <<EOF > "$NETWORK_RAM_STORE"
-import json
-with open("$json_file") as f:
-    data = json.load(f)
+    "$JQ" -r '
+        # ── network_services ──
+        (.network_services.ipv6.status // "enabled") as $ipv6_status |
+        (.network_services.ipv6.disable_sysctl_keys // []) as $ipv6_keys |
+        (.network_services.wireless.restrict // true) as $wireless_restrict |
+        (.network_services.bluetooth.package // "") as $bt_pkg |
+        (.network_services.bluetooth.service // "") as $bt_svc |
+        (.network_services.bluetooth.restrict // true) as $bt_restrict |
 
-# ── network_services ──
-ns = data.get("network_services", {})
+        "NS_ipv6_status=\($ipv6_status)",
+        "NS_ipv6_sysctl_count=\($ipv6_keys | length)",
+        ($ipv6_keys | to_entries[] | "NS_ipv6_sysctl_\(.key)=\(.value)"),
+        "NS_wireless_restrict=\($wireless_restrict)",
+        "NS_bluetooth_package=\($bt_pkg)",
+        "NS_bluetooth_service=\($bt_svc)",
+        "NS_bluetooth_restrict=\($bt_restrict)",
 
-ipv6 = ns.get("ipv6", {})
-print(f'NS_ipv6_status={ipv6.get("status", "enabled")}')
-keys = ipv6.get("disable_sysctl_keys", [])
-print(f'NS_ipv6_sysctl_count={len(keys)}')
-for idx, key in enumerate(keys):
-    print(f'NS_ipv6_sysctl_{idx}={key}')
+        # ── kernel_modules ──
+        (.kernel_modules // []) as $mods |
+        "KM_count=\($mods | length)",
+        ($mods | to_entries[] |
+            "KM_\(.key)_name=\(.value.name // "")",
+            "KM_\(.key)_type=\(.value.type // "")",
+            "KM_\(.key)_restrict=\(if (.value.restrict // true) then "true" else "false" end)"
+        ),
 
-wireless = ns.get("wireless", {})
-print(f'NS_wireless_restrict={str(wireless.get("restrict", True)).lower()}')
+        # ── network_parameters ──
+        (.network_parameters.sysctl_conf_file // "/etc/sysctl.d/60-netipv4_sysctl.conf") as $scf4 |
+        (.network_parameters.sysctl_conf_file_ipv6 // "/etc/sysctl.d/60-netipv6_sysctl.conf") as $scf6 |
+        "NP_sysctl_conf=\($scf4)",
+        "NP_sysctl_conf_ipv6=\($scf6)",
 
-bluetooth = ns.get("bluetooth", {})
-print(f'NS_bluetooth_package={bluetooth.get("package", "")}')
-print(f'NS_bluetooth_service={bluetooth.get("service", "")}')
-print(f'NS_bluetooth_restrict={str(bluetooth.get("restrict", True)).lower()}')
+        (.network_parameters.ipv4 // []) as $p4 |
+        "NP_ipv4_count=\($p4 | length)",
+        ($p4 | to_entries[] |
+            "NP_ipv4_\(.key)_name=\(.value.name // "")",
+            "NP_ipv4_\(.key)_value=\(.value.value // "")",
+            "NP_ipv4_\(.key)_flush=\(.value.flush // "")",
+            "NP_ipv4_\(.key)_check=\(.value.check // "")"
+        ),
 
-# ── kernel_modules ──
-modules = data.get("kernel_modules", [])
-print(f'KM_count={len(modules)}')
-for idx, mod in enumerate(modules):
-    print(f'KM_{idx}_name={mod.get("name", "")}')
-    print(f'KM_{idx}_type={mod.get("type", "")}')
-    print(f'KM_{idx}_restrict={str(mod.get("restrict", True)).lower()}')
-
-# ── network_parameters ──
-net_params = data.get("network_parameters", {})
-print(f'NP_sysctl_conf={net_params.get("sysctl_conf_file", "/etc/sysctl.d/60-netipv4_sysctl.conf")}')
-print(f'NP_sysctl_conf_ipv6={net_params.get("sysctl_conf_file_ipv6", "/etc/sysctl.d/60-netipv6_sysctl.conf")}')
-
-for section in ["ipv4", "ipv6"]:
-    params = net_params.get(section, [])
-    print(f'NP_{section}_count={len(params)}')
-    for idx, param in enumerate(params):
-        print(f'NP_{section}_{idx}_name={param.get("name", "")}')
-        print(f'NP_{section}_{idx}_value={param.get("value", "")}')
-        print(f'NP_{section}_{idx}_flush={param.get("flush", "")}')
-        print(f'NP_{section}_{idx}_check={param.get("check", "")}')
-EOF
+        (.network_parameters.ipv6 // []) as $p6 |
+        "NP_ipv6_count=\($p6 | length)",
+        ($p6 | to_entries[] |
+            "NP_ipv6_\(.key)_name=\(.value.name // "")",
+            "NP_ipv6_\(.key)_value=\(.value.value // "")",
+            "NP_ipv6_\(.key)_flush=\(.value.flush // "")",
+            "NP_ipv6_\(.key)_check=\(.value.check // "")"
+        )
+    ' "$json_file" > "$NETWORK_RAM_STORE"
 
     chmod 600 "$NETWORK_RAM_STORE"
     source "$NETWORK_RAM_STORE"
