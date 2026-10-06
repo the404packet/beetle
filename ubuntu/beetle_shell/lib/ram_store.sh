@@ -742,32 +742,29 @@ load_json_system_maintenance() {
 
     _clean_ram_store "$PERM_RAM_STORE"
 
-    python3 - <<EOF > "$PERM_RAM_STORE"
-import json
+    "$JQ" -r '
+        . as $root |
+        def normkey: gsub("/"; "_") | gsub("-"; "_") | gsub("\\."; "_") | sub("^_"; "");
 
-def q(v):
-    return "'" + str(v).replace("'", "'\\''") + "'"
+        # ── system_file_permissions ──
+        ($root.system_file_permissions // []) | .[] |
+            (.file | normkey) as $key |
+            (.mode) as $mode |
+            (.owner) as $owner |
+            ((.group // "") | if . == "root/shadow" then "shadow" else . end) as $group |
+            "PERM_\($key)_mode=\($mode)",
+            "PERM_\($key)_owner=\($owner)",
+            "PERM_\($key)_group=\($group)",
 
-with open("$json_file") as f:
-    data = json.load(f)
-
-for entry in data.get("system_file_permissions", []):
-    key = entry["file"].replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    mode  = entry["mode"]
-    owner = entry["owner"]
-    group = entry["group"].replace("root/shadow", "shadow")
-    print(f'PERM_{key}_mode={mode}')
-    print(f'PERM_{key}_owner={owner}')
-    print(f'PERM_{key}_group={group}')
-
-ss = data.get('suid_sgid', {})
-risky = ss.get('known_risky', [])
-print('SS_count=' + q(len(risky)))
-for i, r in enumerate(risky):
-    print(f'SS_{i}_name=' + q(r.get('name', '')))
-    print(f'SS_{i}_path=' + q(r.get('path', '')))
-    print(f'SS_{i}_risk=' + q(r.get('risk', '')))
-EOF
+        # ── suid_sgid.known_risky ──
+        ($root.suid_sgid.known_risky // []) as $risky |
+        "SS_count=\($risky | length | @sh)",
+        ($risky | to_entries[] |
+            "SS_\(.key)_name=\(.value.name // "" | @sh)",
+            "SS_\(.key)_path=\(.value.path // "" | @sh)",
+            "SS_\(.key)_risk=\(.value.risk // "" | @sh)"
+        )
+    ' "$json_file" > "$PERM_RAM_STORE"
 
     chmod 600 "$PERM_RAM_STORE"
     source "$PERM_RAM_STORE"
