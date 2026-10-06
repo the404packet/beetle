@@ -168,144 +168,146 @@ load_json_initial_setup() {
 
     _clean_ram_store "$INITIAL_SETUP_RAM_STORE"
 
-    local py_script
-    py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
-    cat > "$py_script" << 'PYEOF'
-import json, sys
+    # ── apparmor ──
+    "$JQ" -r '
+        (.apparmor // {}) as $aa |
+        "AA_grub_config=\($aa.grub_config // "" | @sh)",
+        "AA_grub_cfg=\($aa.grub_cfg // "" | @sh)",
+        "AA_grub_cmdline_key=\($aa.grub_cmdline_key // "" | @sh)",
+        "AA_profiles_dir=\($aa.profiles_dir // "" | @sh)",
+        "AA_enforce_mode=\($aa.enforce_mode // "" | @sh)",
+        "AA_complain_mode=\($aa.complain_mode // "" | @sh)",
+        (($aa.packages // []) | length) as $n |
+        "AA_pkg_count=\($n | @sh)",
+        (($aa.packages // []) | to_entries[] |
+            "AA_pkg_\(.key)_name=\(.value.name // "" | @sh)"),
+        (($aa.grub_params // []) | length) as $gp |
+        "AA_grub_param_count=\($gp | @sh)",
+        (($aa.grub_params // []) | to_entries[] |
+            "AA_grub_\(.key)_name=\(.value.name // "" | @sh)",
+            "AA_grub_\(.key)_value=\(.value.value // "" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-def q(v):
-    return "'" + str(v).replace("'", "'\\''") + "'"
+    # ── filesystem_modules ──
+    "$JQ" -r '
+        (.filesystem_modules // {}) as $fm |
+        "FM_modprobe_dir=\($fm.modprobe_dir // "" | @sh)",
+        (($fm.modules // []) | length) as $n |
+        "FM_count=\($n | @sh)",
+        (($fm.modules // []) | to_entries[] |
+            "FM_\(.key)_name=\(.value.name // "" | @sh)",
+            "FM_\(.key)_type=\(.value.type // "" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-with open(sys.argv[1]) as f:
-    data = json.load(f)
+    # ── filesystem_partitions ──
+    "$JQ" -r '
+        (.filesystem_partitions // {}) as $fp |
+        (($fp.partitions // []) | length) as $n |
+        "FP_count=\($n | @sh)",
+        (($fp.partitions // []) | to_entries[] |
+            (.key) as $i |
+            (.value) as $p |
+            ($p.mount // "") as $mount |
+            ($mount | gsub("/"; "_") | sub("^_"; "")) as $mk |
+            "FP_\($i)_mount=\($mount | @sh)",
+            "FP_\($i)_mount_key=\($mk | @sh)",
+            "FP_\($i)_required=\(if ($p.required // false) then "true" else "false" end | @sh)",
+            "FP_\($i)_systemd_unit=\(($p.systemd_unit // "") | @sh)",
+            (($p.options // []) | length) as $on |
+            "FP_\($i)_opt_count=\($on | @sh)",
+            (($p.options // []) | to_entries[] | "FP_\($i)_opt_\(.key)=\(.value | @sh)"),
+            "FP_idx_\($mk)=\($i | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-aa = data.get('apparmor', {})
-print('AA_grub_config='      + q(aa.get('grub_config','')))
-print('AA_grub_cfg='         + q(aa.get('grub_cfg','')))
-print('AA_grub_cmdline_key=' + q(aa.get('grub_cmdline_key','')))
-print('AA_profiles_dir='     + q(aa.get('profiles_dir','')))
-print('AA_enforce_mode='     + q(aa.get('enforce_mode','')))
-print('AA_complain_mode='    + q(aa.get('complain_mode','')))
+    # ── bootloader ──
+    "$JQ" -r '
+        (.bootloader // {}) as $bl |
+        "BL_grub_cfg=\($bl.grub_cfg // "/boot/grub/grub.cfg" | @sh)",
+        "BL_grub_config=\($bl.grub_config // "/etc/default/grub" | @sh)",
+        "BL_grub_custom_dir=\($bl.grub_custom_dir // "/etc/grub.d" | @sh)",
+        "BL_grub_custom_file=\($bl.grub_custom_file // "/etc/grub.d/40_custom" | @sh)",
+        "BL_superuser=\($bl.superuser // "grub_admin" | @sh)",
+        "BL_perm_mask=\($bl.perm_mask // "0177" | @sh)",
+        "BL_owner=\($bl.owner // "root" | @sh)",
+        "BL_group=\($bl.group // "root" | @sh)"
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-pkgs = aa.get('packages', [])
-print('AA_pkg_count=' + q(len(pkgs)))
-for i,p in enumerate(pkgs):
-    print(f'AA_pkg_{i}_name=' + q(p.get('name','')))
+    # ── process_hardening ──
+    "$JQ" -r '
+        (.process_hardening // {}) as $ph |
+        "PH_sysctl_conf=\($ph.sysctl_conf_file // "/etc/sysctl.d/60-kernel_sysctl.conf" | @sh)",
+        "PH_coredump_conf=\($ph.coredump_conf // "/etc/systemd/coredump.conf" | @sh)",
+        "PH_limits_conf=\($ph.limits_conf // "/etc/security/limits.conf" | @sh)",
+        (($ph.kernel_params // []) | length) as $n |
+        "PH_kparam_count=\($n | @sh)",
+        (($ph.kernel_params // []) | to_entries[] |
+            "PH_kparam_\(.key)_name=\(.value.name // "" | @sh)",
+            "PH_kparam_\(.key)_value=\(.value.value // "" | @sh)"),
+        (($ph.apport // {}) as $ap |
+            "PH_apport_config=\($ap.config_file // "/etc/default/apport" | @sh)",
+            "PH_apport_service=\($ap.service // "apport.service" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-gp = aa.get('grub_params', [])
-print('AA_grub_param_count=' + q(len(gp)))
-for i,p in enumerate(gp):
-    print(f'AA_grub_{i}_name='  + q(p.get('name','')))
-    print(f'AA_grub_{i}_value=' + q(p.get('value','')))
-fm = data.get('filesystem_modules', {})
-print('FM_modprobe_dir=' + q(fm.get('modprobe_dir','')))
-mods = fm.get('modules', [])
-print('FM_count=' + q(len(mods)))
-for i,m in enumerate(mods):
-    print(f'FM_{i}_name=' + q(m.get('name','')))
-    print(f'FM_{i}_type=' + q(m.get('type','')))
-fp = data.get('filesystem_partitions', {})
-parts = fp.get('partitions', [])
-print('FP_count=' + q(len(parts)))
-for i, p in enumerate(parts):
-    mount = p.get('mount', '')
-    mount_key = mount.replace('/', '_').lstrip('_')
-    print(f'FP_{i}_mount=' + q(mount))
-    print(f'FP_{i}_mount_key=' + q(mount_key))
-    print(f'FP_{i}_required=' + q(str(p.get('required', False)).lower()))
-    print(f'FP_{i}_systemd_unit=' + q(p.get('systemd_unit') or ''))
-    opts = p.get('options', [])
-    print(f'FP_{i}_opt_count=' + q(len(opts)))
-    for j, opt in enumerate(opts):
-        print(f'FP_{i}_opt_{j}=' + q(opt))
-    # also store mount->idx mapping for easy lookup
-    print(f'FP_idx_{mount_key}=' + q(i))
+    # ── warning_banners ──
+    "$JQ" -r '
+        (.warning_banners // {}) as $wb |
+        (($wb.banner_files // []) | length) as $n |
+        "WB_count=\($n | @sh)",
+        "WB_os_info_pattern=\($wb.os_info_pattern // "(\\\\v|\\\\r|\\\\m|\\\\s)" | @sh)",
+        (($wb.banner_files // []) | to_entries[] |
+            "WB_\(.key)_path=\(.value.path // "" | @sh)",
+            "WB_\(.key)_required=\(if (.value.required // false) then "true" else "false" end | @sh)",
+            "WB_\(.key)_perm_mask=\(.value.perm_mask // "0133" | @sh)",
+            "WB_\(.key)_owner=\(.value.owner // "root" | @sh)",
+            "WB_\(.key)_group=\(.value.group // "root" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-bl = data.get('bootloader', {})
-print('BL_grub_cfg='         + q(bl.get('grub_cfg',         '/boot/grub/grub.cfg')))
-print('BL_grub_config='      + q(bl.get('grub_config',      '/etc/default/grub')))
-print('BL_grub_custom_dir='  + q(bl.get('grub_custom_dir',  '/etc/grub.d')))
-print('BL_grub_custom_file=' + q(bl.get('grub_custom_file', '/etc/grub.d/40_custom')))
-print('BL_superuser='        + q(bl.get('superuser',        'grub_admin')))
-print('BL_perm_mask='        + q(bl.get('perm_mask',        '0177')))
-print('BL_owner='            + q(bl.get('owner',            'root')))
-print('BL_group='            + q(bl.get('group',            'root')))
+    # ── gdm ──
+    "$JQ" -r '
+        (.gdm // {}) as $gd |
+        "GD_package=\($gd.package // "" | @sh)",
+        "GD_profile_dir=\($gd.profile_dir // "" | @sh)",
+        "GD_profile_file=\($gd.profile_file // "" | @sh)",
+        "GD_db_dir=\($gd.db_dir // "" | @sh)",
+        "GD_locks_dir=\($gd.locks_dir // "" | @sh)",
+        "GD_gdm_db_dir=\($gd.gdm_db_dir // "" | @sh)",
+        "GD_banner_file=\($gd.banner_file // "" | @sh)",
+        "GD_login_screen_file=\($gd.login_screen_file // "" | @sh)",
+        "GD_screensaver_file=\($gd.screensaver_file // "" | @sh)",
+        "GD_screensaver_lock=\($gd.screensaver_lock // "" | @sh)",
+        "GD_automount_file=\($gd.automount_file // "" | @sh)",
+        "GD_automount_lock=\($gd.automount_lock // "" | @sh)",
+        "GD_autorun_file=\($gd.autorun_file // "" | @sh)",
+        "GD_autorun_lock=\($gd.autorun_lock // "" | @sh)",
+        "GD_banner_text=\($gd.banner_text // "" | @sh)",
+        "GD_idle_delay=\($gd.idle_delay // 900 | @sh)",
+        "GD_lock_delay=\($gd.lock_delay // 5 | @sh)",
+        (($gd.xdmcp_configs // []) | length) as $n |
+        "GD_xdmcp_count=\($n | @sh)",
+        (($gd.xdmcp_configs // []) | to_entries[] | "GD_xdmcp_\(.key)=\(.value | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-ph = data.get('process_hardening', {})
-print('PH_sysctl_conf='   + q(ph.get('sysctl_conf_file', '/etc/sysctl.d/60-kernel_sysctl.conf')))
-print('PH_coredump_conf=' + q(ph.get('coredump_conf',    '/etc/systemd/coredump.conf')))
-print('PH_limits_conf='   + q(ph.get('limits_conf',      '/etc/security/limits.conf')))
-kp = ph.get('kernel_params', [])
-print('PH_kparam_count=' + q(len(kp)))
-for i, p in enumerate(kp):
-    print(f'PH_kparam_{i}_name='  + q(p.get('name',  '')))
-    print(f'PH_kparam_{i}_value=' + q(p.get('value', '')))
-ap = ph.get('apport', {})
-print('PH_apport_config=' + q(ap.get('config_file', '/etc/default/apport')))
-print('PH_apport_service='+ q(ap.get('service',     'apport.service')))
+    # ── package_manager ──
+    "$JQ" -r '
+        (.package_manager // {}) as $pm |
+        "PM_sources_file=\($pm.sources_file // "/etc/apt/sources.list" | @sh)",
+        (($pm.gpg_dirs // []) | length) as $n |
+        "PM_gpg_dir_count=\($n | @sh)",
+        (($pm.gpg_dirs // []) | to_entries[] | "PM_gpg_dir_\(.key)=\(.value | @sh)"),
+        (($pm.gpg_extensions // []) | length) as $n2 |
+        "PM_gpg_ext_count=\($n2 | @sh)",
+        (($pm.gpg_extensions // []) | to_entries[] | "PM_gpg_ext_\(.key)=\(.value | @sh)"),
+        (($pm.recommended_repos // []) | length) as $n3 |
+        "PM_repo_count=\($n3 | @sh)",
+        (($pm.recommended_repos // []) | to_entries[] | "PM_repo_\(.key)=\(.value | @sh)"),
+        (($pm.recommended_gpg_keys // []) | length) as $n4 |
+        "PM_gpg_key_count=\($n4 | @sh)",
+        (($pm.recommended_gpg_keys // []) | to_entries[] |
+            "PM_gpg_key_\(.key)_name=\(.value.name // "" | @sh)",
+            "PM_gpg_key_\(.key)_keyid=\(.value.keyid // "" | @sh)",
+            "PM_gpg_key_\(.key)_keyserver=\(.value.keyserver // "" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-wb = data.get('warning_banners', {})
-bf = wb.get('banner_files', [])
-print('WB_count='           + q(len(bf)))
-print('WB_os_info_pattern=' + q(wb.get('os_info_pattern', '(\\\\v|\\\\r|\\\\m|\\\\s)')))
-for i, b in enumerate(bf):
-    print(f'WB_{i}_path='     + q(b.get('path',     '')))
-    print(f'WB_{i}_required=' + q(str(b.get('required', False)).lower()))
-    print(f'WB_{i}_perm_mask='+ q(b.get('perm_mask', '0133')))
-    print(f'WB_{i}_owner='    + q(b.get('owner',     'root')))
-    print(f'WB_{i}_group='    + q(b.get('group',     'root')))
-gd = data.get('gdm', {})
-print('GD_package='           + q(gd.get('package','')))
-print('GD_profile_dir='       + q(gd.get('profile_dir','')))
-print('GD_profile_file='      + q(gd.get('profile_file','')))
-print('GD_db_dir='            + q(gd.get('db_dir','')))
-print('GD_locks_dir='         + q(gd.get('locks_dir','')))
-print('GD_gdm_db_dir='        + q(gd.get('gdm_db_dir','')))
-print('GD_banner_file='       + q(gd.get('banner_file','')))
-print('GD_login_screen_file=' + q(gd.get('login_screen_file','')))
-print('GD_screensaver_file='  + q(gd.get('screensaver_file','')))
-print('GD_screensaver_lock='  + q(gd.get('screensaver_lock','')))
-print('GD_automount_file='    + q(gd.get('automount_file','')))
-print('GD_automount_lock='    + q(gd.get('automount_lock','')))
-print('GD_autorun_file='      + q(gd.get('autorun_file','')))
-print('GD_autorun_lock='      + q(gd.get('autorun_lock','')))
-print('GD_banner_text='       + q(gd.get('banner_text','')))
-print('GD_idle_delay='        + q(gd.get('idle_delay',900)))
-print('GD_lock_delay='        + q(gd.get('lock_delay',5)))
-xdmcp = gd.get('xdmcp_configs', [])
-print('GD_xdmcp_count=' + q(len(xdmcp)))
-for i,x in enumerate(xdmcp):
-    print(f'GD_xdmcp_{i}=' + q(x))
-pm = data.get('package_manager', {})
-print('PM_sources_file=' + q(pm.get('sources_file', '/etc/apt/sources.list')))
-
-gpg_dirs = pm.get('gpg_dirs', [])
-print('PM_gpg_dir_count=' + q(len(gpg_dirs)))
-for i, d in enumerate(gpg_dirs):
-    print(f'PM_gpg_dir_{i}=' + q(d))
-
-gpg_exts = pm.get('gpg_extensions', [])
-print('PM_gpg_ext_count=' + q(len(gpg_exts)))
-for i, e in enumerate(gpg_exts):
-    print(f'PM_gpg_ext_{i}=' + q(e))
-
-repos = pm.get('recommended_repos', [])
-print('PM_repo_count=' + q(len(repos)))
-for i, r in enumerate(repos):
-    print(f'PM_repo_{i}=' + q(r))
-
-keys = pm.get('recommended_gpg_keys', [])
-print('PM_gpg_key_count=' + q(len(keys)))
-for i, k in enumerate(keys):
-    print(f'PM_gpg_key_{i}_name=' + q(k.get('name', '')))
-    print(f'PM_gpg_key_{i}_keyid=' + q(k.get('keyid', '')))
-    print(f'PM_gpg_key_{i}_keyserver=' + q(k.get('keyserver', '')))
-PYEOF
-
-    python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
-    local exit_code=$?
-    _clean_ram_store "$py_script"
-    [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
     chmod 600 "$INITIAL_SETUP_RAM_STORE"
     source "$INITIAL_SETUP_RAM_STORE"
 }
