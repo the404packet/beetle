@@ -789,145 +789,150 @@ load_json_logging_and_auditing() {
 
     _clean_ram_store "$LOGGING_RAM_STORE"
 
-    local py_script
-    py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
+    "$JQ" -r '
+        . as $root |
 
-    cat > "$py_script" << 'PYEOF'
-import json, sys
+        # ── preferred logging system ──
+        "LJ_preferred_logging_system=\($root.logging_system // "journald" | @sh)",
 
-def q(v):
-    return "'" + str(v).replace("'", "'\\''") + "'"
+        # ── journald ──
+        ($root.journald // {}) as $jd |
+        "LJ_service=\($jd.service // "" | @sh)",
+        "LJ_config_file=\($jd.config_file // "" | @sh)",
+        "LJ_config_drop_dir=\($jd.config_drop_dir // "" | @sh)",
+        "LJ_tmpfiles_config=\($jd.tmpfiles_config // "" | @sh)",
+        "LJ_tmpfiles_source=\($jd.tmpfiles_source // "" | @sh)",
+        (($jd.rotation_params // []) | length) as $rot_n |
+        "LJ_rot_count=\($rot_n | @sh)",
+        (($jd.rotation_params // []) | to_entries[] |
+            "LJ_rot_\(.key)_key=\(.value.key // "" | @sh)",
+            "LJ_rot_\(.key)_value=\(.value.value // "" | @sh)"
+        ),
 
-with open(sys.argv[1]) as f:
-    data = json.load(f)
+        # ── journal_remote ──
+        ($root.journald.journal_remote // $root.journal_remote // {}) as $jr |
+        "JR_package=\($jr.package // "" | @sh)",
+        "JR_upload_svc=\($jr.upload_svc // "" | @sh)",
+        "JR_remote_svc=\($jr.remote_svc // "" | @sh)",
+        "JR_remote_sock=\($jr.remote_sock // "" | @sh)",
+        "JR_upload_conf_dir=\($jr.upload_conf_dir // "" | @sh)",
+        "JR_upload_drop_file=\($jr.upload_drop_file // "" | @sh)",
+        ($jr.upload_auth // {}) as $jra |
+        "JR_server_key=\($jra.server_key // "" | @sh)",
+        "JR_server_cert=\($jra.server_cert // "" | @sh)",
+        "JR_trusted_cert=\($jra.trusted_cert // "" | @sh)",
 
-print('LJ_preferred_logging_system=' + q(data.get('logging_system', 'journald')))
+        # ── rsyslog ──
+        ($root.rsyslog // {}) as $rs |
+        "RS_package=\($rs.package // "" | @sh)",
+        "RS_service=\($rs.service // "" | @sh)",
+        "RS_config_file=\($rs.config_file // "" | @sh)",
+        "RS_config_dir=\($rs.config_dir // "" | @sh)",
+        "RS_drop_file=\($rs.drop_file // "" | @sh)",
+        "RS_file_create_mode=\($rs.file_create_mode // "" | @sh)",
+        "RS_remote_port=\($rs.remote_port // "" | @sh)",
+        "RS_remote_protocol=\($rs.remote_protocol // "" | @sh)",
+        "RS_queue_type=\($rs.queue_type // "" | @sh)",
+        "RS_queue_size=\($rs.queue_size // "" | @sh)",
+        "RS_resume_retry=\($rs.resume_retry // "" | @sh)",
+        "RS_logrotate_config=\($rs.logrotate_config // "" | @sh)",
+        "RS_logrotate_dir=\($rs.logrotate_dir // "" | @sh)",
+        (($rs.logging_rules // []) | length) as $rs_n |
+        "RS_rules_count=\($rs_n | @sh)",
+        (($rs.logging_rules // []) | to_entries[] |
+            "RS_\(.key)_name=\(.value.name // "" | @sh)",
+            "RS_\(.key)_rule=\(.value.rule // "" | @sh)",
+            "RS_\(.key)_dest=\(.value.dest // "" | @sh)"
+        ),
 
-jd = data.get('journald', {})
-print('LJ_service='         + q(jd.get('service','')))
-print('LJ_config_file='     + q(jd.get('config_file','')))
-print('LJ_config_drop_dir=' + q(jd.get('config_drop_dir','')))
-print('LJ_tmpfiles_config=' + q(jd.get('tmpfiles_config','')))
-print('LJ_tmpfiles_source=' + q(jd.get('tmpfiles_source','')))
-rp = jd.get('rotation_params', [])
-print('LJ_rot_count=' + q(len(rp)))
-for i,p in enumerate(rp):
-    print(f'LJ_rot_{i}_key='   + q(p.get('key','')))
-    print(f'LJ_rot_{i}_value=' + q(p.get('value','')))
+        # ── logfile_permissions ──
+        ($root.logfile_permissions // {}) as $lp |
+        "LP_search_dir=\($lp.search_dir // "" | @sh)",
+        (($lp.rules // []) | length) as $lp_n |
+        "LP_rules_count=\($lp_n | @sh)",
+        (($lp.rules // []) | to_entries[] |
+            "LP_\(.key)_match_type=\(.value.match_type // "" | @sh)",
+            "LP_\(.key)_pattern=\(.value.pattern // "" | @sh)",
+            "LP_\(.key)_perm_mask=\(.value.perm_mask // "" | @sh)",
+            "LP_\(.key)_rperms=\(.value.rperms // "" | @sh)",
+            "LP_\(.key)_owner=\(.value.owner // "" | @sh)",
+            "LP_\(.key)_group=\(.value.group // "" | @sh)",
+            "LP_\(.key)_fix_group=\(.value.fix_group // "" | @sh)"
+        ),
 
-jr = jd.get('journal_remote', {})
-print('JR_package='          + q(jr.get('package','')))
-print('JR_upload_svc='       + q(jr.get('upload_svc','')))
-print('JR_remote_svc='       + q(jr.get('remote_svc','')))
-print('JR_remote_sock='      + q(jr.get('remote_sock','')))
-print('JR_upload_conf_dir='  + q(jr.get('upload_conf_dir','')))
-print('JR_upload_drop_file=' + q(jr.get('upload_drop_file','')))
-jr_auth = jr.get('upload_auth', {})
-print('JR_server_key='   + q(jr_auth.get('server_key','')))
-print('JR_server_cert='  + q(jr_auth.get('server_cert','')))
-print('JR_trusted_cert=' + q(jr_auth.get('trusted_cert','')))
+        # ── auditd ──
+        ($root.auditd // {}) as $ad |
+        "AD_service=\($ad.service // "" | @sh)",
+        "AD_grub_config=\($ad.grub_config // "" | @sh)",
+        "AD_grub_cmdline_key=\($ad.grub_cmdline_key // "" | @sh)",
+        (($ad.packages // []) | length) as $ad_pkg_n |
+        "AD_pkg_count=\($ad_pkg_n | @sh)",
+        (($ad.packages // []) | to_entries[] |
+            "AD_pkg_\(.key)_name=\(.value.name // "" | @sh)"
+        ),
+        (($ad.grub_params // []) | length) as $ad_gp_n |
+        "AD_grub_param_count=\($ad.grub_param_count // $ad_gp_n | @sh)",
+        (($ad.grub_params // []) | to_entries[] |
+            "AD_grub_\(.key)_name=\(.value.name // "" | @sh)",
+            "AD_grub_\(.key)_value=\(.value.value // "" | @sh)"
+        ),
 
-rs = data.get('rsyslog', {})
-print('RS_package='          + q(rs.get('package','')))
-print('RS_service='          + q(rs.get('service','')))
-print('RS_config_file='      + q(rs.get('config_file','')))
-print('RS_config_dir='       + q(rs.get('config_dir','')))
-print('RS_drop_file='        + q(rs.get('drop_file','')))
-print('RS_file_create_mode=' + q(rs.get('file_create_mode','')))
-print('RS_remote_port='      + q(rs.get('remote_port','')))
-print('RS_remote_protocol='  + q(rs.get('remote_protocol','')))
-print('RS_queue_type='       + q(rs.get('queue_type','')))
-print('RS_queue_size='       + q(rs.get('queue_size','')))
-print('RS_resume_retry='     + q(rs.get('resume_retry','')))
-print('RS_logrotate_config=' + q(rs.get('logrotate_config','')))
-print('RS_logrotate_dir='    + q(rs.get('logrotate_dir','')))
-rules = rs.get('logging_rules', [])
-print('RS_rules_count=' + q(len(rules)))
-for i,r in enumerate(rules):
-    print(f'RS_{i}_name=' + q(r.get('name','')))
-    print(f'RS_{i}_rule=' + q(r.get('rule','')))
-    print(f'RS_{i}_dest=' + q(r.get('dest','')))
+        # ── auditd_config ──
+        ($root.auditd_config // {}) as $ac |
+        "AC_config_file=\($ac.config_file // "" | @sh)",
+        (($ac.params // []) | length) as $ac_n |
+        "AC_count=\($ac_n | @sh)",
+        (($ac.params // []) | to_entries[] |
+            "AC_\(.key)_name=\(.value.name // "" | @sh)",
+            "AC_\(.key)_value=\(.value.value // "" | @sh)",
+            "AC_\(.key)_valid_values=\(.value.valid_values // "" | @sh)"
+        ),
 
-lp = data.get('logfile_permissions', {})
-print('LP_search_dir=' + q(lp.get('search_dir','')))
-lp_rules = lp.get('rules', [])
-print('LP_rules_count=' + q(len(lp_rules)))
-for i,r in enumerate(lp_rules):
-    print(f'LP_{i}_match_type=' + q(r.get('match_type','')))
-    print(f'LP_{i}_pattern='    + q(r.get('pattern','')))
-    print(f'LP_{i}_perm_mask='  + q(r.get('perm_mask','')))
-    print(f'LP_{i}_rperms='     + q(r.get('rperms','')))
-    print(f'LP_{i}_owner='      + q(r.get('owner','')))
-    print(f'LP_{i}_group='      + q(r.get('group','')))
-    print(f'LP_{i}_fix_group='  + q(r.get('fix_group','')))
-ad = data.get('auditd', {})
-print('AD_service='          + q(ad.get('service','')))
-print('AD_grub_config='      + q(ad.get('grub_config','')))
-print('AD_grub_cmdline_key=' + q(ad.get('grub_cmdline_key','')))
-pkgs = ad.get('packages', [])
-print('AD_pkg_count=' + q(len(pkgs)))
-for i,p in enumerate(pkgs):
-    print(f'AD_pkg_{i}_name=' + q(p.get('name','')))
-gp = ad.get('grub_params', [])
-print('AD_grub_param_count=' + q(len(gp)))
-for i,p in enumerate(gp):
-    print(f'AD_grub_{i}_name='  + q(p.get('name','')))
-    print(f'AD_grub_{i}_value=' + q(p.get('value','')))
-ac = data.get('auditd_config', {})
-print('AC_config_file=' + q(ac.get('config_file','')))
-ac_params = ac.get('params', [])
-print('AC_count=' + q(len(ac_params)))
-for i,p in enumerate(ac_params):
-    print(f'AC_{i}_name='         + q(p.get('name','')))
-    print(f'AC_{i}_value='        + q(p.get('value','')))
-    print(f'AC_{i}_valid_values=' + q(p.get('valid_values','')))
-ar = data.get('audit_rules', {})
-print('AR_rules_dir=' + q(ar.get('rules_dir','')))
-groups = ar.get('rule_groups', [])
-print('AR_group_count=' + q(len(groups)))
-for i,g in enumerate(groups):
-    print(f'AR_{i}_name=' + q(g.get('name','')))
-    print(f'AR_{i}_file=' + q(g.get('file','')))
-    print(f'AR_{i}_key='  + q(g.get('key','')))
-    rules = g.get('rules', [])
-    print(f'AR_{i}_rule_count=' + q(len(rules)))
-    for j,r in enumerate(rules):
-        print(f'AR_{i}_{j}_rule=' + q(r))
-    paths = g.get('paths', [])
-    print(f'AR_{i}_path_count=' + q(len(paths)))
-    for k,p in enumerate(paths):
-        print(f'AR_{i}_path_{k}=' + q(p))
-print('AC_log_file_perm_mask=' + q(ac.get('log_file_perm_mask','')))
-print('AC_log_dir_perm_mask='  + q(ac.get('log_dir_perm_mask','')))
-print('AC_log_group='          + q(ac.get('log_group','')))
-print('AC_conf_perm_mask='     + q(ac.get('conf_perm_mask','')))
-print('AC_tools_perm_mask='    + q(ac.get('tools_perm_mask','')))
-tools = ac.get('tools', [])
-print('AC_tools_count=' + q(len(tools)))
-for i,t in enumerate(tools):
-    print(f'AC_tool_{i}=' + q(t))
-ai = data.get('aide', {})
-print('AI_db_init='           + q(ai.get('db_init','')))
-print('AI_db_active='         + q(ai.get('db_active','')))
-print('AI_conf_file='         + q(ai.get('conf_file','')))
-print('AI_timer='             + q(ai.get('timer','')))
-print('AI_service='           + q(ai.get('service','')))
-print('AI_integrity_options=' + q(ai.get('integrity_options','')))
-ai_pkgs = ai.get('packages', [])
-print('AI_pkg_count=' + q(len(ai_pkgs)))
-for i,p in enumerate(ai_pkgs):
-    print(f'AI_pkg_{i}_name=' + q(p.get('name','')))
-ai_tools = ai.get('audit_tools', [])
-print('AI_tools_count=' + q(len(ai_tools)))
-for i,t in enumerate(ai_tools):
-    print(f'AI_tool_{i}=' + q(t))
-PYEOF
+        # ── audit_rules ──
+        ($root.audit_rules // {}) as $ar |
+        "AR_rules_dir=\($ar.rules_dir // "" | @sh)",
+        (($ar.rule_groups // []) | length) as $ar_n |
+        "AR_group_count=\($ar_n | @sh)",
+        (($ar.rule_groups // []) | to_entries[] |
+            (.key) as $i |
+            (.value) as $g |
+            "AR_\($i)_name=\($g.name // "" | @sh)",
+            "AR_\($i)_file=\($g.file // "" | @sh)",
+            "AR_\($i)_key=\($g.key // "" | @sh)",
+            "AR_\($i)_rule_count=\(($g.rules // []) | length | @sh)",
+            (($g.rules // []) | to_entries[] | "AR_\($i)_\(.key)_rule=\(.value | @sh)"),
+            "AR_\($i)_path_count=\(($g.paths // []) | length | @sh)",
+            (($g.paths // []) | to_entries[] | "AR_\($i)_path_\(.key)=\(.value | @sh)")
+        ),
 
-    python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"
-    local exit_code=$?
-    _clean_ram_store "$py_script"
+        # ── more auditd_config fields (perm masks, tools) ──
+        "AC_log_file_perm_mask=\($ac.log_file_perm_mask // "" | @sh)",
+        "AC_log_dir_perm_mask=\($ac.log_dir_perm_mask // "" | @sh)",
+        "AC_log_group=\($ac.log_group // "" | @sh)",
+        "AC_conf_perm_mask=\($ac.conf_perm_mask // "" | @sh)",
+        "AC_tools_perm_mask=\($ac.tools_perm_mask // "" | @sh)",
+        (($ac.tools // []) | length) as $ac_tools_n |
+        "AC_tools_count=\($ac_tools_n | @sh)",
+        (($ac.tools // []) | to_entries[] | "AC_tool_\(.key)=\(.value | @sh)"),
 
-    [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
+        # ── aide ──
+        ($root.aide // {}) as $ai |
+        "AI_db_init=\($ai.db_init // "" | @sh)",
+        "AI_db_active=\($ai.db_active // "" | @sh)",
+        "AI_conf_file=\($ai.conf_file // "" | @sh)",
+        "AI_timer=\($ai.timer // "" | @sh)",
+        "AI_service=\($ai.service // "" | @sh)",
+        "AI_integrity_options=\($ai.integrity_options // "" | @sh)",
+        (($ai.packages // []) | length) as $ai_pkg_n |
+        "AI_pkg_count=\($ai_pkg_n | @sh)",
+        (($ai.packages // []) | to_entries[] |
+            "AI_pkg_\(.key)_name=\(.value.name // "" | @sh)"
+        ),
+        (($ai.audit_tools // []) | length) as $ai_tools_n |
+        "AI_tools_count=\($ai_tools_n | @sh)",
+        (($ai.audit_tools // []) | to_entries[] | "AI_tool_\(.key)=\(.value | @sh)")
+    ' "$json_file" > "$LOGGING_RAM_STORE"
+
     chmod 600 "$LOGGING_RAM_STORE"
     source "$LOGGING_RAM_STORE"
 }
