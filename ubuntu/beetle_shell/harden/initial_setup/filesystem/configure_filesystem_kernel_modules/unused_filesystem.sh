@@ -3,11 +3,11 @@ NAME="ensure unused filesystems kernel modules are not available"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$INITIAL_SETUP_RAM_STORE" ] && source "$INITIAL_SETUP_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
-echo ""
-echo "  [MANUAL CHECK] unused filesystem kernel modules"
-echo "  This check requires manual review — disabling wrong modules can be FATAL."
-echo "  Run: beetle audit initial_setup to see which modules need attention."
-echo ""
+echo
+echo -e "  ${YELLOW}[MANUAL CHECK]${RESET} unused filesystem kernel modules"
+echo -e "  ${YELLOW}This check requires manual review — disabling wrong modules can be FATAL.${RESET}"
+echo -e "  ${CYAN}Run:${RESET} beetle audit initial_setup to see which modules need attention."
+echo
 
 # Interactive prompt only if we have a terminal; otherwise default to 'y'
 response="y"

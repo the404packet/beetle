@@ -156,7 +156,6 @@ is_check_enabled() {
     local val="${!var}"
 
     # Debug — uncomment to troubleshoot
-    # echo "DEBUG key=$key safe_key=$safe_key var=$var val=$val" >&2
 
     [ -z "$val" ] && return 1
     [ "$val" == "true" ]
