@@ -12,6 +12,7 @@ LIB_DIR="$BEETLE_SHELL_ROOT/lib"
 source "$LIB_DIR/ram_store.sh"  || { echo "ERROR: cannot load ram_store.sh"; exit 1; }
 source "$LIB_DIR/find_json.sh"  || { echo "ERROR: cannot load find_json.sh"; exit 1; }
 source "$LIB_DIR/order.sh"    || { echo "ERROR: cannot load order.sh"; exit 1; }
+source "$LIB_DIR/report.sh"   || { echo "ERROR: cannot load report.sh"; exit 1; }
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -108,6 +109,11 @@ run_harden() {
         STATE_COLOR="${RED}"
     fi
 
+    if [ "$GENERATE_REPORT" = true ]; then
+        local rel="${script#$BEETLE_SHELL_ROOT/harden/}"
+        report_add "$rel" "$NAME" "$result"
+    fi
+
     printf "${GREEN}[DONE]${RESET} %s %s  ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
 }
 echo -e "${CYAN}Starting Beetle Hardening...${RESET}\n"
@@ -121,12 +127,15 @@ fi
 # ── Parse arguments ──
 TARGET_FOLDER=""
 TARGET_LEVEL=""
+GENERATE_REPORT=false
 
 for arg in "$@"; do
     if [ -d "$BEETLE_SHELL_ROOT/harden/$arg" ]; then
         TARGET_FOLDER="$arg"
     elif [[ "$arg" == "basic" || "$arg" == "moderate" || "$arg" == "strict" ]]; then
         TARGET_LEVEL="$arg"
+    elif [[ "$arg" == "--generate-report" ]]; then
+        GENERATE_REPORT=true
     fi
 done
 
@@ -162,6 +171,12 @@ else
 
     if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
         echo -e "${GREEN}Snapshot captured${RESET}\n"
+        # Extract snapshot ID for report
+        SNAP_ID_REPORT=$(echo "$SNAP_RESPONSE" | awk '/ID *:/{print $NF}')
+        if [ "$GENERATE_REPORT" = true ] && [ -n "$SNAP_ID_REPORT" ]; then
+            # Restart report with snapshot id
+            report_init "harden" "$TARGET_LEVEL" "$SNAP_ID_REPORT"
+        fi
     else
         echo -e "${RED}Snapshot failed — aborting${RESET}"
         echo "$SNAP_RESPONSE"
@@ -185,3 +200,7 @@ echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Executio
 echo -e "+----------------------+------------------+------------+---------------+"
 echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$SUCCESS_COUNT") | $(printf "%-13s" "$FAILED_COUNT") |"
 echo -e "+----------------------+------------------+------------+---------------+"
+# ── Generate PDF report ──
+if [ "$GENERATE_REPORT" = true ]; then
+    report_finalize
+fi
