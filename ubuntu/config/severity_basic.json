@@ -89,7 +89,7 @@
 
   "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_active": true,
   "logging_and_auditing/system_logging/configure_systemd_journal_service/journald_rotation": true,
-  "logging_and_auditing/system_logging/configure_systemd_journal_service/single_logging_system": true,
+  "logging_and_auditing/system_logging/configure_systemd_journal_service/single_logging_system": false,
 
   
   "initial_setup/filesystem/configure_filesystem_kernel_modules/cramfs": true,

@@ -113,19 +113,30 @@ printf "%-19s | %-6s | %-10s | %-10s | %-8s | %-6s | %s\n" \
 
 printf "%s\n" "------------------------------------------------------------------------------------------------------"
 
-# ---------- OUTPUT (NO WRAP) ----------
 echo "$filtered_logs" | awk '
 {
     ts = $1 " " $2
 
-    match($0, /pid=([^ ]+)/, p); pid = p[1]
-    match($0, /user=([^ ]+)/, u); user = u[1]
-    match($0, /status=([^ ]+)/, s); status = s[1]
-    match($0, /time=([^ ]+)/, t); time = t[1]
-    match($0, /id=([^ ]+)/, i); id = substr(i[1], length(i[1])-5)
-    match($0, /cmd="([^"]*)"/, c); cmd = c[1]
+    match($0, /pid=[^ ]+/)
+    pid = substr($0, RSTART + 4, RLENGTH - 4)
+
+    match($0, /user=[^ ]+/)
+    user = substr($0, RSTART + 5, RLENGTH - 5)
+
+    match($0, /status=[^ ]+/)
+    status = substr($0, RSTART + 7, RLENGTH - 7)
+
+    match($0, /time=[^ ]+/)
+    time = substr($0, RSTART + 5, RLENGTH - 5)
+
+    match($0, /id=[^ ]+/)
+    id = substr($0, RSTART + 3, RLENGTH - 3)
+    id = substr(id, length(id) - 5)
+
+    match($0, /cmd="[^"]*"/)
+    cmd = substr($0, RSTART + 5, RLENGTH - 6)
 
     printf "%-19s | %-6s | %-10s | %-10s | %-8s | %-6s | %s\n", \
-    ts, pid, user, status, time, id, cmd
+        ts, pid, user, status, time, id, cmd
 }
 '
