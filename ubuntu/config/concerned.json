@@ -1,56 +1,157 @@
 {
   "packages": {
-    "ufw":       ["ufw"],
-    "autofs": ["autofs.service"],
-    "avahi-daemon": ["avahi-daemon.service", "avahi-daemon.socket"],
-    "isc-dhcp-server": ["isc-dhcp-server.service", "isc-dhcp-server6.service"],
-    "udhcpd": ["udhcpd.service"] ,
-    "kea": ["kea-dhcp4.service", "kea-dhcp6.service"],
-    "bind9": ["bind9.service", "named.service"],
-    "unbound": ["unbound.service"],
-    "powerdns": ["pdns.service"],
-    "dnsmasq": ["dnsmasq.service"],
-    "vsftpd": ["vsftpd.service"],
-    "proftpd": ["proftpd.service"],
-    "pure-ftpd": ["pure-ftpd.service"],
-    "slapd": ["slapd.service"],
-    "dovecot-imapd": ["dovecot.service"],
-    "dovecot-pop3d": ["dovecot.service"],
-    "courier-imap": ["courier-imap.service"],
-    "cyrus-imapd": ["cyrus-imapd.service"],
-    "nfs-kernel-server": ["nfs-server.service", "nfs-kernel-server.service"],
-    "nfs-common": ["nfs-common.service"],
-    "nis": ["nis.service", "ypbind.service"],
+    "ufw": [
+      "ufw"
+    ],
+    "autofs": [
+      "autofs.service"
+    ],
+    "avahi-daemon": [
+      "avahi-daemon.service",
+      "avahi-daemon.socket"
+    ],
+    "isc-dhcp-server": [
+      "isc-dhcp-server.service",
+      "isc-dhcp-server6.service"
+    ],
+    "udhcpd": [
+      "udhcpd.service"
+    ],
+    "kea": [
+      "kea-dhcp4.service",
+      "kea-dhcp6.service"
+    ],
+    "bind9": [
+      "bind9.service",
+      "named.service"
+    ],
+    "unbound": [
+      "unbound.service"
+    ],
+    "powerdns": [
+      "pdns.service"
+    ],
+    "dnsmasq": [
+      "dnsmasq.service"
+    ],
+    "vsftpd": [
+      "vsftpd.service"
+    ],
+    "proftpd": [
+      "proftpd.service"
+    ],
+    "pure-ftpd": [
+      "pure-ftpd.service"
+    ],
+    "slapd": [
+      "slapd.service"
+    ],
+    "dovecot-imapd": [
+      "dovecot.service"
+    ],
+    "dovecot-pop3d": [
+      "dovecot.service"
+    ],
+    "courier-imap": [
+      "courier-imap.service"
+    ],
+    "cyrus-imapd": [
+      "cyrus-imapd.service"
+    ],
+    "nfs-kernel-server": [
+      "nfs-server.service",
+      "nfs-kernel-server.service"
+    ],
+    "nfs-common": [
+      "nfs-common.service"
+    ],
+    "nis": [
+      "nis.service",
+      "ypbind.service"
+    ],
     "yp-tools": [],
-    "rpcbind": ["rpcbind.service", "rpcbind.socket"],
-    "cups": ["cups.service"],
-    "cups-browsed": ["cups-browsed.service"],
-    "rsync": ["rsync.service"],
-    "samba": ["smbd.service", "nmbd.service", "winbind.service"],
+    "rpcbind": [
+      "rpcbind.service",
+      "rpcbind.socket"
+    ],
+    "cups": [
+      "cups.service"
+    ],
+    "cups-browsed": [
+      "cups-browsed.service"
+    ],
+    "rsync": [
+      "rsync.service"
+    ],
+    "samba": [
+      "smbd.service",
+      "nmbd.service",
+      "winbind.service"
+    ],
     "samba-common-bin": [],
-    "snmpd": ["snmpd.service"],
+    "snmpd": [
+      "snmpd.service"
+    ],
     "snmp": [],
-    "tftpd-hpa": ["tftpd-hpa.service"] ,
-    "atftpd": ["atftpd.service"],
-    "squid": ["squid.service"],
-    "tinyproxy": ["tinyproxy.service"],
-    "privoxy": ["privoxy.service"],
-    "haproxy": ["haproxy.service"],
-    "traefik": ["traefik.service"],
-    "varnish": ["varnish.service"],
-    "apache2": ["apache2.service"],
-    "nginx": ["nginx.service"],
-    "lighttpd": ["lighttpd.service"],
-    "caddy": ["caddy.service"],
-    "tomcat10": ["tomcat10.service"],
-    "h2o": ["h2o.service"],
-    "xinetd": ["xinetd.service"],
-    "xserver-xorg": ["display-manager.service"],
+    "tftpd-hpa": [
+      "tftpd-hpa.service"
+    ],
+    "atftpd": [
+      "atftpd.service"
+    ],
+    "squid": [
+      "squid.service"
+    ],
+    "tinyproxy": [
+      "tinyproxy.service"
+    ],
+    "privoxy": [
+      "privoxy.service"
+    ],
+    "haproxy": [
+      "haproxy.service"
+    ],
+    "traefik": [
+      "traefik.service"
+    ],
+    "varnish": [
+      "varnish.service"
+    ],
+    "apache2": [
+      "apache2.service"
+    ],
+    "nginx": [
+      "nginx.service"
+    ],
+    "lighttpd": [
+      "lighttpd.service"
+    ],
+    "caddy": [
+      "caddy.service"
+    ],
+    "tomcat10": [
+      "tomcat10.service"
+    ],
+    "h2o": [
+      "h2o.service"
+    ],
+    "xinetd": [
+      "xinetd.service"
+    ],
+    "xserver-xorg": [
+      "display-manager.service"
+    ],
     "xorg": [],
     "x11-common": [],
-    "postfix": ["postfix.service"],
-    "exim4": ["exim4.service"],
-    "sendmail": ["sendmail.service"],
+    "postfix": [
+      "postfix.service"
+    ],
+    "exim4": [
+      "exim4.service"
+    ],
+    "sendmail": [
+      "sendmail.service"
+    ],
     "rsh-client": [],
     "talk": [],
     "telnet": [],
@@ -58,38 +159,103 @@
     "ldap-utils": [],
     "ftp": [],
     "tnftp": [],
-    "cron": ["cron.service"],
-    "at": ["atd.service"],
-    "systemd-timesyncd": ["systemd-timesyncd.service"],
-    "chrony": ["chrony.service"],
-    "auditd": ["auditd.service"],
+    "cron": [
+      "cron.service"
+    ],
+    "at": [
+      "atd.service"
+    ],
+    "systemd-timesyncd": [
+      "systemd-timesyncd.service"
+    ],
+    "chrony": [
+      "chrony.service"
+    ],
+    "auditd": [
+      "auditd.service"
+    ],
     "audispd-plugins": [],
-    "rsyslog": ["rsyslog.service"],
-    "systemd-journal-remote": ["systemd-journal-remote.service", "systemd-journal-upload.service"],
+    "rsyslog": [
+      "rsyslog.service"
+    ],
+    "systemd-journal-remote": [
+      "systemd-journal-remote.service",
+      "systemd-journal-upload.service"
+    ],
     "libpam-modules": [],
     "libpam-pwquality": [],
     "sudo": [],
-    "bluez": ["bluetooth.service"],
+    "bluez": [
+      "bluetooth.service"
+    ],
     "iptables-persistent": [],
-    "nftables": ["nftables.service"]
+    "nftables": [
+      "nftables.service"
+    ]
   },
   "kernel_modules": [
-    { "name": "br_netfilter", "removable": true  },
-    { "name": "overlay",      "removable": false },
-    { "name": "cramfs",       "removable": true  },
-    { "name": "freevxfs",     "removable": true  },
-    { "name": "hfs",          "removable": true  },
-    { "name": "hfsplus",      "removable": true  },
-    { "name": "jffs2",        "removable": true  },
-    { "name": "squashfs",     "removable": true  },
-    { "name": "udf",          "removable": true  },
-    { "name": "usb-storage",  "removable": true  },
-    { "name": "dccp",         "removable": true  },
-    { "name": "sctp",         "removable": true  },
-    { "name": "rds",          "removable": true  },
-    { "name": "tipc",         "removable": true  }
+    {
+      "name": "br_netfilter",
+      "removable": true
+    },
+    {
+      "name": "overlay",
+      "removable": false
+    },
+    {
+      "name": "cramfs",
+      "removable": true
+    },
+    {
+      "name": "freevxfs",
+      "removable": true
+    },
+    {
+      "name": "hfs",
+      "removable": true
+    },
+    {
+      "name": "hfsplus",
+      "removable": true
+    },
+    {
+      "name": "jffs2",
+      "removable": true
+    },
+    {
+      "name": "squashfs",
+      "removable": true
+    },
+    {
+      "name": "udf",
+      "removable": true
+    },
+    {
+      "name": "usb-storage",
+      "removable": true
+    },
+    {
+      "name": "dccp",
+      "removable": true
+    },
+    {
+      "name": "sctp",
+      "removable": true
+    },
+    {
+      "name": "rds",
+      "removable": true
+    },
+    {
+      "name": "tipc",
+      "removable": true
+    }
   ],
-  "firewalls": ["ufw", "iptables", "nftables"],
+  "firewalls": [
+    "ufw",
+    "iptables",
+    "nftables"
+  ],
   "files": [
     "/etc/crontab",
     "/etc/cron.hourly",
@@ -128,27 +294,27 @@
     "/etc/rsyslog.conf",
     "/etc/systemd/journald.conf",
     "/etc/default/grub",
-  "/etc/sudo.conf",
-  "/etc/cron.allow",
-  "/etc/cron.deny",
-  "/etc/at.allow",
-  "/etc/at.deny",
-  "/root/.bash_profile",
-  "/root/.bashrc",
-  "/etc/profile",
-  "/etc/bash.bashrc",
-  "/etc/systemd/timesyncd.conf.d/60-timesyncd.conf",
-  "/etc/chrony/sources.d/60-sources.sources",
-  "/etc/chrony/chrony.conf",
-  "/etc/systemd/journald.conf",
-  "/etc/systemd/logind.conf",
-  "/etc/default/ufw",
-  "/etc/hosts",
-  "/etc/resolv.conf",
-  "/etc/hostname",
-  "/etc/nsswitch.conf",
-  "/etc/kernel/cmdline",
-  "/etc/default/grub.d"
+    "/etc/sudo.conf",
+    "/etc/cron.allow",
+    "/etc/cron.deny",
+    "/etc/at.allow",
+    "/etc/at.deny",
+    "/root/.bash_profile",
+    "/root/.bashrc",
+    "/etc/profile",
+    "/etc/bash.bashrc",
+    "/etc/systemd/timesyncd.conf.d/60-timesyncd.conf",
+    "/etc/chrony/sources.d/60-sources.sources",
+    "/etc/chrony/chrony.conf",
+    "/etc/systemd/journald.conf",
+    "/etc/systemd/logind.conf",
+    "/etc/default/ufw",
+    "/etc/hosts",
+    "/etc/resolv.conf",
+    "/etc/hostname",
+    "/etc/nsswitch.conf",
+    "/etc/kernel/cmdline",
+    "/etc/default/grub.d"
   ],
   "directories": [
     "/tmp",
@@ -168,30 +334,29 @@
     "/etc/systemd"
   ],
   "config_dirs": [
-  "/etc/modprobe.d",
-  "/etc/sudoers.d",
-  "/etc/pam.d",
-  "/etc/ssh/sshd_config.d",
-  "/etc/systemd/timesyncd.conf.d",
-  "/etc/systemd/journald.conf.d",
-  "/etc/rsyslog.d",
-  "/etc/audit/rules.d",
-  "/etc/profile.d",
-  "/etc/apparmor.d",
-  "/etc/chrony/sources.d",
-  "/etc/chrony/conf.d",
-  "/etc/default/grub.d"
-],
-"sysctl_keys": [
-  "net.ipv4.ip_forward",
-  "net.ipv6.conf.all.forwarding",
-  "net.ipv4.conf.all.rp_filter",
-  "net.ipv4.tcp_syncookies",
-  "net.ipv4.conf.all.accept_redirects",
-  "net.ipv4.conf.all.accept_source_route",
-  "kernel.randomize_va_space",
-  "kernel.yama.ptrace_scope",
-  "fs.suid_dumpable",
-  "kernel.core_pattern"
-]
+    "/etc/modprobe.d",
+    "/etc/sudoers.d",
+    "/etc/pam.d",
+    "/etc/ssh/sshd_config.d",
+    "/etc/systemd/timesyncd.conf.d",
+    "/etc/systemd/journald.conf.d",
+    "/etc/rsyslog.d",
+    "/etc/audit/rules.d",
+    "/etc/profile.d",
+    "/etc/chrony/sources.d",
+    "/etc/chrony/conf.d",
+    "/etc/default/grub.d"
+  ],
+  "sysctl_keys": [
+    "net.ipv4.ip_forward",
+    "net.ipv6.conf.all.forwarding",
+    "net.ipv4.conf.all.rp_filter",
+    "net.ipv4.tcp_syncookies",
+    "net.ipv4.conf.all.accept_redirects",
+    "net.ipv4.conf.all.accept_source_route",
+    "kernel.randomize_va_space",
+    "kernel.yama.ptrace_scope",
+    "fs.suid_dumpable",
+    "kernel.core_pattern"
+  ]
 }
