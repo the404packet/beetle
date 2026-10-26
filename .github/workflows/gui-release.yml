@@ -1,0 +1,89 @@
+name: Package and Release GUI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: gui/ui/package-lock.json
+
+      - name: Install Frontend Dependencies & Build UI
+        working-directory: gui/ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Create Python Venv & Install Requirements
+        working-directory: gui
+        run: |
+          python -m venv venv
+          ./venv/bin/pip install --upgrade pip
+          ./venv/bin/pip install -r requirements.txt
+
+      - name: Create Convenience Launcher Script
+        working-directory: gui
+        run: |
+          cat << 'EOF' > run.sh
+          #!/usr/bin/env bash
+          set -e
+          cd "$(dirname "$0")"
+
+          if [ -d "venv" ]; then
+            source venv/bin/activate
+          else
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt
+          fi
+
+          echo "Starting Beetle GUI at http://localhost:8000 ..."
+          python3 app.py
+          EOF
+          chmod +x run.sh
+
+      - name: Create ZIP Archive of GUI
+        run: |
+          # Package gui directory with built frontend (dist), python venv, app.py, and launcher
+          # Exclude heavy node_modules and developer src since UI is already compiled in ui/dist
+          zip -r beetle-gui.zip gui \
+            -x "gui/ui/node_modules/*" \
+            -x "gui/ui/src/*" \
+            -x "gui/**/__pycache__/*" \
+            -x "gui/**/*.pyc"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: "Beetle GUI Release ${{ github.event.inputs.tag_name || github.ref_name }}"
+          files: beetle-gui.zip
+          draft: false
+          prerelease: false

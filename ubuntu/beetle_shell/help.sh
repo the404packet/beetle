@@ -9,6 +9,7 @@ Core Commands:
   banner
   audit
   harden
+  gui
   version
   help
 
@@ -16,6 +17,7 @@ Description:
   banner    Display Beetle ASCII banner
   audit     Run system audit checks
   harden    Apply remediation scripts
+  gui       Launch Beetle Web GUI
   version   Show Beetle version
   help      Show help information
 
@@ -54,6 +56,15 @@ Usage:
 
 Description:
   Applies remediation scripts.
+EOF
+            ;;
+        gui)
+            cat << "EOF"
+Usage:
+  beetle gui
+
+Description:
+  Launches the Beetle Web Interface.
 EOF
             ;;
         version)
