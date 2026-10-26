@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# gui.sh - Beetle GUI Launcher and Setup script
-# Can be run directly or via: sudo beetle gui
 
 set -euo pipefail
 
 GITHUB_REPO="the404packet/beetle"
-
-# Determine script & project directories
-# Priority:
-# 1. Existing local /usr/local/bin/beetle_shell/../../gui or adjacent gui folder
-# 2. /opt/beetle-gui or /etc/beetle/gui if installed globally
-# 3. Standard paths relative to script
 
 GUI_DIR=""
 
