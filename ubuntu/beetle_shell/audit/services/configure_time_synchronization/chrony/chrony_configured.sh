@@ -9,26 +9,41 @@ RESET="\e[0m"
 [ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
 [ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-is_enabled=$(systemctl is-enabled chrony.service 2>/dev/null)
-is_active=$(systemctl is-active chrony.service 2>/dev/null)
+daemon_count="${TS_daemon_count:-0}"
 
-if [[ "$is_enabled" != "enabled" ]] && [[ "$is_active" != "active" ]]; then
+# ── Find chrony index and check for other active daemon ──
+chrony_idx=""
+other_active=""
+for ((i=0; i<daemon_count; i++)); do
+    name_var="TS_daemon_${i}_name"
+    svc_var="TS_daemon_${i}_service"
+    name="${!name_var}"
+    svc="${!svc_var}"
+    [ -z "$svc" ] && continue
+
+    if [ "$name" == "chrony" ]; then
+        chrony_idx="$i"
+        continue
+    fi
+
+    if systemctl is-active "$svc" >/dev/null 2>&1; then
+        other_active="$name"
+    fi
+done
+
+if [ -z "$chrony_idx" ]; then
     echo -e "${GREEN}HARDENED${RESET}"
     exit 0
 fi
 
-daemon_count="$TS_daemon_count"
-chrony_idx=""
-for ((i=0; i<daemon_count; i++)); do
-    name_var="TS_daemon_${i}_name"
-    if [[ "${!name_var}" == "chrony" ]]; then
-        chrony_idx="$i"
-        break
-    fi
-done
+if [ -n "$other_active" ]; then
+    echo -e "${GREEN}HARDENED${RESET}"
+    exit 0
+fi
 
-if [[ -z "$chrony_idx" ]]; then
-    echo -e "${RED}NOT HARDENED${RESET}"
+# If chrony itself isn't running, not relevant
+if ! systemctl is-active chrony.service >/dev/null 2>&1; then
+    echo -e "${GREEN}HARDENED${RESET}"
     exit 0
 fi
 
@@ -40,7 +55,6 @@ config_file="${!config_file_var}"
 config_dir="${!config_dir_var}"
 ntp_count="${!ntp_count_var}"
 
-# collect all config files
 config_files=("$config_file")
 while IFS= read -r -d $'\0' f; do
     config_files+=("$f")
@@ -49,14 +63,14 @@ done < <(find "$config_dir" -type f -name "*.sources" -print0 2>/dev/null)
 server_found=false
 for f in "${config_files[@]}"; do
     [ -f "$f" ] || continue
-    if grep -Pq '^\s*(server|pool)\s+\S+' "$f" 2>/dev/null; then
-        for ((n=0; n<ntp_count; n++)); do
-            srv_var="TS_daemon_${chrony_idx}_ntp_${n}"
-            srv="${!srv_var}"
-            grep -Pq "^\s*(server|pool)\s+.*\b${srv}\b" "$f" 2>/dev/null && \
-                server_found=true && break
-        done
-    fi
+    for ((n=0; n<ntp_count; n++)); do
+        srv_var="TS_daemon_${chrony_idx}_ntp_${n}"
+        srv="${!srv_var}"
+        [ -z "$srv" ] && continue
+        grep -Pq "^\s*(server|pool)\s+.*\b${srv}\b" "$f" 2>/dev/null && \
+            server_found=true && break
+    done
+    $server_found && break
 done
 
 if $server_found; then

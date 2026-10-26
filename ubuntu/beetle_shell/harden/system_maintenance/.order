@@ -1,0 +1,26 @@
+# Beetle execution order — system_maintenance module
+# Mirrors CIS Ubuntu 22.04 §7
+
+# ── 7.1 system file and directory access ──
+system_file_permissions/passwd_file_permissions.sh
+system_file_permissions/passwd-_file_permissions.sh
+system_file_permissions/group_file_permissions.sh
+system_file_permissions/group-_file_permissions.sh
+system_file_permissions/shadow_file_permissions.sh
+system_file_permissions/shadow-_file_permissions.sh
+system_file_permissions/gshadow_file_permissions.sh
+system_file_permissions/gshadow-_file_permissions.sh
+system_file_permissions/shells_file_permissions.sh
+system_file_permissions/opasswd_file_permissions.sh
+system_file_permissions/opasswd_old_file_permissions.sh
+system_file_permissions/suid_sgid_files_review.sh
+
+# ── 7.2 local user and group settings ──
+local_user_and_group_settings/all_accounts_use_shadow_passwd.sh
+local_user_and_group_settings/shadow_passwd_fields_isempty.sh
+local_user_and_group_settings/all_groups_exist_in_shadow.sh
+local_user_and_group_settings/shadow_group_isempty.sh
+local_user_and_group_settings/no_duplicates_uids.sh
+local_user_and_group_settings/no_duplicate_gids.sh
+local_user_and_group_settings/no_duplicate_usernames.sh
+local_user_and_group_settings/no_duplicate_grpnames.sh

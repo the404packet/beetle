@@ -3,29 +3,24 @@ NAME="ensure logrotate is configured"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
+if [ -z "$RS_logrotate_dir" ]; then
+    echo -e "${RED}FAILED${RESET} (logrotate dir not set)"
+    exit 1
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+if ! dpkg-query -W -f='${Status}' logrotate 2>/dev/null | grep -q "install ok installed"; then
+    apt-get install -y -q logrotate </dev/null >/dev/null 2>&1 || true
+fi
+
 drop_file="${RS_logrotate_dir}/rsyslog"
+mkdir -p "$RS_logrotate_dir"
 
-echo ""
-echo "  [MANUAL CHECK] logrotate configuration"
-echo "  Will write default rotation policy to $drop_file:"
-echo "    /var/log/syslog /var/log/mail* /var/log/cron /var/log/warn /var/log/messages {"
-echo "      daily"
-echo "      rotate 14"
-echo "      maxage 30"
-echo "      compress"
-echo "      missingok"
-echo "      notifempty"
-echo "      sharedscripts"
-echo "      postrotate"
-echo "        systemctl reload-or-restart rsyslog"
-echo "      endscript"
-echo "    }"
-echo ""
-echo -n "  Press ENTER to apply, or type 'no' to handle manually: "
-read -r response
-
-if [ "$response" = "no" ]; then
-    echo -e "${RED}FAILED${RESET}"; exit 1
+if [ -t 0 ] && [ -c /dev/tty ]; then
+    echo -n "  Apply default logrotate policy to $drop_file? [y/n] (default: y): "
+    read -r response </dev/tty
+    response="${response:-y}"
+    [[ "${response,,}" == "y" ]] || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 fi
 
 cat > "$drop_file" <<'EOF'
@@ -43,9 +38,7 @@ cat > "$drop_file" <<'EOF'
 }
 EOF
 
-found=$(grep -rPs '^\s*(daily|weekly|monthly|rotate\s+\d+|maxage\s+\d+)' \
-        "$RS_logrotate_config" "$RS_logrotate_dir"/ 2>/dev/null | head -1)
-
+found=$(grep -Ps '^\s*(daily|weekly|monthly|rotate\s+\d+|maxage\s+\d+)' "$drop_file" 2>/dev/null | head -1)
 [ -n "$found" ] \
     && echo -e "${GREEN}SUCCESS${RESET}" \
     || { echo -e "${RED}FAILED${RESET}"; exit 1; }

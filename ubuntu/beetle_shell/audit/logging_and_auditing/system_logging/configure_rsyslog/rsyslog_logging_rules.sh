@@ -3,6 +3,10 @@ NAME="ensure rsyslog logging is configured"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
 
+[ "${LJ_preferred_logging_system:-journald}" != "rsyslog" ] && { echo -e "${GREEN}HARDENED${RESET}"; exit 0; }
+
+require_present pkg rsyslog
+
 fail=0
 count="$RS_rules_count"
 for ((i=0; i<count; i++)); do

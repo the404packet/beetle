@@ -1,0 +1,91 @@
+# Beetle execution order — access_control module
+# Mirrors CIS Ubuntu 22.04 §5
+
+# ── 5.1 SSH server ──
+configure_ssh_server/ssh_private_host_key_perm.sh
+configure_ssh_server/ssh_public_host_key_perm.sh
+configure_ssh_server/config_ssh_server.sh
+configure_ssh_server/sshd_access_config.sh
+configure_ssh_server/ssh_banner_audit.sh
+configure_ssh_server/ssh_ciphers_audit.sh
+configure_ssh_server/sshd_clientalive_interval_maxcount.sh
+configure_ssh_server/sshd_disableforwarding.sh
+configure_ssh_server/sshd_gssapiauthentication.sh
+configure_ssh_server/sshd_hostbasedAuthentication.sh
+configure_ssh_server/sshd_ignoreRhosts.sh
+configure_ssh_server/ssh_kexalgorithm.sh
+configure_ssh_server/sshd_logingracetime_config.sh
+configure_ssh_server/sshd_loglvl.sh
+configure_ssh_server/sshd_macs_config.sh
+configure_ssh_server/sshd_maxauthtries.sh
+configure_ssh_server/sshd_maxsessions.sh
+configure_ssh_server/sshd_maxstartups.sh
+configure_ssh_server/sshd_permitemptypasswords.sh
+configure_ssh_server/sshd_permitrootlogin.sh
+configure_ssh_server/sshd_permituserenv.sh
+configure_ssh_server/sshd_usePam.sh
+
+# ── 5.2 privilege escalation (sudo) ──
+configure_priviledge_escalation/sudo_installed.sh
+configure_priviledge_escalation/sudo_use_pty.sh
+configure_priviledge_escalation/sudo_logfile.sh
+configure_priviledge_escalation/sudo_no_authenticate.sh
+configure_priviledge_escalation/sudo_nopasswd.sh
+configure_priviledge_escalation/sudo_timeout.sh
+configure_priviledge_escalation/sudo_su_restrict.sh
+
+# ── 5.3 PAM software packages ──
+configure_pam/pam_libpam_runtime_version.sh
+configure_pam/pam_libpam_modules_version.sh
+configure_pam/pam_libpam_pwquality_installed.sh
+
+# ── 5.3.2 PAM modules enabled ──
+configure_pam/pam_unix_enabled.sh
+configure_pam/pam_faillock_enabled.sh
+configure_pam/pam_pwquality_enabled.sh
+configure_pam/pam_pwhistory_enabled.sh
+
+# ── 5.3.3.1 pam_faillock args ──
+configure_pam/pam_faillock_deny.sh
+configure_pam/pam_faillock_unlock_time.sh
+configure_pam/pam_faillock_root.sh
+
+# ── 5.3.3.2 pam_pwquality args ──
+configure_pam/pam_pwquality_difok.sh
+configure_pam/pam_pwquality_minlen.sh
+configure_pam/pam_pwquality_complexity.sh
+configure_pam/pam_pwquality_maxrepeat.sh
+configure_pam/pam_pwquality_maxsequence.sh
+configure_pam/pam_pwquality_dictcheck.sh
+configure_pam/pam_pwquality_enforcing.sh
+configure_pam/pam_pwquality_enforce_root.sh
+
+# ── 5.3.3.3 pam_pwhistory args ──
+configure_pam/pam_pwhistory_remember.sh
+configure_pam/pam_pwhistory_enforce_root.sh
+configure_pam/pam_pwhistory_use_authtok.sh
+
+# ── 5.3.3.4 pam_unix args ──
+configure_pam/pam_unix_no_nullok.sh
+configure_pam/pam_unix_no_remember.sh
+configure_pam/pam_unix_strong_hash.sh
+configure_pam/pam_unix_use_authtok.sh
+
+# ── 5.4 user accounts and environment ──
+user_accounts_and_environment/ensure_password_expiration_is_configured.sh
+user_accounts_and_environment/ensure_minimum_password_days_is_configured.sh
+user_accounts_and_environment/ensure_password_expiration_warning_days_is_configured.sh
+user_accounts_and_environment/ensure_strong_password_hashing_algorithm_is_configured.sh
+user_accounts_and_environment/ensure_inactive_password_lock_is_configured.sh
+user_accounts_and_environment/ensure_all_users_last_password_change_date_is_in_the_past.sh
+user_accounts_and_environment/ensure_root_is_the_only_uid_0_account.sh
+user_accounts_and_environment/ensure_root_is_the_only_gid_0_account.sh
+user_accounts_and_environment/ensure_group_root_is_the_only_gid_0_group.sh
+user_accounts_and_environment/ensure_root_account_access_is_controlled.sh
+user_accounts_and_environment/ensure_root_path_integrity.sh
+user_accounts_and_environment/ensure_root_user_umask_is_configured.sh
+user_accounts_and_environment/ensure_system_accounts_do_not_have_a_valid_login_shell.sh
+user_accounts_and_environment/ensure_accounts_without_a_valid_login_shell_are_locked.sh
+user_accounts_and_environment/ensure_nologin_is_not_listed_in_etc_shells.sh
+user_accounts_and_environment/ensure_default_user_shell_timeout_is_configured.sh
+user_accounts_and_environment/ensure_default_user_umask_is_configured.sh

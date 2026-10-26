@@ -12,6 +12,7 @@ RESET="\e[0m"
 category="rsh_client"
 
 while IFS= read -r pkg; do
+    [ -z "$pkg" ] && continue
     restrict=$(get_svc "$category" "$pkg" "restrict")
     version=$(get_svc "$category" "$pkg" "version")
 

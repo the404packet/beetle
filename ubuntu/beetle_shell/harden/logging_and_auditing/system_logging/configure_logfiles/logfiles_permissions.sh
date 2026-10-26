@@ -19,7 +19,7 @@ f_get_rule() {
                 [[ "$basename" =~ ^($pat)$ ]] || continue ;;
             default)
                 ;;
-            *)  continue ;;
+            *) continue ;;
         esac
         rule_index=$i
         return 0
@@ -27,7 +27,12 @@ f_get_rule() {
     rule_index=$(( count - 1 ))
 }
 
+# Only operate on real regular files directly under $LP_search_dir (no symlink
+# traversal, no crossing filesystem boundaries).
 while IFS= read -r -d $'\0' l_file; do
+    [ -L "$l_file" ] && continue
+    [ -f "$l_file" ] || continue
+
     while IFS=: read -r l_fname l_mode l_user l_group; do
         f_get_rule "$l_fname"
         i=$rule_index
@@ -37,18 +42,27 @@ while IFS= read -r -d $'\0' l_file; do
         gr_var="LP_${i}_group";      l_agroup="${!gr_var}"
         fg_var="LP_${i}_fix_group";  fix_group="${!fg_var}"
 
-        [ $(( 8#$l_mode & 8#$perm_mask )) -gt 0 ] && \
-            chmod "$rperms" "$l_fname" 2>/dev/null
-        [[ ! "$l_user"  =~ $l_aowner ]] && \
-            chown root "$l_fname" 2>/dev/null
-        [[ ! "$l_group" =~ $l_agroup ]] && \
-            chgrp "$fix_group" "$l_fname" 2>/dev/null
-    done < <(stat -Lc '%n:%#a:%U:%G' "$l_file")
-done < <(find -L "$LP_search_dir" -type f \( -perm /0137 -o ! -user root -o ! -group root \) -print0)
+        # Guard against empty variables and paths outside /var/log
+        case "$l_fname" in
+            /var/log/*) ;;
+            *) continue ;;
+        esac
 
-# verify
+        [ -n "$rperms" ] && [ $(( 8#$l_mode & 8#$perm_mask )) -gt 0 ] && \
+            chmod "$rperms" "$l_fname" 2>/dev/null || true
+        [[ ! "$l_user"  =~ $l_aowner ]] && \
+            chown root "$l_fname" 2>/dev/null || true
+        [ -n "$fix_group" ] && [[ ! "$l_group" =~ $l_agroup ]] && \
+            chgrp "$fix_group" "$l_fname" 2>/dev/null || true
+    done < <(stat -c '%n:%a:%U:%G' "$l_file")
+done < <(find "$LP_search_dir" -xdev -maxdepth 4 -type f -print0)
+
+# Verify
 fail=0
 while IFS= read -r -d $'\0' l_file; do
+    [ -L "$l_file" ] && continue
+    [ -f "$l_file" ] || continue
+
     while IFS=: read -r l_fname l_mode l_user l_group; do
         f_get_rule "$l_fname"
         i=$rule_index
@@ -59,8 +73,8 @@ while IFS= read -r -d $'\0' l_file; do
         [ $(( 8#$l_mode & 8#$perm_mask )) -gt 0 ]  && { fail=1; break; }
         [[ ! "$l_user"  =~ $l_aowner ]]             && { fail=1; break; }
         [[ ! "$l_group" =~ $l_agroup ]]             && { fail=1; break; }
-    done < <(stat -Lc '%n:%#a:%U:%G' "$l_file")
-done < <(find -L "$LP_search_dir" -type f \( -perm /0137 -o ! -user root -o ! -group root \) -print0)
+    done < <(stat -c '%n:%a:%U:%G' "$l_file")
+done < <(find "$LP_search_dir" -xdev -maxdepth 4 -type f -print0)
 
 [ "$fail" -eq 0 ] \
     && echo -e "${GREEN}SUCCESS${RESET}" \

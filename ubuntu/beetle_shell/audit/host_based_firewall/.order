@@ -1,0 +1,39 @@
+# Beetle execution order — host_based_firewall module
+# Mirrors CIS Ubuntu 22.04 §4
+
+# ── 4.0 single firewall utility (chooser, must run first) ──
+configure_a_single_firewall_utility/ensure_single_firewall_utility.sh
+
+# ── 4.1.1 – 4.1.4 ufw ──
+configure_uncomplicatedfirewall/ensure_ufw_installed.sh
+configure_uncomplicatedfirewall/ensure_iptables_persistent_not_installed.sh
+configure_uncomplicatedfirewall/ensure_ufw_service_enabled.sh
+configure_uncomplicatedfirewall/ensure_ufw_default_deny_policy.sh
+configure_uncomplicatedfirewall/ensure_ufw_loopback_configured.sh
+configure_uncomplicatedfirewall/ensure_ufw_outbound_configured.sh
+configure_uncomplicatedfirewall/ensure_ufw_open_ports_have_rules.sh
+
+# ── 4.1.5 nftables ──
+configure_nftables/ensure_nftables_installed.sh
+configure_nftables/ensure_ufw_uninstalled_with_nftables.sh
+configure_nftables/ensure_iptables_flushed_with_nftables.sh
+configure_nftables/ensure_nftables_table_exists.sh
+configure_nftables/ensure_nftables_base_chains_exist.sh
+configure_nftables/ensure_nftables_loopback_configured.sh
+configure_nftables/ensure_nftables_outbound_configured.sh
+configure_nftables/ensure_nftables_default_deny_policy.sh
+configure_nftables/ensure_nftables_service_enabled.sh
+configure_nftables/ensure_nftables_rules_permanent.sh
+
+# ── 4.1.6 iptables ──
+configure_iptables/configure_iptables_software/ensure_iptables_packages_installed.sh
+configure_iptables/configure_iptables_software/ensure_nftables_not_in_use_with_iptables.sh
+configure_iptables/configure_iptables_software/ensure_ufw_not_in_use_with_iptables.sh
+configure_iptables/configure_ipv4_iptables/ensure_iptables_default_deny_policy.sh
+configure_iptables/configure_ipv4_iptables/ensure_iptables_loopback_configured.sh
+configure_iptables/configure_ipv4_iptables/ensure_iptables_outbound_configured.sh
+configure_iptables/configure_ipv4_iptables/ensure_iptables_open_ports_have_rules.sh
+configure_iptables/configure_ipv6_ip6tables/ensure_ip6tables_default_deny_policy.sh
+configure_iptables/configure_ipv6_ip6tables/ensure_ip6tables_loopback_configured.sh
+configure_iptables/configure_ipv6_ip6tables/ensure_ip6tables_outbound_configured.sh
+configure_iptables/configure_ipv6_ip6tables/ensure_ip6tables_open_ports_have_rules.sh

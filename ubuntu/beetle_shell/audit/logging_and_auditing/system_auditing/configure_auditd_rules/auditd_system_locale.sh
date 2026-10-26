@@ -2,6 +2,7 @@
 NAME="ensure events that modify the system network environment are collected"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg auditd
 
 idx=$(get_ar_group_index "system_locale")
 count_var="AR_${idx}_rule_count"; count="${!count_var}"

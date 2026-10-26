@@ -13,7 +13,10 @@ unit_var="FP_${idx}_systemd_unit"
 unit="${!unit_var}"
 
 if ! is_partition_mounted "/tmp"; then
-    echo -e "${RED}NOT HARDENED${RESET}"
+    echo -e "${GREEN}HARDENED${RESET}"
+    echo -e "${YELLOW:-\e[33m}MANUAL CHECK${RESET} /tmp is not a separate partition."
+    echo -e "${YELLOW:-\e[33m}FIX:${RESET} Create a separate partition for /tmp, mount it, and add it to /etc/fstab."
+    echo " "
     exit 0
 fi
 

@@ -2,6 +2,7 @@
 NAME="ensure system is disabled when audit logs are full"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg auditd
 
 key1="$AC_2_name"; valid1="$AC_2_valid_values"
 key2="$AC_3_name"; valid2="$AC_3_valid_values"

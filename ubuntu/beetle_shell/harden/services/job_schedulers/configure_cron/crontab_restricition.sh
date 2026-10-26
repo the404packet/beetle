@@ -14,31 +14,38 @@ if ! is_package_installed "cron"; then
     exit 0
 fi
 
-allow_file="$JS_cron_access_allow_file"
-deny_file="$JS_cron_access_deny_file"
-req_mode="$JS_cron_access_mode"
-req_owner="$JS_cron_access_owner"
-group_count="$JS_cron_access_group_count"
+allow_file="${JS_cron_access_allow_file:-}"
+deny_file="${JS_cron_access_deny_file:-}"
+req_mode="${JS_cron_access_mode:-}"
+req_owner="${JS_cron_access_owner:-}"
+group_count="${JS_cron_access_group_count:-0}"
 
-# pick group — crontab if exists else root
+# If JSON did not define this block, nothing to harden
+if [ -z "$allow_file" ] || [ -z "$req_mode" ] || [ -z "$req_owner" ]; then
+    echo -e "${GREEN}SUCCESS${RESET}"
+    exit 0
+fi
+
+# pick group — first existing group from JSON list, else root
 req_group="root"
 for ((i=0; i<group_count; i++)); do
     var="JS_cron_access_group_${i}"
     grp="${!var}"
-    if grep -Pq -- "^${grp}:" /etc/group 2>/dev/null; then
+    [ -z "$grp" ] && continue
+    if grep -q -- "^${grp}:" /etc/group 2>/dev/null; then
         req_group="$grp"
         break
     fi
 done
 
-[ ! -f "$allow_file" ] && touch "$allow_file"
+[ ! -f "$allow_file" ] && touch "$allow_file" 2>/dev/null || true
 
-chown "${req_owner}:${req_group}" "$allow_file"
-chmod u-x,g-wx,o-rwx "$allow_file"
+chown "${req_owner}:${req_group}" -- "$allow_file" 2>/dev/null || true
+chmod "$req_mode"                  -- "$allow_file" 2>/dev/null || true
 
 if [ -f "$deny_file" ]; then
-    chown "${req_owner}:${req_group}" "$deny_file"
-    chmod u-x,g-wx,o-rwx "$deny_file"
+    chown "${req_owner}:${req_group}" -- "$deny_file" 2>/dev/null || true
+    chmod "$req_mode"                  -- "$deny_file" 2>/dev/null || true
 fi
 
 actual_mode=$(stat -Lc '%a' "$allow_file" 2>/dev/null)

@@ -1,0 +1,179 @@
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <pwd.h>
+
+#define SOCKET_PATH "/var/run/beetle.sock"
+#define BUFFER_SIZE 8192
+
+/* Marker bytes — must match lib/prompt.sh */
+static const char MARKER_PROMPT[] = "\001BEETLE_PROMPT\001";
+static const char MARKER_ANSWER[] = "\001BEETLE_ANSWER\001";
+#define MARKER_PROMPT_LEN (sizeof(MARKER_PROMPT) - 1)
+
+static int read_line_from_stdin(char *out, size_t outlen)
+{
+    if (fgets(out, outlen, stdin) == NULL) {
+        out[0] = '\0';
+        return -1;
+    }
+    size_t n = strlen(out);
+    while (n > 0 && (out[n-1] == '\n' || out[n-1] == '\r'))
+        out[--n] = '\0';
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    int sock;
+    struct sockaddr_un addr;
+    char inbuf[BUFFER_SIZE];
+
+    if (argc < 2) {
+        printf("Usage: beetle <command>\n");
+        return 1;
+    }
+
+    const char *user = getenv("SUDO_USER");
+    if (!user) {
+        struct passwd *pw = getpwuid(getuid());
+        user = pw ? pw->pw_name : "unknown";
+    }
+
+    char cmd[BUFFER_SIZE] = {0};
+    for (int i = 1; i < argc; i++) {
+        strncat(cmd, argv[i], sizeof(cmd) - strlen(cmd) - 1);
+        if (i != argc - 1)
+            strncat(cmd, " ", sizeof(cmd) - strlen(cmd) - 1);
+    }
+
+    sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) { perror("socket"); return 1; }
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, SOCKET_PATH, sizeof(addr.sun_path) - 1);
+
+    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("connect (is beetled running?)");
+        close(sock);
+        return 1;
+    }
+
+    const char *tty = ttyname(STDIN_FILENO);
+    if (!tty) tty = "";
+
+    int needed = snprintf(NULL, 0,
+                          "user=%s tty=\"%s\" cmd=\"%s\"\n", user, tty, cmd);
+    char *request = malloc(needed + 1);
+    if (!request) { perror("malloc"); close(sock); return 1; }
+    snprintf(request, needed + 1,
+             "user=%s tty=\"%s\" cmd=\"%s\"\n", user, tty, cmd);
+
+    if (write(sock, request, strlen(request)) < 0) {
+        perror("write");
+        free(request);
+        close(sock);
+        return 1;
+    }
+    free(request);
+
+    /* Accumulator for bytes from the daemon. Large enough that we
+       don't need to hold more than one prompt in flight. */
+    static char acc[BUFFER_SIZE * 4];
+    size_t acc_len = 0;
+
+    while (1) {
+        ssize_t n = read(sock, inbuf, sizeof(inbuf));
+        if (n <= 0) break;
+
+        if (acc_len + (size_t)n > sizeof(acc)) {
+            /* Should never happen with our markers, but be safe */
+            fwrite(acc, 1, acc_len, stdout);
+            fflush(stdout);
+            acc_len = 0;
+        }
+        memcpy(acc + acc_len, inbuf, n);
+        acc_len += (size_t)n;
+
+        size_t pos = 0;
+        int restart_scan = 1;
+        while (restart_scan) {
+            restart_scan = 0;
+
+            while (pos + MARKER_PROMPT_LEN <= acc_len) {
+                if ((unsigned char)acc[pos] != 0x01) { pos++; continue; }
+                if (memcmp(acc + pos, MARKER_PROMPT, MARKER_PROMPT_LEN) != 0) {
+                    pos++;
+                    continue;
+                }
+
+                /* Found marker. Print everything before it. */
+                if (pos > 0) {
+                    fwrite(acc, 1, pos, stdout);
+                    fflush(stdout);
+                }
+
+                /* Locate end of prompt line */
+                size_t pstart = pos + MARKER_PROMPT_LEN;
+                size_t nl = pstart;
+                while (nl < acc_len && acc[nl] != '\n') nl++;
+
+                if (nl == acc_len) {
+                    /* Incomplete prompt — shift to front, wait for more */
+                    memmove(acc, acc + pos, acc_len - pos);
+                    acc_len -= pos;
+                    goto next_read;
+                }
+
+                /* Print the prompt text */
+                fprintf(stderr, "[DEBUG] marker found, prompt len=%zu\n", nl - pstart);
+                fwrite(acc + pstart, 1, nl - pstart, stdout);
+                fflush(stdout);
+
+                /* Read answer */
+                char answer[256] = {0};
+                read_line_from_stdin(answer, sizeof(answer));
+
+                /* Send back to daemon */
+                char resp[512];
+                int rlen = snprintf(resp, sizeof(resp),
+                                    "%s%s\n", MARKER_ANSWER, answer);
+                ssize_t w = write(sock, resp, rlen);
+                if (w < 0) perror("write answer");
+
+                /* Advance past marker */
+                size_t consumed = nl + 1;
+                if (consumed > acc_len) consumed = acc_len;
+                memmove(acc, acc + consumed, acc_len - consumed);
+                acc_len -= consumed;
+
+                restart_scan = 1;
+                break;
+            }
+        }
+
+        /* Flush non-marker data, keeping last (MARKER_PROMPT_LEN - 1)
+           bytes in case a marker spans the read boundary. */
+        if (acc_len > MARKER_PROMPT_LEN - 1) {
+            size_t safe = acc_len - (MARKER_PROMPT_LEN - 1);
+            fwrite(acc, 1, safe, stdout);
+            fflush(stdout);
+            memmove(acc, acc + safe, MARKER_PROMPT_LEN - 1);
+            acc_len = MARKER_PROMPT_LEN - 1;
+        }
+
+next_read:
+        ;
+    }
+
+    if (acc_len > 0)
+        fwrite(acc, 1, acc_len, stdout);
+
+    close(sock);
+    return 0;
+}

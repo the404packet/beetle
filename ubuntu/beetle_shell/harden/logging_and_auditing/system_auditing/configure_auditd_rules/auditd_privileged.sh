@@ -3,6 +3,15 @@ NAME="ensure use of privileged commands are collected"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
+umask 0027
+
+export DEBIAN_FRONTEND=noninteractive
+if ! dpkg-query -W -f='${Status}' auditd 2>/dev/null | grep -q "install ok installed"; then
+    apt-get install -y -q auditd audispd-plugins </dev/null >/dev/null 2>&1 || true
+fi
+[ -z "$AR_rules_dir" ] && { echo -e "${RED}FAILED${RESET} (rules dir not set)"; exit 1; }
+mkdir -p "$AR_rules_dir"
+
 idx=$(get_ar_group_index "privileged")
 file_var="AR_${idx}_file"; rules_file="${AR_rules_dir}/${!file_var}"
 uid_min=$(awk '/^\s*UID_MIN/{print $2}' /etc/login.defs)
@@ -19,6 +28,9 @@ done
 old_rules=()
 [ -f "$rules_file" ] && readarray -t old_rules < "$rules_file"
 printf '%s\n' "${old_rules[@]}" "${new_rules[@]}" | sort -u > "$rules_file"
+
+# Ensure rule files have correct permissions
+[ -n "$rules_file" ] && [ -f "$rules_file" ] && chmod 0640 "$rules_file" 2>/dev/null || true
 
 augenrules --load 2>/dev/null
 

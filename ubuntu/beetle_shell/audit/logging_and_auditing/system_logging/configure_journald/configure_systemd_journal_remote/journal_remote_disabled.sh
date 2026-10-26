@@ -5,6 +5,7 @@ GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 
 fail=0
 for unit in "$JR_remote_sock" "$JR_remote_svc"; do
+    [ -z "$unit" ] && continue
     enabled=$(systemctl is-enabled "$unit" 2>/dev/null)
     active=$(systemctl  is-active  "$unit" 2>/dev/null)
     [ "$enabled" = "enabled" ] && { echo "  FAIL: $unit is enabled"; fail=1; }

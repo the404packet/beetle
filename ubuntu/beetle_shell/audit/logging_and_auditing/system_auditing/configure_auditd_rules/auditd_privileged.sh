@@ -2,6 +2,7 @@
 NAME="ensure use of privileged commands are collected"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg auditd
 
 fail=0
 for PARTITION in $(findmnt -n -l -k -it \

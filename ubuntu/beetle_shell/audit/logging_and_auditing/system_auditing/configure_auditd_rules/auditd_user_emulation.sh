@@ -2,6 +2,7 @@
 NAME="ensure actions as another user are always logged"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}NOT HARDENED${RESET}"; exit 0; }
+require_present pkg auditd
 
 idx=$(get_ar_group_index "user_emulation")
 count_var="AR_${idx}_rule_count"; count="${!count_var}"

@@ -13,12 +13,28 @@ LOGGING_RAM_STORE="/dev/shm/beetle_logging_store.env"
 INITIAL_SETUP_RAM_STORE="/dev/shm/beetle_initial_setup_store.env"
 
 SEVERITY_CONFIG_DIR="/etc/beetle"
+
+# Resolve bundled jq (falls back to system jq)
+_BEETLE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JQ="$_BEETLE_LIB_DIR/bin/jq"
+[[ -x "$JQ" ]] || JQ="$(command -v jq)"
+[[ -x "$JQ" ]] || { echo "ERROR: jq not found (bundled or system)" >&2; exit 1; }
+export JQ
 export DPKG_RAM_STORE SEVERITY_RAM_STORE PERM_RAM_STORE \
        NETWORK_RAM_STORE SERVICES_RAM_STORE ACCESS_RAM_STORE FW_RAM_STORE FIREWALL_RAM_STORE \
        LOGGING_RAM_STORE SSH_RAM_STORE INITIAL_SETUP_RAM_STORE
 
+_clean_ram_store() {
+    local path="$1"
+    [ -e "$path" ] || return 0
+    rm -f "$path" 2>/dev/null || \
+        sudo -n rm -f "$path" 2>/dev/null || \
+        : > "$path" 2>/dev/null || \
+        true
+}
+
 load_dpkg() {
-    rm -f "$DPKG_RAM_STORE"
+    _clean_ram_store "$DPKG_RAM_STORE"
 
     dpkg-query -W -f='${Package} ${Status} ${Version}\n' 2>/dev/null | \
     awk '$0 ~ /install ok installed/ {print $1, $NF}' | \
@@ -38,7 +54,7 @@ get_installed_version() {
 }
 
 unload_dpkg() {
-    [ -f "$DPKG_RAM_STORE" ] && shred -u "$DPKG_RAM_STORE" 2>/dev/null || rm -f "$DPKG_RAM_STORE"
+    [ -f "$DPKG_RAM_STORE" ] && shred -u "$DPKG_RAM_STORE" 2>/dev/null || _clean_ram_store "$DPKG_RAM_STORE"
 }
 
 is_package_installed() {
@@ -52,6 +68,22 @@ is_package_installed() {
     [ "${!key}" = "installed" ]
 }
 
+require_present() {
+    local kind="$1" target="$2"
+    case "$kind" in
+        file)    [ -e "$target" ] && return 0 ;;
+        dir)     [ -d "$target" ] && return 0 ;;
+        pkg)     dpkg-query -W -f='${Status}' "$target" 2>/dev/null \
+                     | grep -q "install ok installed" && return 0 ;;
+        service) systemctl list-unit-files "$target" 2>/dev/null \
+                     | grep -q "^${target}" && return 0 ;;
+        cmd)     command -v "$target" >/dev/null 2>&1 && return 0 ;;
+        *)       [ -e "$target" ] && return 0 ;;
+    esac
+    echo -e "\e[31mNOT HARDENED\e[0m"
+    exit 0
+}
+
 unset_package() {
     local pkg="$1"
     local key="PKG_${pkg//[^a-zA-Z0-9_]/_}"
@@ -63,44 +95,39 @@ unset_package() {
 # SEVERITY: Load severity config into RAM
 # ─────────────────────────────────────────────
 load_severity() {
-    local target_level="$1"
-    rm -f "$SEVERITY_RAM_STORE"
+    local target_level="${1,,}"
+    _clean_ram_store "$SEVERITY_RAM_STORE"
 
     local levels=("basic")
     [[ "$target_level" == "moderate" ]] && levels=("basic" "moderate")
     [[ "$target_level" == "strict"   ]] && levels=("basic" "moderate" "strict")
 
-    local levels_str
-    levels_str=$(printf '"%s",' "${levels[@]}")
-    levels_str="[${levels_str%,}]"
+    # Collect existing severity files
+    local files=()
+    for level in "${levels[@]}"; do
+        local file="$SEVERITY_CONFIG_DIR/severity_${level}.json"
+        [[ -f "$file" ]] && files+=("$file")
+    done
 
-    python3 - <<EOF > "$SEVERITY_RAM_STORE"
-import json, os
+    if [[ ${#files[@]} -eq 0 ]]; then
+        chmod 600 "$SEVERITY_RAM_STORE" 2>/dev/null || true
+        return 0
+    fi
 
-level_list = ${levels_str}
-config_dir = "$SEVERITY_CONFIG_DIR"
-checks = {}
-
-for level in level_list:
-    config = os.path.join(config_dir, f"severity_{level}.json")
-    if not os.path.exists(config):
-        continue
-    with open(config) as f:
-        data = json.load(f)
-    for key, enabled in data.items():
-        checks[key] = enabled
-
-for key, enabled in checks.items():
-    safe_key = key.replace("/", "__").replace("-", "_").replace(".", "_")
-    print(f'SEV_{safe_key}={"true" if enabled else "false"}')
-EOF
+    # Merge all files (later overrides earlier), emit SEV_ vars
+    "$JQ" -r '
+        reduce .[] as $item ({}; . + $item) |
+        to_entries[] |
+        (.key | gsub("/"; "__") | gsub("-"; "_") | gsub("\\."; "_")) as $k |
+        "SEV_\($k)=\(if .value then "true" else "false" end)"
+    ' --slurp "${files[@]}" > "$SEVERITY_RAM_STORE" 2>/dev/null
 
     chmod 600 "$SEVERITY_RAM_STORE"
     source "$SEVERITY_RAM_STORE"
 }
 
 unload_severity() {
-    [ -f "$SEVERITY_RAM_STORE" ] && shred -u "$SEVERITY_RAM_STORE" 2>/dev/null || rm -f "$SEVERITY_RAM_STORE"
+    [ -f "$SEVERITY_RAM_STORE" ] && shred -u "$SEVERITY_RAM_STORE" 2>/dev/null || _clean_ram_store "$SEVERITY_RAM_STORE"
 }
 
 is_check_enabled() {
@@ -120,8 +147,8 @@ is_check_enabled() {
 
     local key="${folder}/${script_name}"
 
-    # Must normalize exactly the same way as python in load_severity
-    # python does: / -> __ , - -> _ , . -> _
+    # Must normalize the same way as load_severity
+    # (see jq normkey definition)
     local safe_key
     safe_key=$(echo "$key" | sed 's|/|__|g; s|-|_|g; s|\.|_|g')
 
@@ -129,7 +156,6 @@ is_check_enabled() {
     local val="${!var}"
 
     # Debug — uncomment to troubleshoot
-    # echo "DEBUG key=$key safe_key=$safe_key var=$var val=$val" >&2
 
     [ -z "$val" ] && return 1
     [ "$val" == "true" ]
@@ -139,144 +165,148 @@ load_json_initial_setup() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: initial_setup JSON not found: $json_file"; return 1; }
 
-    local py_script
-    py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
-    cat > "$py_script" << 'PYEOF'
-import json, sys
+    _clean_ram_store "$INITIAL_SETUP_RAM_STORE"
 
-def q(v):
-    return "'" + str(v).replace("'", "'\\''") + "'"
+    # ── apparmor ──
+    "$JQ" -r '
+        (.apparmor // {}) as $aa |
+        "AA_grub_config=\($aa.grub_config // "" | @sh)",
+        "AA_grub_cfg=\($aa.grub_cfg // "" | @sh)",
+        "AA_grub_cmdline_key=\($aa.grub_cmdline_key // "" | @sh)",
+        "AA_profiles_dir=\($aa.profiles_dir // "" | @sh)",
+        "AA_enforce_mode=\($aa.enforce_mode // "" | @sh)",
+        "AA_complain_mode=\($aa.complain_mode // "" | @sh)",
+        (($aa.packages // []) | length) as $n |
+        "AA_pkg_count=\($n | @sh)",
+        (($aa.packages // []) | to_entries[] |
+            "AA_pkg_\(.key)_name=\(.value.name // "" | @sh)"),
+        (($aa.grub_params // []) | length) as $gp |
+        "AA_grub_param_count=\($gp | @sh)",
+        (($aa.grub_params // []) | to_entries[] |
+            "AA_grub_\(.key)_name=\(.value.name // "" | @sh)",
+            "AA_grub_\(.key)_value=\(.value.value // "" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-with open(sys.argv[1]) as f:
-    data = json.load(f)
+    # ── filesystem_modules ──
+    "$JQ" -r '
+        (.filesystem_modules // {}) as $fm |
+        "FM_modprobe_dir=\($fm.modprobe_dir // "" | @sh)",
+        (($fm.modules // []) | length) as $n |
+        "FM_count=\($n | @sh)",
+        (($fm.modules // []) | to_entries[] |
+            "FM_\(.key)_name=\(.value.name // "" | @sh)",
+            "FM_\(.key)_type=\(.value.type // "" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-aa = data.get('apparmor', {})
-print('AA_grub_config='      + q(aa.get('grub_config','')))
-print('AA_grub_cfg='         + q(aa.get('grub_cfg','')))
-print('AA_grub_cmdline_key=' + q(aa.get('grub_cmdline_key','')))
-print('AA_profiles_dir='     + q(aa.get('profiles_dir','')))
-print('AA_enforce_mode='     + q(aa.get('enforce_mode','')))
-print('AA_complain_mode='    + q(aa.get('complain_mode','')))
+    # ── filesystem_partitions ──
+    "$JQ" -r '
+        (.filesystem_partitions // {}) as $fp |
+        (($fp.partitions // []) | length) as $n |
+        "FP_count=\($n | @sh)",
+        (($fp.partitions // []) | to_entries[] |
+            (.key) as $i |
+            (.value) as $p |
+            ($p.mount // "") as $mount |
+            ($mount | gsub("/"; "_") | sub("^_"; "")) as $mk |
+            "FP_\($i)_mount=\($mount | @sh)",
+            "FP_\($i)_mount_key=\($mk | @sh)",
+            "FP_\($i)_required=\(if ($p.required // false) then "true" else "false" end | @sh)",
+            "FP_\($i)_systemd_unit=\(($p.systemd_unit // "") | @sh)",
+            (($p.options // []) | length) as $on |
+            "FP_\($i)_opt_count=\($on | @sh)",
+            (($p.options // []) | to_entries[] | "FP_\($i)_opt_\(.key)=\(.value | @sh)"),
+            "FP_idx_\($mk)=\($i | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-pkgs = aa.get('packages', [])
-print('AA_pkg_count=' + q(len(pkgs)))
-for i,p in enumerate(pkgs):
-    print(f'AA_pkg_{i}_name=' + q(p.get('name','')))
+    # ── bootloader ──
+    "$JQ" -r '
+        (.bootloader // {}) as $bl |
+        "BL_grub_cfg=\($bl.grub_cfg // "/boot/grub/grub.cfg" | @sh)",
+        "BL_grub_config=\($bl.grub_config // "/etc/default/grub" | @sh)",
+        "BL_grub_custom_dir=\($bl.grub_custom_dir // "/etc/grub.d" | @sh)",
+        "BL_grub_custom_file=\($bl.grub_custom_file // "/etc/grub.d/40_custom" | @sh)",
+        "BL_superuser=\($bl.superuser // "grub_admin" | @sh)",
+        "BL_perm_mask=\($bl.perm_mask // "0177" | @sh)",
+        "BL_owner=\($bl.owner // "root" | @sh)",
+        "BL_group=\($bl.group // "root" | @sh)"
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-gp = aa.get('grub_params', [])
-print('AA_grub_param_count=' + q(len(gp)))
-for i,p in enumerate(gp):
-    print(f'AA_grub_{i}_name='  + q(p.get('name','')))
-    print(f'AA_grub_{i}_value=' + q(p.get('value','')))
-fm = data.get('filesystem_modules', {})
-print('FM_modprobe_dir=' + q(fm.get('modprobe_dir','')))
-mods = fm.get('modules', [])
-print('FM_count=' + q(len(mods)))
-for i,m in enumerate(mods):
-    print(f'FM_{i}_name=' + q(m.get('name','')))
-    print(f'FM_{i}_type=' + q(m.get('type','')))
-fp = data.get('filesystem_partitions', {})
-parts = fp.get('partitions', [])
-print('FP_count=' + q(len(parts)))
-for i, p in enumerate(parts):
-    mount = p.get('mount', '')
-    mount_key = mount.replace('/', '_').lstrip('_')
-    print(f'FP_{i}_mount=' + q(mount))
-    print(f'FP_{i}_mount_key=' + q(mount_key))
-    print(f'FP_{i}_required=' + q(str(p.get('required', False)).lower()))
-    print(f'FP_{i}_systemd_unit=' + q(p.get('systemd_unit') or ''))
-    opts = p.get('options', [])
-    print(f'FP_{i}_opt_count=' + q(len(opts)))
-    for j, opt in enumerate(opts):
-        print(f'FP_{i}_opt_{j}=' + q(opt))
-    # also store mount->idx mapping for easy lookup
-    print(f'FP_idx_{mount_key}=' + q(i))
+    # ── process_hardening ──
+    "$JQ" -r '
+        (.process_hardening // {}) as $ph |
+        "PH_sysctl_conf=\($ph.sysctl_conf_file // "/etc/sysctl.d/60-kernel_sysctl.conf" | @sh)",
+        "PH_coredump_conf=\($ph.coredump_conf // "/etc/systemd/coredump.conf" | @sh)",
+        "PH_limits_conf=\($ph.limits_conf // "/etc/security/limits.conf" | @sh)",
+        (($ph.kernel_params // []) | length) as $n |
+        "PH_kparam_count=\($n | @sh)",
+        (($ph.kernel_params // []) | to_entries[] |
+            "PH_kparam_\(.key)_name=\(.value.name // "" | @sh)",
+            "PH_kparam_\(.key)_value=\(.value.value // "" | @sh)"),
+        (($ph.apport // {}) as $ap |
+            "PH_apport_config=\($ap.config_file // "/etc/default/apport" | @sh)",
+            "PH_apport_service=\($ap.service // "apport.service" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-bl = data.get('bootloader', {})
-print('BL_grub_cfg='         + q(bl.get('grub_cfg',         '/boot/grub/grub.cfg')))
-print('BL_grub_config='      + q(bl.get('grub_config',      '/etc/default/grub')))
-print('BL_grub_custom_dir='  + q(bl.get('grub_custom_dir',  '/etc/grub.d')))
-print('BL_grub_custom_file=' + q(bl.get('grub_custom_file', '/etc/grub.d/40_custom')))
-print('BL_superuser='        + q(bl.get('superuser',        'grub_admin')))
-print('BL_perm_mask='        + q(bl.get('perm_mask',        '0177')))
-print('BL_owner='            + q(bl.get('owner',            'root')))
-print('BL_group='            + q(bl.get('group',            'root')))
+    # ── warning_banners ──
+    "$JQ" -r '
+        (.warning_banners // {}) as $wb |
+        (($wb.banner_files // []) | length) as $n |
+        "WB_count=\($n | @sh)",
+        "WB_os_info_pattern=\($wb.os_info_pattern // "(\\\\v|\\\\r|\\\\m|\\\\s)" | @sh)",
+        (($wb.banner_files // []) | to_entries[] |
+            "WB_\(.key)_path=\(.value.path // "" | @sh)",
+            "WB_\(.key)_required=\(if (.value.required // false) then "true" else "false" end | @sh)",
+            "WB_\(.key)_perm_mask=\(.value.perm_mask // "0133" | @sh)",
+            "WB_\(.key)_owner=\(.value.owner // "root" | @sh)",
+            "WB_\(.key)_group=\(.value.group // "root" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-ph = data.get('process_hardening', {})
-print('PH_sysctl_conf='   + q(ph.get('sysctl_conf_file', '/etc/sysctl.d/60-kernel_sysctl.conf')))
-print('PH_coredump_conf=' + q(ph.get('coredump_conf',    '/etc/systemd/coredump.conf')))
-print('PH_limits_conf='   + q(ph.get('limits_conf',      '/etc/security/limits.conf')))
-kp = ph.get('kernel_params', [])
-print('PH_kparam_count=' + q(len(kp)))
-for i, p in enumerate(kp):
-    print(f'PH_kparam_{i}_name='  + q(p.get('name',  '')))
-    print(f'PH_kparam_{i}_value=' + q(p.get('value', '')))
-ap = ph.get('apport', {})
-print('PH_apport_config=' + q(ap.get('config_file', '/etc/default/apport')))
-print('PH_apport_service='+ q(ap.get('service',     'apport.service')))
+    # ── gdm ──
+    "$JQ" -r '
+        (.gdm // {}) as $gd |
+        "GD_package=\($gd.package // "" | @sh)",
+        "GD_profile_dir=\($gd.profile_dir // "" | @sh)",
+        "GD_profile_file=\($gd.profile_file // "" | @sh)",
+        "GD_db_dir=\($gd.db_dir // "" | @sh)",
+        "GD_locks_dir=\($gd.locks_dir // "" | @sh)",
+        "GD_gdm_db_dir=\($gd.gdm_db_dir // "" | @sh)",
+        "GD_banner_file=\($gd.banner_file // "" | @sh)",
+        "GD_login_screen_file=\($gd.login_screen_file // "" | @sh)",
+        "GD_screensaver_file=\($gd.screensaver_file // "" | @sh)",
+        "GD_screensaver_lock=\($gd.screensaver_lock // "" | @sh)",
+        "GD_automount_file=\($gd.automount_file // "" | @sh)",
+        "GD_automount_lock=\($gd.automount_lock // "" | @sh)",
+        "GD_autorun_file=\($gd.autorun_file // "" | @sh)",
+        "GD_autorun_lock=\($gd.autorun_lock // "" | @sh)",
+        "GD_banner_text=\($gd.banner_text // "" | @sh)",
+        "GD_idle_delay=\($gd.idle_delay // 900 | @sh)",
+        "GD_lock_delay=\($gd.lock_delay // 5 | @sh)",
+        (($gd.xdmcp_configs // []) | length) as $n |
+        "GD_xdmcp_count=\($n | @sh)",
+        (($gd.xdmcp_configs // []) | to_entries[] | "GD_xdmcp_\(.key)=\(.value | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-wb = data.get('warning_banners', {})
-bf = wb.get('banner_files', [])
-print('WB_count='           + q(len(bf)))
-print('WB_os_info_pattern=' + q(wb.get('os_info_pattern', '(\\\\v|\\\\r|\\\\m|\\\\s)')))
-for i, b in enumerate(bf):
-    print(f'WB_{i}_path='     + q(b.get('path',     '')))
-    print(f'WB_{i}_required=' + q(str(b.get('required', False)).lower()))
-    print(f'WB_{i}_perm_mask='+ q(b.get('perm_mask', '0133')))
-    print(f'WB_{i}_owner='    + q(b.get('owner',     'root')))
-    print(f'WB_{i}_group='    + q(b.get('group',     'root')))
-gd = data.get('gdm', {})
-print('GD_package='           + q(gd.get('package','')))
-print('GD_profile_dir='       + q(gd.get('profile_dir','')))
-print('GD_profile_file='      + q(gd.get('profile_file','')))
-print('GD_db_dir='            + q(gd.get('db_dir','')))
-print('GD_locks_dir='         + q(gd.get('locks_dir','')))
-print('GD_gdm_db_dir='        + q(gd.get('gdm_db_dir','')))
-print('GD_banner_file='       + q(gd.get('banner_file','')))
-print('GD_login_screen_file=' + q(gd.get('login_screen_file','')))
-print('GD_screensaver_file='  + q(gd.get('screensaver_file','')))
-print('GD_screensaver_lock='  + q(gd.get('screensaver_lock','')))
-print('GD_automount_file='    + q(gd.get('automount_file','')))
-print('GD_automount_lock='    + q(gd.get('automount_lock','')))
-print('GD_autorun_file='      + q(gd.get('autorun_file','')))
-print('GD_autorun_lock='      + q(gd.get('autorun_lock','')))
-print('GD_banner_text='       + q(gd.get('banner_text','')))
-print('GD_idle_delay='        + q(gd.get('idle_delay',900)))
-print('GD_lock_delay='        + q(gd.get('lock_delay',5)))
-xdmcp = gd.get('xdmcp_configs', [])
-print('GD_xdmcp_count=' + q(len(xdmcp)))
-for i,x in enumerate(xdmcp):
-    print(f'GD_xdmcp_{i}=' + q(x))
-pm = data.get('package_manager', {})
-print('PM_sources_file=' + q(pm.get('sources_file', '/etc/apt/sources.list')))
+    # ── package_manager ──
+    "$JQ" -r '
+        (.package_manager // {}) as $pm |
+        "PM_sources_file=\($pm.sources_file // "/etc/apt/sources.list" | @sh)",
+        (($pm.gpg_dirs // []) | length) as $n |
+        "PM_gpg_dir_count=\($n | @sh)",
+        (($pm.gpg_dirs // []) | to_entries[] | "PM_gpg_dir_\(.key)=\(.value | @sh)"),
+        (($pm.gpg_extensions // []) | length) as $n2 |
+        "PM_gpg_ext_count=\($n2 | @sh)",
+        (($pm.gpg_extensions // []) | to_entries[] | "PM_gpg_ext_\(.key)=\(.value | @sh)"),
+        (($pm.recommended_repos // []) | length) as $n3 |
+        "PM_repo_count=\($n3 | @sh)",
+        (($pm.recommended_repos // []) | to_entries[] | "PM_repo_\(.key)=\(.value | @sh)"),
+        (($pm.recommended_gpg_keys // []) | length) as $n4 |
+        "PM_gpg_key_count=\($n4 | @sh)",
+        (($pm.recommended_gpg_keys // []) | to_entries[] |
+            "PM_gpg_key_\(.key)_name=\(.value.name // "" | @sh)",
+            "PM_gpg_key_\(.key)_keyid=\(.value.keyid // "" | @sh)",
+            "PM_gpg_key_\(.key)_keyserver=\(.value.keyserver // "" | @sh)")
+    ' "$json_file" >> "$INITIAL_SETUP_RAM_STORE"
 
-gpg_dirs = pm.get('gpg_dirs', [])
-print('PM_gpg_dir_count=' + q(len(gpg_dirs)))
-for i, d in enumerate(gpg_dirs):
-    print(f'PM_gpg_dir_{i}=' + q(d))
-
-gpg_exts = pm.get('gpg_extensions', [])
-print('PM_gpg_ext_count=' + q(len(gpg_exts)))
-for i, e in enumerate(gpg_exts):
-    print(f'PM_gpg_ext_{i}=' + q(e))
-
-repos = pm.get('recommended_repos', [])
-print('PM_repo_count=' + q(len(repos)))
-for i, r in enumerate(repos):
-    print(f'PM_repo_{i}=' + q(r))
-
-keys = pm.get('recommended_gpg_keys', [])
-print('PM_gpg_key_count=' + q(len(keys)))
-for i, k in enumerate(keys):
-    print(f'PM_gpg_key_{i}_name=' + q(k.get('name', '')))
-    print(f'PM_gpg_key_{i}_keyid=' + q(k.get('keyid', '')))
-    print(f'PM_gpg_key_{i}_keyserver=' + q(k.get('keyserver', '')))
-PYEOF
-
-    python3 "$py_script" "$json_file" > "$INITIAL_SETUP_RAM_STORE"
-    local exit_code=$?
-    rm -f "$py_script"
-    [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
     chmod 600 "$INITIAL_SETUP_RAM_STORE"
     source "$INITIAL_SETUP_RAM_STORE"
 }
@@ -303,7 +333,7 @@ gdm_installed() {
 }
 
 unload_json_initial_setup() {
-    rm -f "$INITIAL_SETUP_RAM_STORE"
+    _clean_ram_store "$INITIAL_SETUP_RAM_STORE"
     unset $(compgen -v | grep -E '^(AA_|FM_|PT_|GD_)')
 }
 
@@ -323,9 +353,14 @@ beetle_module_audit() {
             showconfig=$(modprobe --showconfig 2>/dev/null \
                 | grep -P "\b(install|blacklist)\h+${mod_chk_name//-/_}\b")
 
-            lsmod 2>/dev/null | grep -q "$mod_chk_name" && return 1
-            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+(\/usr)?\/bin\/(true|false)\b" || return 1
+            # Persistent block must be present
+            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+\S*/(true|false)\b" || return 1
             echo "$showconfig" | grep -Pq "\bblacklist\h+${mod_chk_name//-/_}\b" || return 1
+
+            # Real test: modprobe must not plan to insmod it
+            if modprobe --dry-run "$mod_chk_name" 2>/dev/null | grep -q "insmod"; then
+                return 1
+            fi
         fi
     done
     return 0
@@ -349,8 +384,8 @@ beetle_module_harden() {
             lsmod 2>/dev/null | grep -q "$mod_chk_name" && \
                 modprobe -r "$mod_chk_name" 2>/dev/null; rmmod "$mod_name" 2>/dev/null
 
-            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+(\/usr)?\/bin\/(true|false)\b" || \
-                printf '%s\n' "install ${mod_chk_name} $(readlink -f /bin/false)" >> "$conf_file"
+            echo "$showconfig" | grep -Pq "\binstall\h+${mod_chk_name//-/_}\h+\S*/(true|false)\b" || \
+                printf '%s\n' "install ${mod_chk_name} /bin/false" >> "$conf_file"
 
             echo "$showconfig" | grep -Pq "\bblacklist\h+${mod_chk_name//-/_}\b" || \
                 printf '%s\n' "blacklist ${mod_chk_name}" >> "$conf_file"
@@ -364,60 +399,65 @@ beetle_module_harden() {
 load_json_network() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-    rm -f "$NETWORK_RAM_STORE"
+    _clean_ram_store "$NETWORK_RAM_STORE"
 
-    python3 - <<EOF > "$NETWORK_RAM_STORE"
-import json
-with open("$json_file") as f:
-    data = json.load(f)
+    "$JQ" -r '
+        # ── network_services ──
+        (.network_services.ipv6.status // "enabled") as $ipv6_status |
+        (.network_services.ipv6.disable_sysctl_keys // []) as $ipv6_keys |
+        (.network_services.wireless.restrict // true) as $wireless_restrict |
+        (.network_services.bluetooth.package // "") as $bt_pkg |
+        (.network_services.bluetooth.service // "") as $bt_svc |
+        (.network_services.bluetooth.restrict // true) as $bt_restrict |
 
-# ── network_services ──
-ns = data.get("network_services", {})
+        "NS_ipv6_status=\($ipv6_status)",
+        "NS_ipv6_sysctl_count=\($ipv6_keys | length)",
+        ($ipv6_keys | to_entries[] | "NS_ipv6_sysctl_\(.key)=\(.value)"),
+        "NS_wireless_restrict=\($wireless_restrict)",
+        "NS_bluetooth_package=\($bt_pkg)",
+        "NS_bluetooth_service=\($bt_svc)",
+        "NS_bluetooth_restrict=\($bt_restrict)",
 
-ipv6 = ns.get("ipv6", {})
-print(f'NS_ipv6_status={ipv6.get("status", "enabled")}')
-keys = ipv6.get("disable_sysctl_keys", [])
-print(f'NS_ipv6_sysctl_count={len(keys)}')
-for idx, key in enumerate(keys):
-    print(f'NS_ipv6_sysctl_{idx}={key}')
+        # ── kernel_modules ──
+        (.kernel_modules // []) as $mods |
+        "KM_count=\($mods | length)",
+        ($mods | to_entries[] |
+            "KM_\(.key)_name=\(.value.name // "")",
+            "KM_\(.key)_type=\(.value.type // "")",
+            "KM_\(.key)_restrict=\(if (.value.restrict // true) then "true" else "false" end)"
+        ),
 
-wireless = ns.get("wireless", {})
-print(f'NS_wireless_restrict={str(wireless.get("restrict", True)).lower()}')
+        # ── network_parameters ──
+        (.network_parameters.sysctl_conf_file // "/etc/sysctl.d/60-netipv4_sysctl.conf") as $scf4 |
+        (.network_parameters.sysctl_conf_file_ipv6 // "/etc/sysctl.d/60-netipv6_sysctl.conf") as $scf6 |
+        "NP_sysctl_conf=\($scf4)",
+        "NP_sysctl_conf_ipv6=\($scf6)",
 
-bluetooth = ns.get("bluetooth", {})
-print(f'NS_bluetooth_package={bluetooth.get("package", "")}')
-print(f'NS_bluetooth_service={bluetooth.get("service", "")}')
-print(f'NS_bluetooth_restrict={str(bluetooth.get("restrict", True)).lower()}')
+        (.network_parameters.ipv4 // []) as $p4 |
+        "NP_ipv4_count=\($p4 | length)",
+        ($p4 | to_entries[] |
+            "NP_ipv4_\(.key)_name=\(.value.name // "")",
+            "NP_ipv4_\(.key)_value=\(.value.value // "")",
+            "NP_ipv4_\(.key)_flush=\(.value.flush // "")",
+            "NP_ipv4_\(.key)_check=\(.value.check // "")"
+        ),
 
-# ── kernel_modules ──
-modules = data.get("kernel_modules", [])
-print(f'KM_count={len(modules)}')
-for idx, mod in enumerate(modules):
-    print(f'KM_{idx}_name={mod.get("name", "")}')
-    print(f'KM_{idx}_type={mod.get("type", "")}')
-    print(f'KM_{idx}_restrict={str(mod.get("restrict", True)).lower()}')
-
-# ── network_parameters ──
-net_params = data.get("network_parameters", {})
-print(f'NP_sysctl_conf={net_params.get("sysctl_conf_file", "/etc/sysctl.d/60-netipv4_sysctl.conf")}')
-print(f'NP_sysctl_conf_ipv6={net_params.get("sysctl_conf_file_ipv6", "/etc/sysctl.d/60-netipv6_sysctl.conf")}')
-
-for section in ["ipv4", "ipv6"]:
-    params = net_params.get(section, [])
-    print(f'NP_{section}_count={len(params)}')
-    for idx, param in enumerate(params):
-        print(f'NP_{section}_{idx}_name={param.get("name", "")}')
-        print(f'NP_{section}_{idx}_value={param.get("value", "")}')
-        print(f'NP_{section}_{idx}_flush={param.get("flush", "")}')
-        print(f'NP_{section}_{idx}_check={param.get("check", "")}')
-EOF
+        (.network_parameters.ipv6 // []) as $p6 |
+        "NP_ipv6_count=\($p6 | length)",
+        ($p6 | to_entries[] |
+            "NP_ipv6_\(.key)_name=\(.value.name // "")",
+            "NP_ipv6_\(.key)_value=\(.value.value // "")",
+            "NP_ipv6_\(.key)_flush=\(.value.flush // "")",
+            "NP_ipv6_\(.key)_check=\(.value.check // "")"
+        )
+    ' "$json_file" > "$NETWORK_RAM_STORE"
 
     chmod 600 "$NETWORK_RAM_STORE"
     source "$NETWORK_RAM_STORE"
 }
 
 unload_json_network() {
-    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || rm -f "$NETWORK_RAM_STORE"
+    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || _clean_ram_store "$NETWORK_RAM_STORE"
 }
 
 get_net() {
@@ -428,7 +468,7 @@ get_net() {
 }
 
 unload_json_network() {
-    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || rm -f "$NETWORK_RAM_STORE"
+    [ -f "$NETWORK_RAM_STORE" ] && shred -u "$NETWORK_RAM_STORE" 2>/dev/null || _clean_ram_store "$NETWORK_RAM_STORE"
 }
 
 check_ipv6_disabled() {
@@ -511,98 +551,102 @@ get_net() {
 # ─────────────────────────────────────────────
 # SERVICES JSON loader/unloader/getter
 # ─────────────────────────────────────────────
+live_package_installed() {
+    local pkg="$1"
+    dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"
+}
+
 load_json_services() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-    rm -f "$SERVICES_RAM_STORE"
+    _clean_ram_store "$SERVICES_RAM_STORE"
 
-    python3 - <<EOF > "$SERVICES_RAM_STORE"
-import json
-with open("$json_file") as f:
-    data = json.load(f)
+    "$JQ" -r '
+        def normkey: gsub("/"; "_") | gsub("-"; "_") | gsub("\\."; "_") | sub("^_"; "");
 
-for section in ["server_services", "client_services"]:
-    for category, packages in data.get(section, {}).items():
-        cat_key = category.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-        print(f'SS_{cat_key}_pkg_count={len(packages)}')
-        for pkg_idx, (pkg_name, fields) in enumerate(packages.items()):
-            pkg_key = pkg_name.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-            restrict = fields.get("restrict", True)
-            version  = fields.get("version", "null")
-            services = fields.get("services", [])
-            print(f'SS_{cat_key}_pkg_{pkg_idx}={pkg_name}')
-            print(f'SS_{cat_key}_{pkg_key}_restrict={str(restrict).lower()}')
-            print(f'SS_{cat_key}_{pkg_key}_version={version if version else "null"}')
-            print(f'SS_{cat_key}_{pkg_key}_svc_count={len(services)}')
-            for svc_idx, svc in enumerate(services):
-                print(f'SS_{cat_key}_{pkg_key}_svc_{svc_idx}={svc}')
+        # ── server_services + client_services ──
+        (["server_services", "client_services"] | .[]) as $section |
+        (. as $root |
+         ($root[$section] // {}) | to_entries[] |
+            (.key | normkey) as $cat_key |
+            (.value | length) as $pkg_count |
+            "SS_\($cat_key)_pkg_count=\($pkg_count)",
+            (.value | to_entries | to_entries[] |
+                (.key) as $pkg_idx |
+                (.value.key) as $pkg_name |
+                (.value.value) as $pkg_fields |
+                ($pkg_name | normkey) as $pkg_key |
+                "SS_\($cat_key)_pkg_\($pkg_idx)=\($pkg_name)",
+                "SS_\($cat_key)_\($pkg_key)_restrict=\(if ($pkg_fields.restrict // true) then "true" else "false" end)",
+                "SS_\($cat_key)_\($pkg_key)_version=\($pkg_fields.version // "null" | if . == null then "null" else . end)",
+                "SS_\($cat_key)_\($pkg_key)_svc_count=\(($pkg_fields.services // []) | length)",
+                (($pkg_fields.services // []) | to_entries[] |
+                    "SS_\($cat_key)_\($pkg_key)_svc_\(.key)=\(.value)"
+                )
+            )
+        ),
 
-job_service = data.get("job_service", {})
-daemons = job_service.get("daemons", [])
-print(f'JS_daemon_count={len(daemons)}')
-any_required = any(d.get("required", False) for d in daemons)
-print(f'JS_daemon_any_required={"true" if any_required else "false"}')
-for idx, daemon in enumerate(daemons):
-    name    = daemon.get("name", "")
-    package = daemon.get("package", "")
-    service = daemon.get("service", "")
-    required = daemon.get("required", False)
-    name_key = name.replace("-", "_").replace(".", "_")
-    print(f'JS_daemon_{idx}_name={name}')
-    print(f'JS_daemon_{idx}_package={package}')
-    print(f'JS_daemon_{idx}_service={service}')
-    print(f'JS_daemon_{idx}_required={str(required).lower()}')
-    print(f'JS_daemon_name_{name_key}_idx={idx}')
+        # ── job_service ──
+        (.job_service.daemons // []) as $js_daemons |
+        "JS_daemon_count=\($js_daemons | length)",
+        "JS_daemon_any_required=\(if ($js_daemons | any(.required // false)) then "true" else "false" end)",
+        ($js_daemons | to_entries[] |
+            (.key) as $i |
+            (.value) as $d |
+            ($d.name // "" | gsub("-"; "_") | gsub("\\."; "_")) as $name_key |
+            "JS_daemon_\($i)_name=\($d.name // "")",
+            "JS_daemon_\($i)_package=\($d.package // "")",
+            "JS_daemon_\($i)_service=\($d.service // "")",
+            "JS_daemon_\($i)_required=\(if ($d.required // false) then "true" else "false" end)",
+            "JS_daemon_\($i)_check_if_installed=\(if ($d.check_if_installed // false) then "true" else "false" end)",
+            "JS_daemon_name_\($name_key)_idx=\($i)"
+        ),
 
-cron_dirs = job_service.get("cron_dirs", [])
-print(f'JS_cron_dir_count={len(cron_dirs)}')
-for idx, entry in enumerate(cron_dirs):
-    print(f'JS_cron_dir_{idx}_file={entry.get("file", "")}')
-    print(f'JS_cron_dir_{idx}_mode={entry.get("mode", "")}')
-    print(f'JS_cron_dir_{idx}_owner={entry.get("owner", "")}')
-    print(f'JS_cron_dir_{idx}_group={entry.get("group", "")}')
+        (.job_service.cron_dirs // []) as $cron_dirs |
+        "JS_cron_dir_count=\($cron_dirs | length)",
+        ($cron_dirs | to_entries[] |
+            "JS_cron_dir_\(.key)_file=\(.value.file // "")",
+            "JS_cron_dir_\(.key)_mode=\(.value.mode // "")",
+            "JS_cron_dir_\(.key)_owner=\(.value.owner // "")",
+            "JS_cron_dir_\(.key)_group=\(.value.group // "")"
+        ),
 
-for section_key in ["cron_access", "at_access"]:
-    section = job_service.get(section_key, {})
-    sk = section_key
-    print(f'JS_{sk}_allow_file={section.get("allow_file", "")}')
-    print(f'JS_{sk}_deny_file={section.get("deny_file", "")}')
-    print(f'JS_{sk}_mode={section.get("mode", "")}')
-    print(f'JS_{sk}_owner={section.get("owner", "")}')
-    groups = section.get("groups", [])
-    print(f'JS_{sk}_group_count={len(groups)}')
-    for gidx, grp in enumerate(groups):
-        print(f'JS_{sk}_group_{gidx}={grp}')
+        (["cron_access", "at_access"] | .[]) as $sk |
+        (.job_service[$sk] // {}) as $s |
+        "JS_\($sk)_allow_file=\($s.allow_file // "")",
+        "JS_\($sk)_deny_file=\($s.deny_file // "")",
+        "JS_\($sk)_mode=\($s.mode // "")",
+        "JS_\($sk)_owner=\($s.owner // "")",
+        "JS_\($sk)_group_count=\(($s.groups // []) | length)",
+        (($s.groups // []) | to_entries[] | "JS_\($sk)_group_\(.key)=\(.value)"),
 
-time_sync = data.get("time_sync", {})
-ts_daemons = time_sync.get("daemons", [])
-ts_policy = time_sync.get("policy", "exactly_one")
-print(f'TS_policy={ts_policy}')
-print(f'TS_daemon_count={len(ts_daemons)}')
-for idx, daemon in enumerate(ts_daemons):
-    name_key = daemon.get("name","").replace("-","_").replace(".","_")
-    print(f'TS_daemon_{idx}_name={daemon.get("name","")}')
-    print(f'TS_daemon_{idx}_package={daemon.get("package","")}')
-    print(f'TS_daemon_{idx}_service={daemon.get("service","")}')
-    print(f'TS_daemon_{idx}_config_file={daemon.get("config_file","")}')
-    print(f'TS_daemon_{idx}_config_dir={daemon.get("config_dir","")}')
-    print(f'TS_daemon_{idx}_run_as_user={daemon.get("run_as_user","")}')
-    ntp = daemon.get("ntp_servers",[])
-    fallback = daemon.get("fallback_servers",[])
-    print(f'TS_daemon_{idx}_ntp_count={len(ntp)}')
-    for nidx, srv in enumerate(ntp):
-        print(f'TS_daemon_{idx}_ntp_{nidx}={srv}')
-    print(f'TS_daemon_{idx}_fallback_count={len(fallback)}')
-    for fidx, srv in enumerate(fallback):
-        print(f'TS_daemon_{idx}_fallback_{fidx}={srv}')
-EOF
+        # ── time_sync ──
+        (.time_sync.default // "") as $ts_default |
+        (.time_sync.daemons // []) as $ts_daemons |
+        "TS_default=\($ts_default)",
+        "TS_daemon_count=\($ts_daemons | length)",
+        ($ts_daemons | to_entries[] |
+            (.key) as $i |
+            (.value) as $d |
+            "TS_daemon_\($i)_name=\($d.name // "")",
+            "TS_daemon_\($i)_package=\($d.package // "")",
+            "TS_daemon_\($i)_service=\($d.service // "")",
+            "TS_daemon_\($i)_config_file=\($d.config_file // "")",
+            "TS_daemon_\($i)_config_dir=\($d.config_dir // "")",
+            "TS_daemon_\($i)_run_as_user=\($d.run_as_user // "")",
+            "TS_daemon_\($i)_ntp_count=\(($d.ntp_servers // []) | length)",
+            (($d.ntp_servers // []) | to_entries[] | "TS_daemon_\($i)_ntp_\(.key)=\(.value)"),
+            "TS_daemon_\($i)_fallback_count=\(($d.fallback_servers // []) | length)",
+            (($d.fallback_servers // []) | to_entries[] | "TS_daemon_\($i)_fallback_\(.key)=\(.value)")
+        )
+    ' "$json_file" > "$SERVICES_RAM_STORE"
 
     chmod 600 "$SERVICES_RAM_STORE"
     source "$SERVICES_RAM_STORE"
 }
 
 unload_json_services() {
-    [ -f "$SERVICES_RAM_STORE" ] && shred -u "$SERVICES_RAM_STORE" 2>/dev/null || rm -f "$SERVICES_RAM_STORE"
+    [ -f "$SERVICES_RAM_STORE" ] && shred -u "$SERVICES_RAM_STORE" 2>/dev/null || _clean_ram_store "$SERVICES_RAM_STORE"
 }
 
 get_svc() {
@@ -660,7 +704,7 @@ get_acc() {
 load_json_host_based_firewall() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
-    rm -f "$FIREWALL_RAM_STORE"
+    _clean_ram_store "$FIREWALL_RAM_STORE"
 
     python3 - <<EOF > "$FIREWALL_RAM_STORE"
 import json
@@ -679,7 +723,7 @@ EOF
 }
 
 unload_json_host_based_firewall() {
-    [ -f "$FIREWALL_RAM_STORE" ] && shred -u "$FIREWALL_RAM_STORE" 2>/dev/null || rm -f "$FIREWALL_RAM_STORE"
+    [ -f "$FIREWALL_RAM_STORE" ] && shred -u "$FIREWALL_RAM_STORE" 2>/dev/null || _clean_ram_store "$FIREWALL_RAM_STORE"
 }
 
 get_fw() {
@@ -697,41 +741,38 @@ load_json_system_maintenance() {
 
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
 
-    rm -f "$PERM_RAM_STORE"
+    _clean_ram_store "$PERM_RAM_STORE"
 
-    python3 - <<EOF > "$PERM_RAM_STORE"
-import json
+    "$JQ" -r '
+        . as $root |
+        def normkey: gsub("/"; "_") | gsub("-"; "_") | gsub("\\."; "_") | sub("^_"; "");
 
-def q(v):
-    return "'" + str(v).replace("'", "'\\''") + "'"
+        # ── system_file_permissions ──
+        ($root.system_file_permissions // []) | .[] |
+            (.file | normkey) as $key |
+            (.mode) as $mode |
+            (.owner) as $owner |
+            ((.group // "") | if . == "root/shadow" then "shadow" else . end) as $group |
+            "PERM_\($key)_mode=\($mode)",
+            "PERM_\($key)_owner=\($owner)",
+            "PERM_\($key)_group=\($group)",
 
-with open("$json_file") as f:
-    data = json.load(f)
-
-for entry in data.get("system_file_permissions", []):
-    key = entry["file"].replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    mode  = entry["mode"]
-    owner = entry["owner"]
-    group = entry["group"].replace("root/shadow", "shadow")
-    print(f'PERM_{key}_mode={mode}')
-    print(f'PERM_{key}_owner={owner}')
-    print(f'PERM_{key}_group={group}')
-
-ss = data.get('suid_sgid', {})
-risky = ss.get('known_risky', [])
-print('SS_count=' + q(len(risky)))
-for i, r in enumerate(risky):
-    print(f'SS_{i}_name=' + q(r.get('name', '')))
-    print(f'SS_{i}_path=' + q(r.get('path', '')))
-    print(f'SS_{i}_risk=' + q(r.get('risk', '')))
-EOF
+        # ── suid_sgid.known_risky ──
+        ($root.suid_sgid.known_risky // []) as $risky |
+        "SS_count=\($risky | length | @sh)",
+        ($risky | to_entries[] |
+            "SS_\(.key)_name=\(.value.name // "" | @sh)",
+            "SS_\(.key)_path=\(.value.path // "" | @sh)",
+            "SS_\(.key)_risk=\(.value.risk // "" | @sh)"
+        )
+    ' "$json_file" > "$PERM_RAM_STORE"
 
     chmod 600 "$PERM_RAM_STORE"
     source "$PERM_RAM_STORE"
 }
 
 unload_json_system_maintenance() {
-    [ -f "$PERM_RAM_STORE" ] && shred -u "$PERM_RAM_STORE" 2>/dev/null || rm -f "$PERM_RAM_STORE"
+    [ -f "$PERM_RAM_STORE" ] && shred -u "$PERM_RAM_STORE" 2>/dev/null || _clean_ram_store "$PERM_RAM_STORE"
 }
 
 get_perm() {
@@ -747,149 +788,158 @@ load_json_logging_and_auditing() {
     local json_file="$1"
     [ -f "$json_file" ] || { echo "ERROR: logging JSON not found: $json_file"; return 1; }
 
-    local py_script
-    py_script=$(mktemp /tmp/beetle_loader_XXXXXX.py)
+    _clean_ram_store "$LOGGING_RAM_STORE"
 
-    cat > "$py_script" << 'PYEOF'
-import json, sys
+    "$JQ" -r '
+        . as $root |
 
-def q(v):
-    return "'" + str(v).replace("'", "'\\''") + "'"
+        # ── preferred logging system ──
+        "LJ_preferred_logging_system=\($root.logging_system // "journald" | @sh)",
 
-with open(sys.argv[1]) as f:
-    data = json.load(f)
+        # ── journald ──
+        ($root.journald // {}) as $jd |
+        "LJ_service=\($jd.service // "" | @sh)",
+        "LJ_config_file=\($jd.config_file // "" | @sh)",
+        "LJ_config_drop_dir=\($jd.config_drop_dir // "" | @sh)",
+        "LJ_tmpfiles_config=\($jd.tmpfiles_config // "" | @sh)",
+        "LJ_tmpfiles_source=\($jd.tmpfiles_source // "" | @sh)",
+        (($jd.rotation_params // []) | length) as $rot_n |
+        "LJ_rot_count=\($rot_n | @sh)",
+        (($jd.rotation_params // []) | to_entries[] |
+            "LJ_rot_\(.key)_key=\(.value.key // "" | @sh)",
+            "LJ_rot_\(.key)_value=\(.value.value // "" | @sh)"
+        ),
 
-jd = data.get('journald', {})
-print('LJ_service='         + q(jd.get('service','')))
-print('LJ_config_file='     + q(jd.get('config_file','')))
-print('LJ_config_drop_dir=' + q(jd.get('config_drop_dir','')))
-print('LJ_tmpfiles_config=' + q(jd.get('tmpfiles_config','')))
-print('LJ_tmpfiles_source=' + q(jd.get('tmpfiles_source','')))
-rp = jd.get('rotation_params', [])
-print('LJ_rot_count=' + q(len(rp)))
-for i,p in enumerate(rp):
-    print(f'LJ_rot_{i}_key='   + q(p.get('key','')))
-    print(f'LJ_rot_{i}_value=' + q(p.get('value','')))
+        # ── journal_remote ──
+        ($root.journald.journal_remote // $root.journal_remote // {}) as $jr |
+        "JR_package=\($jr.package // "" | @sh)",
+        "JR_upload_svc=\($jr.upload_svc // "" | @sh)",
+        "JR_remote_svc=\($jr.remote_svc // "" | @sh)",
+        "JR_remote_sock=\($jr.remote_sock // "" | @sh)",
+        "JR_upload_conf_dir=\($jr.upload_conf_dir // "" | @sh)",
+        "JR_upload_drop_file=\($jr.upload_drop_file // "" | @sh)",
+        ($jr.upload_auth // {}) as $jra |
+        "JR_server_key=\($jra.server_key // "" | @sh)",
+        "JR_server_cert=\($jra.server_cert // "" | @sh)",
+        "JR_trusted_cert=\($jra.trusted_cert // "" | @sh)",
 
-jr = jd.get('journal_remote', {})
-print('JR_package='          + q(jr.get('package','')))
-print('JR_upload_svc='       + q(jr.get('upload_svc','')))
-print('JR_remote_svc='       + q(jr.get('remote_svc','')))
-print('JR_remote_sock='      + q(jr.get('remote_sock','')))
-print('JR_upload_conf_dir='  + q(jr.get('upload_conf_dir','')))
-print('JR_upload_drop_file=' + q(jr.get('upload_drop_file','')))
-jr_auth = jr.get('upload_auth', {})
-print('JR_server_key='   + q(jr_auth.get('server_key','')))
-print('JR_server_cert='  + q(jr_auth.get('server_cert','')))
-print('JR_trusted_cert=' + q(jr_auth.get('trusted_cert','')))
+        # ── rsyslog ──
+        ($root.rsyslog // {}) as $rs |
+        "RS_package=\($rs.package // "" | @sh)",
+        "RS_service=\($rs.service // "" | @sh)",
+        "RS_config_file=\($rs.config_file // "" | @sh)",
+        "RS_config_dir=\($rs.config_dir // "" | @sh)",
+        "RS_drop_file=\($rs.drop_file // "" | @sh)",
+        "RS_file_create_mode=\($rs.file_create_mode // "" | @sh)",
+        "RS_remote_port=\($rs.remote_port // "" | @sh)",
+        "RS_remote_protocol=\($rs.remote_protocol // "" | @sh)",
+        "RS_queue_type=\($rs.queue_type // "" | @sh)",
+        "RS_queue_size=\($rs.queue_size // "" | @sh)",
+        "RS_resume_retry=\($rs.resume_retry // "" | @sh)",
+        "RS_logrotate_config=\($rs.logrotate_config // "" | @sh)",
+        "RS_logrotate_dir=\($rs.logrotate_dir // "" | @sh)",
+        (($rs.logging_rules // []) | length) as $rs_n |
+        "RS_rules_count=\($rs_n | @sh)",
+        (($rs.logging_rules // []) | to_entries[] |
+            "RS_\(.key)_name=\(.value.name // "" | @sh)",
+            "RS_\(.key)_rule=\(.value.rule // "" | @sh)",
+            "RS_\(.key)_dest=\(.value.dest // "" | @sh)"
+        ),
 
-rs = data.get('rsyslog', {})
-print('RS_package='          + q(rs.get('package','')))
-print('RS_service='          + q(rs.get('service','')))
-print('RS_config_file='      + q(rs.get('config_file','')))
-print('RS_config_dir='       + q(rs.get('config_dir','')))
-print('RS_drop_file='        + q(rs.get('drop_file','')))
-print('RS_file_create_mode=' + q(rs.get('file_create_mode','')))
-print('RS_remote_port='      + q(rs.get('remote_port','')))
-print('RS_remote_protocol='  + q(rs.get('remote_protocol','')))
-print('RS_queue_type='       + q(rs.get('queue_type','')))
-print('RS_queue_size='       + q(rs.get('queue_size','')))
-print('RS_resume_retry='     + q(rs.get('resume_retry','')))
-print('RS_logrotate_config=' + q(rs.get('logrotate_config','')))
-print('RS_logrotate_dir='    + q(rs.get('logrotate_dir','')))
-rules = rs.get('logging_rules', [])
-print('RS_rules_count=' + q(len(rules)))
-for i,r in enumerate(rules):
-    print(f'RS_{i}_name=' + q(r.get('name','')))
-    print(f'RS_{i}_rule=' + q(r.get('rule','')))
-    print(f'RS_{i}_dest=' + q(r.get('dest','')))
+        # ── logfile_permissions ──
+        ($root.logfile_permissions // {}) as $lp |
+        "LP_search_dir=\($lp.search_dir // "" | @sh)",
+        (($lp.rules // []) | length) as $lp_n |
+        "LP_rules_count=\($lp_n | @sh)",
+        (($lp.rules // []) | to_entries[] |
+            "LP_\(.key)_match_type=\(.value.match_type // "" | @sh)",
+            "LP_\(.key)_pattern=\(.value.pattern // "" | @sh)",
+            "LP_\(.key)_perm_mask=\(.value.perm_mask // "" | @sh)",
+            "LP_\(.key)_rperms=\(.value.rperms // "" | @sh)",
+            "LP_\(.key)_owner=\(.value.owner // "" | @sh)",
+            "LP_\(.key)_group=\(.value.group // "" | @sh)",
+            "LP_\(.key)_fix_group=\(.value.fix_group // "" | @sh)"
+        ),
 
-lp = data.get('logfile_permissions', {})
-print('LP_search_dir=' + q(lp.get('search_dir','')))
-lp_rules = lp.get('rules', [])
-print('LP_rules_count=' + q(len(lp_rules)))
-for i,r in enumerate(lp_rules):
-    print(f'LP_{i}_match_type=' + q(r.get('match_type','')))
-    print(f'LP_{i}_pattern='    + q(r.get('pattern','')))
-    print(f'LP_{i}_perm_mask='  + q(r.get('perm_mask','')))
-    print(f'LP_{i}_rperms='     + q(r.get('rperms','')))
-    print(f'LP_{i}_owner='      + q(r.get('owner','')))
-    print(f'LP_{i}_group='      + q(r.get('group','')))
-    print(f'LP_{i}_fix_group='  + q(r.get('fix_group','')))
-ad = data.get('auditd', {})
-print('AD_service='          + q(ad.get('service','')))
-print('AD_grub_config='      + q(ad.get('grub_config','')))
-print('AD_grub_cmdline_key=' + q(ad.get('grub_cmdline_key','')))
-pkgs = ad.get('packages', [])
-print('AD_pkg_count=' + q(len(pkgs)))
-for i,p in enumerate(pkgs):
-    print(f'AD_pkg_{i}_name=' + q(p.get('name','')))
-gp = ad.get('grub_params', [])
-print('AD_grub_param_count=' + q(len(gp)))
-for i,p in enumerate(gp):
-    print(f'AD_grub_{i}_name='  + q(p.get('name','')))
-    print(f'AD_grub_{i}_value=' + q(p.get('value','')))
-ac = data.get('auditd_config', {})
-print('AC_config_file=' + q(ac.get('config_file','')))
-ac_params = ac.get('params', [])
-print('AC_count=' + q(len(ac_params)))
-for i,p in enumerate(ac_params):
-    print(f'AC_{i}_name='         + q(p.get('name','')))
-    print(f'AC_{i}_value='        + q(p.get('value','')))
-    print(f'AC_{i}_valid_values=' + q(p.get('valid_values','')))
-ar = data.get('audit_rules', {})
-print('AR_rules_dir=' + q(ar.get('rules_dir','')))
-groups = ar.get('rule_groups', [])
-print('AR_group_count=' + q(len(groups)))
-for i,g in enumerate(groups):
-    print(f'AR_{i}_name=' + q(g.get('name','')))
-    print(f'AR_{i}_file=' + q(g.get('file','')))
-    print(f'AR_{i}_key='  + q(g.get('key','')))
-    rules = g.get('rules', [])
-    print(f'AR_{i}_rule_count=' + q(len(rules)))
-    for j,r in enumerate(rules):
-        print(f'AR_{i}_{j}_rule=' + q(r))
-    paths = g.get('paths', [])
-    print(f'AR_{i}_path_count=' + q(len(paths)))
-    for k,p in enumerate(paths):
-        print(f'AR_{i}_path_{k}=' + q(p))
-print('AC_log_file_perm_mask=' + q(ac.get('log_file_perm_mask','')))
-print('AC_log_dir_perm_mask='  + q(ac.get('log_dir_perm_mask','')))
-print('AC_log_group='          + q(ac.get('log_group','')))
-print('AC_conf_perm_mask='     + q(ac.get('conf_perm_mask','')))
-print('AC_tools_perm_mask='    + q(ac.get('tools_perm_mask','')))
-tools = ac.get('tools', [])
-print('AC_tools_count=' + q(len(tools)))
-for i,t in enumerate(tools):
-    print(f'AC_tool_{i}=' + q(t))
-ai = data.get('aide', {})
-print('AI_db_init='           + q(ai.get('db_init','')))
-print('AI_db_active='         + q(ai.get('db_active','')))
-print('AI_conf_file='         + q(ai.get('conf_file','')))
-print('AI_timer='             + q(ai.get('timer','')))
-print('AI_service='           + q(ai.get('service','')))
-print('AI_integrity_options=' + q(ai.get('integrity_options','')))
-ai_pkgs = ai.get('packages', [])
-print('AI_pkg_count=' + q(len(ai_pkgs)))
-for i,p in enumerate(ai_pkgs):
-    print(f'AI_pkg_{i}_name=' + q(p.get('name','')))
-ai_tools = ai.get('audit_tools', [])
-print('AI_tools_count=' + q(len(ai_tools)))
-for i,t in enumerate(ai_tools):
-    print(f'AI_tool_{i}=' + q(t))
-PYEOF
+        # ── auditd ──
+        ($root.auditd // {}) as $ad |
+        "AD_service=\($ad.service // "" | @sh)",
+        "AD_grub_config=\($ad.grub_config // "" | @sh)",
+        "AD_grub_cmdline_key=\($ad.grub_cmdline_key // "" | @sh)",
+        (($ad.packages // []) | length) as $ad_pkg_n |
+        "AD_pkg_count=\($ad_pkg_n | @sh)",
+        (($ad.packages // []) | to_entries[] |
+            "AD_pkg_\(.key)_name=\(.value.name // "" | @sh)"
+        ),
+        (($ad.grub_params // []) | length) as $ad_gp_n |
+        "AD_grub_param_count=\($ad.grub_param_count // $ad_gp_n | @sh)",
+        (($ad.grub_params // []) | to_entries[] |
+            "AD_grub_\(.key)_name=\(.value.name // "" | @sh)",
+            "AD_grub_\(.key)_value=\(.value.value // "" | @sh)"
+        ),
 
-    python3 "$py_script" "$json_file" > "$LOGGING_RAM_STORE"
-    local exit_code=$?
-    rm -f "$py_script"
+        # ── auditd_config ──
+        ($root.auditd_config // {}) as $ac |
+        "AC_config_file=\($ac.config_file // "" | @sh)",
+        (($ac.params // []) | length) as $ac_n |
+        "AC_count=\($ac_n | @sh)",
+        (($ac.params // []) | to_entries[] |
+            "AC_\(.key)_name=\(.value.name // "" | @sh)",
+            "AC_\(.key)_value=\(.value.value // "" | @sh)",
+            "AC_\(.key)_valid_values=\(.value.valid_values // "" | @sh)"
+        ),
 
-    [ $exit_code -ne 0 ] && { echo "ERROR: failed to parse $json_file"; return 1; }
+        # ── audit_rules ──
+        ($root.audit_rules // {}) as $ar |
+        "AR_rules_dir=\($ar.rules_dir // "" | @sh)",
+        (($ar.rule_groups // []) | length) as $ar_n |
+        "AR_group_count=\($ar_n | @sh)",
+        (($ar.rule_groups // []) | to_entries[] |
+            (.key) as $i |
+            (.value) as $g |
+            "AR_\($i)_name=\($g.name // "" | @sh)",
+            "AR_\($i)_file=\($g.file // "" | @sh)",
+            "AR_\($i)_key=\($g.key // "" | @sh)",
+            "AR_\($i)_rule_count=\(($g.rules // []) | length | @sh)",
+            (($g.rules // []) | to_entries[] | "AR_\($i)_\(.key)_rule=\(.value | @sh)"),
+            "AR_\($i)_path_count=\(($g.paths // []) | length | @sh)",
+            (($g.paths // []) | to_entries[] | "AR_\($i)_path_\(.key)=\(.value | @sh)")
+        ),
+
+        # ── more auditd_config fields (perm masks, tools) ──
+        "AC_log_file_perm_mask=\($ac.log_file_perm_mask // "" | @sh)",
+        "AC_log_dir_perm_mask=\($ac.log_dir_perm_mask // "" | @sh)",
+        "AC_log_group=\($ac.log_group // "" | @sh)",
+        "AC_conf_perm_mask=\($ac.conf_perm_mask // "" | @sh)",
+        "AC_tools_perm_mask=\($ac.tools_perm_mask // "" | @sh)",
+        (($ac.tools // []) | length) as $ac_tools_n |
+        "AC_tools_count=\($ac_tools_n | @sh)",
+        (($ac.tools // []) | to_entries[] | "AC_tool_\(.key)=\(.value | @sh)"),
+
+        # ── aide ──
+        ($root.aide // {}) as $ai |
+        "AI_db_init=\($ai.db_init // "" | @sh)",
+        "AI_db_active=\($ai.db_active // "" | @sh)",
+        "AI_conf_file=\($ai.conf_file // "" | @sh)",
+        "AI_timer=\($ai.timer // "" | @sh)",
+        "AI_service=\($ai.service // "" | @sh)",
+        "AI_integrity_options=\($ai.integrity_options // "" | @sh)",
+        (($ai.packages // []) | length) as $ai_pkg_n |
+        "AI_pkg_count=\($ai_pkg_n | @sh)",
+        (($ai.packages // []) | to_entries[] |
+            "AI_pkg_\(.key)_name=\(.value.name // "" | @sh)"
+        ),
+        (($ai.audit_tools // []) | length) as $ai_tools_n |
+        "AI_tools_count=\($ai_tools_n | @sh)",
+        (($ai.audit_tools // []) | to_entries[] | "AI_tool_\(.key)=\(.value | @sh)")
+    ' "$json_file" > "$LOGGING_RAM_STORE"
+
     chmod 600 "$LOGGING_RAM_STORE"
     source "$LOGGING_RAM_STORE"
 }
 
 unload_json_logging_and_auditing() {
-    rm -f "$LOGGING_RAM_STORE"
+    _clean_ram_store "$LOGGING_RAM_STORE"
     unset $(compgen -v | grep -E '^(LJ_|JR_|JP_|RS_|LP_|AD_|AC_|AR_|AI_)')
 }
 
@@ -931,104 +981,93 @@ unload_module_json() {
 
 load_json_access_control() {
     local json_file="$1"
-
     [ -f "$json_file" ] || { echo "ERROR: JSON not found: $json_file"; return 1; }
 
-    rm -f "$SSH_RAM_STORE"
+    _clean_ram_store "$SSH_RAM_STORE"
 
-    python3 - <<EOF > "$SSH_RAM_STORE"
-import json
+    # ── ssh_config_file_permissions ──
+    "$JQ" -r '
+        def normkey: gsub("/"; "_") | gsub("-"; "_") | gsub("\\."; "_") | sub("^_"; "");
+        (.ssh_config_file_permissions // {}) | to_entries[] |
+            (.key | normkey) as $k |
+            "ACC_\($k)_perm_mask=\(.value.perm_mask // "")",
+            "ACC_\($k)_owner=\(.value.owner // "")",
+            "ACC_\($k)_group=\(.value.group // "")"
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-with open("$json_file") as f:
-    data = json.load(f)
+    # ── sshd_settings ──
+    "$JQ" -r '
+        (.sshd_settings // {}) | to_entries[] |
+            (.key | ascii_upcase) as $setting |
+            (.value | to_entries[] |
+                (.key | ascii_upcase) as $field |
+                if (.value | type) == "array" then
+                    "SSHD_\($setting)_\($field)=\"\(.value | map(tostring) | join("|"))\""
+                else
+                    "SSHD_\($setting)_\($field)=\(.value)"
+                end
+            )
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
+    # ── weak lists ──
+    "$JQ" -r '
+        (["sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"] | .[]) as $k |
+        (.[$k] // []) as $items |
+        if ($items | length) > 0 then
+            (($k | ascii_upcase) + "_PATTERN") as $var |
+            "\($var)=\"\($items | map(gsub("\\."; "\\\\.")) | join("|"))\""
+        else empty end
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-# private/public host key entries use key_name directly (not a file path)
-# already handled above since entry["file"] is set in json
-# if your json uses key_name as lookup instead, add:
-for key_name, entry in data.get("ssh_config_file_permissions", {}).items():
-    safe_key = key_name.replace("/", "_").replace("-", "_").replace(".", "_").lstrip("_")
-    print(f'ACC_{safe_key}_perm_mask={entry["perm_mask"]}')
-    print(f'ACC_{safe_key}_owner={entry["owner"]}')
-    print(f'ACC_{safe_key}_group={entry["group"]}')
+    # ── sudo_settings ──
+    "$JQ" -r '
+        (.sudo_settings // {}) | to_entries[] |
+            (.key | ascii_upcase) as $setting |
+            (.value | to_entries[] |
+                (.key | ascii_upcase) as $field |
+                "SUDO_\($setting)_\($field)=\(.value)"
+            )
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-# sshd_settings
-for key, val in data.get("sshd_settings", {}).items():
-    safe = key.upper()
-    if isinstance(val, dict):
-        for field, fval in val.items():
-            if isinstance(fval, list):
-                joined = "|".join(str(v) for v in fval)
-                print(f'SSHD_{safe}_{field.upper()}="{joined}"')
-            else:
-                print(f'SSHD_{safe}_{field.upper()}={fval}')
+    # ── pam_settings ──
+    "$JQ" -r '
+        (.pam_settings // {}) | to_entries[] |
+            (.key | ascii_upcase) as $section |
+            (.value | to_entries[] |
+                (.key | ascii_upcase) as $field |
+                "PAM_\($section)_\($field)=\(.value)"
+            )
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-# weak lists
-for list_key in ("sshd_weak_ciphers", "sshd_weak_macs", "sshd_weak_kex"):
-    items = data.get(list_key, [])
-    if items:
-        pattern = "|".join(i.replace(".", r"\.") for i in items)
-        env_key = list_key.upper() + "_PATTERN"
-        print(f'{env_key}="{pattern}"')
+    # ── login_defs ──
+    "$JQ" -r '
+        (.login_defs // {}) as $ld |
+        "LD_file=\($ld.file // "/etc/login.defs")",
+        "LD_pass_max_days_max=\($ld.pass_max_days.max // 365)",
+        "LD_pass_min_days_min=\($ld.pass_min_days.min // 1)",
+        "LD_pass_warn_age_min=\($ld.pass_warn_age.min // 7)",
+        "LD_encrypt_method_allowed=\"\(($ld.encrypt_method.allowed // ["SHA512","YESCRYPT"]) | join("|"))\"",
+        "LD_inactive_max=\($ld.inactive.max // 45)"
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
-# sudo_settings
-for key, val in data.get("sudo_settings", {}).items():
-    safe = key.upper()
-    if isinstance(val, dict):
-        for field, fval in val.items():
-            print(f'SUDO_{safe}_{field.upper()}={fval}')
-            
-# pam_settings — flatten into PAM_ prefixed vars
-for section, vals in data.get("pam_settings", {}).items():
-    safe_section = section.upper()
-    if isinstance(vals, dict):
-        for field, fval in vals.items():
-            print(f'PAM_{safe_section}_{field.upper()}={fval}')
-
-ld = data.get("login_defs", {})
-print(f'LD_file={ld.get("file", "/etc/login.defs")}')
-
-pmd = ld.get("pass_max_days", {})
-print(f'LD_pass_max_days_max={pmd.get("max", 365)}')
-
-pmind = ld.get("pass_min_days", {})
-print(f'LD_pass_min_days_min={pmind.get("min", 1)}')
-
-pwa = ld.get("pass_warn_age", {})
-print(f'LD_pass_warn_age_min={pwa.get("min", 7)}')
-
-em = ld.get("encrypt_method", {})
-allowed_algos = em.get("allowed", ["SHA512", "YESCRYPT"])
-print(f'LD_encrypt_method_allowed="{"|".join(allowed_algos)}"')
-
-inact = ld.get("inactive", {})
-print(f'LD_inactive_max={inact.get("max", 45)}')
-
-# ── user_env ──
-ue = data.get("user_env", {})
-
-tmout = ue.get("tmout", {})
-print(f'UE_tmout_max={tmout.get("max", 900)}')
-print(f'UE_tmout_profile_d_file={tmout.get("profile_d_file", "/etc/profile.d/50-systemwide_tmout.sh")}')
-
-umask_cfg = ue.get("umask", {})
-print(f'UE_umask_value={umask_cfg.get("value", "027")}')
-print(f'UE_umask_profile_d_file={umask_cfg.get("profile_d_file", "/etc/profile.d/50-systemwide_umask.sh")}')
-
-root_umask = ue.get("root_umask", {})
-root_umask_files = root_umask.get("files", ["/root/.bash_profile", "/root/.bashrc"])
-print(f'UE_root_umask_file_count={len(root_umask_files)}')
-for idx, rf in enumerate(root_umask_files):
-    print(f'UE_root_umask_file_{idx}={rf}')
-
-EOF
+    # ── user_env ──
+    "$JQ" -r '
+        (.user_env // {}) as $ue |
+        "UE_tmout_max=\($ue.tmout.max // 900)",
+        "UE_tmout_profile_d_file=\($ue.tmout.profile_d_file // "/etc/profile.d/50-systemwide_tmout.sh")",
+        "UE_umask_value=\($ue.umask.value // "027")",
+        "UE_umask_profile_d_file=\($ue.umask.profile_d_file // "/etc/profile.d/50-systemwide_umask.sh")",
+        "UE_root_umask_file_count=\(($ue.root_umask.files // ["/root/.bash_profile","/root/.bashrc"]) | length)",
+        (($ue.root_umask.files // ["/root/.bash_profile","/root/.bashrc"]) | to_entries[] |
+            "UE_root_umask_file_\(.key)=\(.value)")
+    ' "$json_file" >> "$SSH_RAM_STORE"
 
     chmod 600 "$SSH_RAM_STORE"
     source "$SSH_RAM_STORE"
 }
 
 unload_json_access_control() {
-    [ -f "$SSH_RAM_STORE" ] && shred -u "$SSH_RAM_STORE" 2>/dev/null || rm -f "$SSH_RAM_STORE"
+    [ -f "$SSH_RAM_STORE" ] && shred -u "$SSH_RAM_STORE" 2>/dev/null || _clean_ram_store "$SSH_RAM_STORE"
 }
 
 unload_all() {
@@ -1046,6 +1085,7 @@ unload_all() {
 export -f load_dpkg
 export -f unload_dpkg
 export -f is_package_installed
+export -f require_present
 export -f load_severity
 export -f unload_severity
 export -f is_check_enabled
@@ -1068,6 +1108,8 @@ export -f load_json_services unload_json_services get_svc get_svc_services is_ve
 export -f load_json_host_based_firewall unload_json_host_based_firewall get_fw
 export -f load_json_access_control unload_json_access_control get_acc
 export -f unload_all
+export -f live_package_installed
+export -f _clean_ram_store
 export SEVERITY_RAM_STORE
 export DPKG_RAM_STORE
 export PERM_RAM_STORE

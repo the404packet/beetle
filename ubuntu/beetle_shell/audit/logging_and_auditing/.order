@@ -1,0 +1,82 @@
+# Beetle execution order — logging_and_auditing module
+# Mirrors CIS Ubuntu 22.04 §6
+
+# ── 6.1.1 journald service ──
+system_logging/configure_systemd_journal_service/journald_active.sh
+system_logging/configure_systemd_journal_service/journald_file_access.sh
+system_logging/configure_systemd_journal_service/journald_rotation.sh
+system_logging/configure_systemd_journal_service/single_logging_system.sh
+
+# ── 6.1.1.2 systemd-journal-remote ──
+system_logging/configure_journald/configure_systemd_journal_remote/journal_remote_installed.sh
+system_logging/configure_journald/configure_systemd_journal_remote/journal_upload_auth.sh
+system_logging/configure_journald/configure_systemd_journal_remote/journal_upload_active.sh
+system_logging/configure_journald/configure_systemd_journal_remote/journal_remote_disabled.sh
+system_logging/configure_journald/configure_systemd_journal_remote/journald_forward_to_syslog.sh
+system_logging/configure_journald/configure_systemd_journal_remote/journald_storage.sh
+system_logging/configure_journald/configure_systemd_journal_remote/journald_compress.sh
+
+# ── 6.1.2 rsyslog ──
+system_logging/configure_rsyslog/rsyslog_installed.sh
+system_logging/configure_rsyslog/rsyslog_active.sh
+system_logging/configure_rsyslog/journald_forward_to_rsyslog.sh
+system_logging/configure_rsyslog/rsyslog_file_create_mode.sh
+system_logging/configure_rsyslog/rsyslog_logging_rules.sh
+system_logging/configure_rsyslog/rsyslog_remote_host.sh
+system_logging/configure_rsyslog/rsyslog_no_remote_receive.sh
+system_logging/configure_rsyslog/rsyslog_logrotate.sh
+
+# ── 6.1.3 logfiles ──
+system_logging/configure_logfiles/logfiles_permissions.sh
+
+# ── 6.2.1 auditd service ──
+system_auditing/configure_auditd_service/auditd_installed.sh
+system_auditing/configure_auditd_service/auditd_enabled.sh
+system_auditing/configure_auditd_service/auditd_grub_audit.sh
+system_auditing/configure_auditd_service/auditd_grub_backlog.sh
+
+# ── 6.2.2 data retention ──
+system_auditing/configure_data_retention/max_log_file.sh
+system_auditing/configure_data_retention/max_log_file_action.sh
+system_auditing/configure_data_retention/auditd_disk_full_action.sh
+system_auditing/configure_data_retention/auditd_space_left_action.sh
+
+# ── 6.2.3 auditd rules ──
+system_auditing/configure_auditd_rules/auditd_scope.sh
+system_auditing/configure_auditd_rules/auditd_user_emulation.sh
+system_auditing/configure_auditd_rules/auditd_sudo_log.sh
+system_auditing/configure_auditd_rules/auditd_time_change.sh
+system_auditing/configure_auditd_rules/auditd_system_locale.sh
+system_auditing/configure_auditd_rules/auditd_privileged.sh
+system_auditing/configure_auditd_rules/auditd_access.sh
+system_auditing/configure_auditd_rules/auditd_identity.sh
+system_auditing/configure_auditd_rules/auditd_perm_mod.sh
+system_auditing/configure_auditd_rules/auditd_mounts.sh
+system_auditing/configure_auditd_rules/auditd_sessions.sh
+system_auditing/configure_auditd_rules/auditd_logins.sh
+system_auditing/configure_auditd_rules/auditd_delete.sh
+system_auditing/configure_auditd_rules/auditd_mac_policy.sh
+system_auditing/configure_auditd_rules/auditd_chcon.sh
+system_auditing/configure_auditd_rules/auditd_setfacl.sh
+system_auditing/configure_auditd_rules/auditd_chacl.sh
+system_auditing/configure_auditd_rules/auditd_usermod.sh
+system_auditing/configure_auditd_rules/auditd_kernel_modules.sh
+system_auditing/configure_auditd_rules/auditd_immutable.sh
+system_auditing/configure_auditd_rules/auditd_config_sync.sh
+
+# ── 6.2.4 auditd file access ──
+system_auditing/configure_auditd_file_access/auditd_log_file_mode.sh
+system_auditing/configure_auditd_file_access/auditd_log_file_owner.sh
+system_auditing/configure_auditd_file_access/auditd_log_file_group.sh
+system_auditing/configure_auditd_file_access/auditd_log_dir_mode.sh
+system_auditing/configure_auditd_file_access/auditd_conf_files_mode.sh
+system_auditing/configure_auditd_file_access/auditd_conf_files_owner.sh
+system_auditing/configure_auditd_file_access/auditd_conf_files_group.sh
+system_auditing/configure_auditd_file_access/auditd_tools_mode.sh
+system_auditing/configure_auditd_file_access/auditd_tools_owner.sh
+system_auditing/configure_auditd_file_access/auditd_tools_group.sh
+
+# ── 6.3 filesystem integrity checking (AIDE) ──
+configure_integrity_checking/aide_installed.sh
+configure_integrity_checking/aide_timer.sh
+configure_integrity_checking/aide_audit_tools_integrity.sh

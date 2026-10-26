@@ -415,5 +415,6 @@
     "/sbin/autrace",
     "/sbin/augenrules"
   ]
-}
+},
+"logging_system": "journald"
 }

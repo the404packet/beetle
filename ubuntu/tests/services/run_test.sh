@@ -124,6 +124,9 @@ for script in "${HARDEN_SCRIPTS[@]}"; do
     fi
 done
 
+echo -e "\n${YELLOW}[STEP 3.5] Refreshing package state after harden...${RESET}"
+load_dpkg
+
 # Step 4: Final Audit
 echo -e "\n${YELLOW}[STEP 4] Running Final Audit after Hardening (Expected: HARDENED)...${RESET}"
 

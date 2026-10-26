@@ -27,9 +27,15 @@ done < <(findmnt -knD 2>/dev/null | awk '{print $2}' | sort -u)
 for mod in "${a_available[@]}"; do
     [[ "$mod" =~ overlay ]] && mod="${mod::-2}"
     grep -Pq "\b${mod}\b" <<< "${a_ignore[*]}" && continue
+
+    # Persistent block must be present
     grep -Pq "\bblacklist\h+${mod}\b" <<< "${a_modprobe_config[*]}" || { fail=1; break; }
-    grep -Pq "\binstall\h+${mod}\h+(\/usr)?\/bin\/(false|true)\b" <<< "${a_modprobe_config[*]}" || { fail=1; break; }
-    lsmod 2>/dev/null | grep -q "$mod" && { fail=1; break; }
+    grep -Pq "\binstall\h+${mod}\h+\S*/(false|true)\b" <<< "${a_modprobe_config[*]}" || { fail=1; break; }
+
+    # Real test: modprobe must not plan to insmod it
+    if modprobe --dry-run "$mod" 2>/dev/null | grep -q "insmod"; then
+        fail=1; break
+    fi
 done
 
 [ "$fail" -eq 0 ] \

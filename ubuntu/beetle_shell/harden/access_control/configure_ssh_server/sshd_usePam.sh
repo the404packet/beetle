@@ -8,7 +8,7 @@ RED="\e[31m"
 RESET="\e[0m"
 
 if ! is_package_installed "openssh-server"; then
-    echo -e "${GREEN}HARDENED${RESET}"
+    echo -e "${GREEN}SUCCESS${RESET}"
     exit 0
 fi
 

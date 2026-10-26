@@ -9,33 +9,48 @@ RESET="\e[0m"
 [ -f "$DPKG_RAM_STORE" ] && source "$DPKG_RAM_STORE"
 [ -f "$SERVICES_RAM_STORE" ] && source "$SERVICES_RAM_STORE"
 
-is_enabled=$(systemctl is-enabled chrony.service 2>/dev/null)
-is_active=$(systemctl is-active chrony.service 2>/dev/null)
+daemon_count="${TS_daemon_count:-0}"
 
-if [[ "$is_enabled" != "enabled" ]] && [[ "$is_active" != "active" ]]; then
+chrony_idx=""
+other_active=""
+for ((i=0; i<daemon_count; i++)); do
+    name_var="TS_daemon_${i}_name"
+    svc_var="TS_daemon_${i}_service"
+    name="${!name_var}"
+    svc="${!svc_var}"
+    [ -z "$svc" ] && continue
+
+    if [ "$name" == "chrony" ]; then
+        chrony_idx="$i"
+        continue
+    fi
+
+    if systemctl is-active "$svc" >/dev/null 2>&1; then
+        other_active="$name"
+    fi
+done
+
+if [ -z "$chrony_idx" ]; then
     echo -e "${GREEN}HARDENED${RESET}"
     exit 0
 fi
 
-daemon_count="$TS_daemon_count"
-chrony_idx=""
-for ((i=0; i<daemon_count; i++)); do
-    name_var="TS_daemon_${i}_name"
-    if [[ "${!name_var}" == "chrony" ]]; then
-        chrony_idx="$i"
-        break
-    fi
-done
+if [ -n "$other_active" ]; then
+    echo -e "${GREEN}HARDENED${RESET}"
+    exit 0
+fi
 
-if [[ -z "$chrony_idx" ]]; then
-    echo -e "${RED}NOT HARDENED${RESET}"
+if ! systemctl is-active chrony.service >/dev/null 2>&1; then
+    echo -e "${GREEN}HARDENED${RESET}"
     exit 0
 fi
 
 run_as_var="TS_daemon_${chrony_idx}_run_as_user"
 run_as="${!run_as_var}"
+[ -z "$run_as" ] && run_as="_chrony"
 
-wrong_user=$(ps -ef | awk '/[c]hronyd/ && $1!="'"$run_as"'" {print $1}')
+# Match ONLY the real daemon (comm == "chronyd"), not wrapper scripts
+wrong_user=$(ps -eo user,comm 2>/dev/null | awk -v u="$run_as" '$2=="chronyd" && $1!=u {print $1}')
 
 if [[ -z "$wrong_user" ]]; then
     echo -e "${GREEN}HARDENED${RESET}"

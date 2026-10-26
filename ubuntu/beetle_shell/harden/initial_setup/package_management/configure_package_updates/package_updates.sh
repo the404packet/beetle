@@ -1,27 +1,30 @@
 #!/usr/bin/env bash
+# CIS 1.2.2.1 is a Manual control. Beetle reports pending updates — it does
+# not auto-upgrade (site policy determines timing).
+
 NAME="ensure updates patches and additional security software are installed"
-GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
+
+GREEN="\e[32m"
+RED="\e[31m"
+YELLOW="\e[33m"
+RESET="\e[0m"
 
 apt-get update -qq 2>/dev/null
 pending=$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst')
 
-echo ""
-echo "  [MANUAL CHECK] Pending package updates: ${pending}"
-if [ "$pending" -gt 0 ]; then
-    echo "  Packages to be upgraded:"
-    apt-get -s upgrade 2>/dev/null | grep '^Inst' | awk '{print "   ", $2}' | head -20
-    echo ""
-    echo -n "  Press ENTER to run apt-get upgrade, or type 'no' to handle manually: "
-    read -r response
-    if [ "$response" = "no" ]; then
-        echo -e "${RED}FAILED${RESET}"; exit 1
-    fi
-    apt-get upgrade -y 2>/dev/null \
-        || { echo -e "${RED}FAILED${RESET}"; exit 1; }
+if [ "$pending" -eq 0 ]; then
+    echo -e "${GREEN}SUCCESS${RESET} (no pending updates)"
+    exit 0
 fi
 
-pending=$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst')
-[ "$pending" -eq 0 ] \
-    && echo -e "${GREEN}SUCCESS${RESET}" \
-    || { echo -e "${RED}FAILED${RESET}"; exit 1; }
-exit 0
+echo ""
+echo -e "${YELLOW}  [MANUAL CHECK] ${pending} package updates pending.${RESET}"
+echo "  CIS 1.2.2.1 is a manual control — apply per site policy:"
+echo "    sudo apt-get upgrade -y"
+echo "    # or: sudo apt-get dist-upgrade -y"
+echo ""
+echo "  Top packages to be upgraded:"
+apt-get -s upgrade 2>/dev/null | grep '^Inst' | awk '{print "    " $2}' | head -10
+echo ""
+echo -e "${RED}FAILED${RESET} (${pending} pending)"
+exit 1

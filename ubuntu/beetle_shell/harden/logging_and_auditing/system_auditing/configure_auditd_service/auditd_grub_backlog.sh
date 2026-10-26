@@ -8,18 +8,28 @@ cmdline_key="$AD_grub_cmdline_key"
 param_name="AD_grub_1_name";  name="${!param_name}"
 param_value="AD_grub_1_value"; value="${!param_value}"
 
-if grep -Pq "^\s*${cmdline_key}=.*${name}=\d+" "$grub_cfg" 2>/dev/null; then
-    # update existing value
+[ -z "$grub_cfg" ]    && { echo -e "${RED}FAILED${RESET} (grub config path not set)"; exit 1; }
+[ -z "$cmdline_key" ] && { echo -e "${RED}FAILED${RESET} (cmdline key not set)"; exit 1; }
+[ -z "$name" ]        && { echo -e "${RED}FAILED${RESET} (param name not set)"; exit 1; }
+[ -z "$value" ]       && { echo -e "${RED}FAILED${RESET} (param value not set)"; exit 1; }
+[ -f "$grub_cfg" ]    || { echo -e "${RED}FAILED${RESET} (grub config missing)"; exit 1; }
+
+export DEBIAN_FRONTEND=noninteractive
+if ! dpkg-query -W -f='${Status}' auditd 2>/dev/null | grep -q "install ok installed"; then
+    apt-get install -y -q auditd audispd-plugins </dev/null >/dev/null 2>&1 || true
+fi
+
+if grep -Pq "^\s*${cmdline_key}=.*${name}=[0-9]+" "$grub_cfg" 2>/dev/null; then
     sed -i "s|${name}=[0-9]*|${name}=${value}|g" "$grub_cfg"
 elif grep -Pq "^\s*${cmdline_key}=" "$grub_cfg" 2>/dev/null; then
-    sed -i "s|^\(\s*${cmdline_key}=\"[^\"]*\)\"|\\1 ${name}=${value}\"|" "$grub_cfg"
+    sed -i "s|^\(\s*${cmdline_key}=\"[^\"]*\)\"|\1 ${name}=${value}\"|" "$grub_cfg"
 else
     echo "${cmdline_key}=\"${name}=${value}\"" >> "$grub_cfg"
 fi
 
-update-grub 2>/dev/null
+update-grub 2>/dev/null || true
 
-result=$(find /boot -type f -name 'grub.cfg' \
+result=$(find /boot -xdev -maxdepth 3 -type f -name 'grub.cfg' \
          -exec grep -Ph -- '^\h*linux' {} + 2>/dev/null \
          | grep -Pv "${name}=\d+\b")
 

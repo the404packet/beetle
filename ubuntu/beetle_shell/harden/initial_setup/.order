@@ -1,0 +1,96 @@
+# Beetle execution order — initial_setup module
+# Mirrors CIS Ubuntu 22.04 §1
+
+# ── 1.1.1 filesystem kernel modules ──
+filesystem/configure_filesystem_kernel_modules/cramfs.sh
+filesystem/configure_filesystem_kernel_modules/freevxfs.sh
+filesystem/configure_filesystem_kernel_modules/hfs.sh
+filesystem/configure_filesystem_kernel_modules/hfsplus.sh
+filesystem/configure_filesystem_kernel_modules/jffs2.sh
+filesystem/configure_filesystem_kernel_modules/overlayfs.sh
+filesystem/configure_filesystem_kernel_modules/squashfs.sh
+filesystem/configure_filesystem_kernel_modules/udf.sh
+filesystem/configure_filesystem_kernel_modules/usb_storage.sh
+filesystem/configure_filesystem_kernel_modules/unused_filesystem.sh
+
+# ── 1.1.2 /tmp ──
+filesystem/configure_filesystem_partitions/configure_tmp/tmp_partition.sh
+filesystem/configure_filesystem_partitions/configure_tmp/tmp_nodev.sh
+filesystem/configure_filesystem_partitions/configure_tmp/tmp_nosuid.sh
+filesystem/configure_filesystem_partitions/configure_tmp/tmp_noexec.sh
+
+# ── 1.1.2 /dev/shm ──
+filesystem/configure_filesystem_partitions/configure_dev_shm/dev_shm_partition.sh
+filesystem/configure_filesystem_partitions/configure_dev_shm/dev_shm_nodev.sh
+filesystem/configure_filesystem_partitions/configure_dev_shm/dev_shm_nosuid.sh
+filesystem/configure_filesystem_partitions/configure_dev_shm/dev_shm_noexec.sh
+
+# ── 1.1.2 /home ──
+filesystem/configure_filesystem_partitions/configure_home/home_partition.sh
+filesystem/configure_filesystem_partitions/configure_home/home_nodev.sh
+filesystem/configure_filesystem_partitions/configure_home/home_nosuid.sh
+
+# ── 1.1.2 /var ──
+filesystem/configure_filesystem_partitions/configure_var/var_partition.sh
+filesystem/configure_filesystem_partitions/configure_var/var_nodev.sh
+filesystem/configure_filesystem_partitions/configure_var/var_nosuid.sh
+
+# ── 1.1.2 /var/tmp ──
+filesystem/configure_filesystem_partitions/configure_var_tmp/var_tmp_partition.sh
+filesystem/configure_filesystem_partitions/configure_var_tmp/var_tmp_nodev.sh
+filesystem/configure_filesystem_partitions/configure_var_tmp/var_tmp_nosuid.sh
+filesystem/configure_filesystem_partitions/configure_var_tmp/var_tmp_noexec.sh
+
+# ── 1.1.2 /var/log ──
+filesystem/configure_filesystem_partitions/configure_var_log/var_log_partition.sh
+filesystem/configure_filesystem_partitions/configure_var_log/var_log_nodev.sh
+filesystem/configure_filesystem_partitions/configure_var_log/var_log_nosuid.sh
+filesystem/configure_filesystem_partitions/configure_var_log/var_log_noexec.sh
+
+# ── 1.1.2 /var/log/audit ──
+filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_partition.sh
+filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_nodev.sh
+filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_nosuid.sh
+filesystem/configure_filesystem_partitions/configure_var_log_audit/var_log_audit_noexec.sh
+
+# ── 1.2 package management ──
+package_management/configure_package_repositories/gpg_keys.sh
+package_management/configure_package_repositories/apt_repositories.sh
+package_management/configure_package_updates/package_updates.sh
+
+# ── 1.3 mandatory access control (AppArmor) ──
+mandatory_access_control/configure_apparmor/apparmor_installed.sh
+mandatory_access_control/configure_apparmor/apparmor_bootloader.sh
+mandatory_access_control/configure_apparmor/apparmor_profile_active.sh
+mandatory_access_control/configure_apparmor/apparmor_profile_enforcing.sh
+
+# ── 1.4 bootloader ──
+configure_bootloader/ensure_access_to_bootloader_config_is_configured.sh
+configure_bootloader/ensure_bootloader_password_is_set.sh
+
+# ── 1.5 additional process hardening ──
+configure_additional_process_hardening/ensure_address_space_layout_randomization_is_enabled.sh
+configure_additional_process_hardening/ensure_ptrace_scope_is_restricted.sh
+configure_additional_process_hardening/ensure_core_dumps_are_restricted.sh
+configure_additional_process_hardening/ensure_prelink_is_not_installed.sh
+configure_additional_process_hardening/ensure_automatic_error_reporting_is_not_enabled.sh
+
+# ── 1.6 command-line warning banners ──
+configure_command_line_warning_banners/ensure_message_of_the_day_is_configured_properly.sh
+configure_command_line_warning_banners/ensure_local_login_warning_banner_is_configured_properly.sh
+configure_command_line_warning_banners/ensure_remote_login_warning_banner_is_configured_properly.sh
+configure_command_line_warning_banners/ensure_access_to_etc_motd_is_configured.sh
+configure_command_line_warning_banners/ensure_access_to_etc_issue_is_configured.sh
+configure_command_line_warning_banners/ensure_access_to_etc_issue_net_is_configured.sh
+
+# ── 1.7 GNOME display manager ──
+configure_gnome_display_manager/gdm_removed.sh
+configure_gnome_display_manager/gdm_banner.sh
+configure_gnome_display_manager/gdm_disable_user_list.sh
+configure_gnome_display_manager/gdm_screen_lock.sh
+configure_gnome_display_manager/gdm_screen_lock_override.sh
+configure_gnome_display_manager/gdm_automount.sh
+configure_gnome_display_manager/gdm_automount_override.sh
+configure_gnome_display_manager/gdm_autorun_never.sh
+configure_gnome_display_manager/gdm_autorun_never_override.sh
+configure_gnome_display_manager/gdm_xdmcp.sh

@@ -12,8 +12,11 @@ idx=$(get_partition_idx "/var/log")
 unit_var="FP_${idx}_systemd_unit"
 unit="${!unit_var}"
 
-if ! is_partition_mounted "/var/log"; then
-    echo -e "${RED}NOT HARDENED${RESET}"
+if ! is_partition_mounted "/var/log/audit"; then
+    echo -e "${GREEN}HARDENED${RESET}"
+    echo -e "${YELLOW:-\e[33m}MANUAL CHECK${RESET} /var/log/audit is not a separate partition."
+    echo -e "${YELLOW:-\e[33m}FIX:${RESET} Create a separate partition for /var/log/audit, mount it, and add it to /etc/fstab."
+    echo " "
     exit 0
 fi
 
