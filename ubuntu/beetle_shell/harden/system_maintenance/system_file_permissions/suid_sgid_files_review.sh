@@ -17,7 +17,7 @@ source "${BEETLE_SHELL_ROOT:-/usr/local/bin/beetle_shell}/lib/beetle_prompt.sh"
 count="$SS_count"
 a_suspicious=()
 
-# ---------- Detection (unchanged) ----------
+# ---------- Detection ----------
 for ((i=0; i<count; i++)); do
     n_var="SS_${i}_name";  name="${!n_var}"
     p_var="SS_${i}_path";  path="${!p_var}"
@@ -64,12 +64,12 @@ echo ""
 response=$(beetle_prompt \
     "Apply Beetle-recommended hardening (remove SUID/SGID from the above)?" "y")
 
-if [[ "$response" == "n" ]]; then
+if [[ "$response" != "y" ]]; then
     echo -e "${RED}FAILED${RESET}"
     exit 1
 fi
 
-# ---------- Remediation (unchanged) ----------
+# ---------- Remediation ----------
 failed=false
 for entry in "${a_suspicious[@]}"; do
     path=$(echo "$entry" | grep -oP '(?<=: )/\S+(?= \(|$)')

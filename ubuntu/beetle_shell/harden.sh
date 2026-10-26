@@ -41,7 +41,6 @@ spinner() {
 
 run_harden() {
     local script="$1"
-
     NAME=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
     [ -z "$NAME" ] && NAME="$(basename "$script")"
 
@@ -50,16 +49,15 @@ run_harden() {
         return
     fi
 
-    # ── Find this script's JSON (returns "type::path" or "") ──
+    # ── Find this script's JSON ──
     local module_json json_type json_file
     module_json=$(find_module_json "$script")
 
     if [ -n "$module_json" ]; then
         json_type="${module_json%%::*}"
         json_file="${module_json##*::}"
-
         load_module_json "$json_type" "$json_file" || {
-            printf "${RED}[FAIL]${RESET} %s  ${RED}JSON LOAD ERROR${RESET}\n" "$NAME"
+            printf "${RED}[FAIL]${RESET} %s ${RED}JSON LOAD ERROR${RESET}\n" "$NAME"
             ((FAIL_COUNT++))
             return
         }
@@ -76,12 +74,22 @@ run_harden() {
     export INITIAL_SETUP_RAM_STORE
 
     TMP_FILE=$(mktemp)
-    bash "$script" > "$TMP_FILE" 2>/dev/null &
+
+    # ── KEY FIX: --line-buffered forces grep to pass PROMPT: immediately ──
+     (
+        stdbuf -oL -eL bash "$script" 2>&1 \
+            | stdbuf -oL tee "$TMP_FILE" \
+            | grep --line-buffered -v -P '^(\x1b\[[0-9;]*m)?(SUCCESS|FAILED)(\x1b\[[0-9;]*m)?$'
+        exit "${PIPESTATUS[0]}"
+    ) &
     pid=$!
-    spinner "$pid"
+
     wait "$pid"
     exit_code=$?
-    result=$(<"$TMP_FILE")
+
+    # Extract final execution outcome from captured output log
+    result=$(grep -E 'SUCCESS|FAILED' "$TMP_FILE" | tail -n 1 || true)
+    [ -z "$result" ] && result="FAILED"
     rm -f "$TMP_FILE"
 
     # ── Unload this script's JSON from RAM ──
@@ -94,7 +102,7 @@ run_harden() {
     dots=$(printf "%0.s." $(seq 1 $dots_count))
 
     if [ "$exit_code" -ne 0 ]; then
-        printf "${RED}[FAIL]${RESET} %s %s  ${RED}ERROR${RESET}\n" "$NAME" "$dots"
+        printf "${RED}[FAIL]${RESET} %s %s ${RED}ERROR${RESET}\n" "$NAME" "$dots"
         ((FAIL_COUNT++))
         return
     fi
@@ -114,7 +122,7 @@ run_harden() {
         report_add "$rel" "$NAME" "$result"
     fi
 
-    printf "${GREEN}[DONE]${RESET} %s %s  ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
+    printf "${GREEN}[DONE]${RESET} %s %s ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
 }
 echo -e "${CYAN}Starting Beetle Hardening...${RESET}\n"
 
