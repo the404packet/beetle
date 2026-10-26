@@ -1,0 +1,20 @@
+---
+# Pulls every report already on the hosts
+- name: Fetch all Beetle reports
+  hosts: beetle_hosts
+  become: true
+  vars_files: [vars.yml]
+  tasks:
+    - name: Find all reports
+      ansible.builtin.command:
+        argv: [find, "{{ beetle_report_dir }}", -maxdepth, "1", -type, f, -name, "*.pdf"]
+      register: beetle_found
+      changed_when: false
+      failed_when: false
+
+    - name: Fetch reports to control node
+      ansible.builtin.fetch:
+        src: "{{ item }}"
+        dest: "{{ beetle_local_report_dir }}/{{ inventory_hostname }}/{{ item | basename }}"
+        flat: true
+      loop: "{{ beetle_found.stdout_lines }}"

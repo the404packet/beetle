@@ -1,0 +1,57 @@
+---
+- name: Install Beetle
+  hosts: beetle_hosts
+  become: true
+  vars_files: [vars.yml]
+  tasks:
+    - name: Ensure target is Ubuntu
+      ansible.builtin.assert:
+        that: ansible_facts['distribution'] == 'Ubuntu'
+
+    - name: Install dependencies
+      ansible.builtin.apt:
+        name: "{{ beetle_packages }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Clone / update Beetle
+      ansible.builtin.git:
+        repo: "{{ beetle_repo_url }}"
+        dest: "{{ beetle_src_dir }}"
+        version: "{{ beetle_repo_version }}"
+        force: true
+      register: beetle_git
+
+    - name: Check if beetle is already installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/beetle
+      register: beetle_bin
+
+    - name: Run install.sh
+      ansible.builtin.command:
+        argv: >-
+          {{ ['bash', './install.sh']
+             + (['--force-config'] if beetle_force_config | bool else []) }}
+        chdir: "{{ beetle_src_dir }}/ubuntu"
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      when: beetle_git.changed or not beetle_bin.stat.exists or beetle_reinstall | bool
+
+    - name: Make sure beetled is enabled and running
+      ansible.builtin.systemd:
+        name: beetled
+        enabled: true
+        state: started
+
+    - name: Wait for daemon socket
+      ansible.builtin.stat:
+        path: /var/run/beetle.sock
+      register: beetle_sock
+      retries: 10
+      delay: 2
+      until: beetle_sock.stat.issock | default(false)
+
+    - name: Confirm
+      ansible.builtin.debug:
+        msg: "beetle installed, beetled running, socket ready on {{ inventory_hostname }}"
