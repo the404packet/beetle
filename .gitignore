@@ -26,9 +26,8 @@ beetle.log
 *~
 
 # ── Python (legacy) ──
-__pycache__/
-*.pyc
-*.pyo
+**/__pycache__/
+*.py[cod]
 
 # ── OS ──
 .DS_Store
