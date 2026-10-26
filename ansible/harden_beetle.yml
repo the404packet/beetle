@@ -1,0 +1,25 @@
+
+---
+- name: Harden Ubuntu servers using Beetle
+  hosts: ubuntu
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Verify Beetle is installed
+      ansible.builtin.command: beetle version
+      changed_when: false
+
+    - name: Run Beetle hardening
+      ansible.builtin.command: beetle harden
+      register: harden_result
+
+    - name: Display hardening results
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          Exit code: {{ harden_result.rc }}
+
+          {{ harden_result.stdout }}
+
+          {{ harden_result.stderr }}
