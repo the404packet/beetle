@@ -18,7 +18,7 @@ echo "  CIS 1.2.1.2 is a manual control — Beetle does not rewrite sources.list
 echo ""
 
 echo -e "${CYAN}  Current APT repositories:${RESET}"
-apt-cache policy 2>/dev/null | grep -E '^\s+\d+\s+https?://|file:' | head -20
+apt-cache policy 2>/dev/null | grep -E '^\s+[0-9]+\s+(https?://|file:)' | head -20
 echo ""
 
 if apt-cache policy 2>/dev/null | grep -qE 'https?://|file:'; then
