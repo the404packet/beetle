@@ -191,7 +191,8 @@
     "iptables-persistent": [],
     "nftables": [
       "nftables.service"
-    ]
+    ],
+    "gdm3": ["gdm.service"]
   },
   "kernel_modules": [
     {
@@ -314,7 +315,10 @@
     "/etc/hostname",
     "/etc/nsswitch.conf",
     "/etc/kernel/cmdline",
-    "/etc/default/grub.d"
+    "/etc/default/grub.d",
+    "/etc/gdm3/custom.conf", 
+    "/etc/gdm3/daemon.conf",
+    "/etc/dconf/profile/gdm"
   ],
   "directories": [
     "/tmp",
@@ -345,7 +349,10 @@
     "/etc/profile.d",
     "/etc/chrony/sources.d",
     "/etc/chrony/conf.d",
-    "/etc/default/grub.d"
+    "/etc/default/grub.d",
+    "/etc/dconf/db/local.d",
+    "/etc/dconf/db/local.d/locks",
+    "/etc/dconf/db/gdm.d"
   ],
   "sysctl_keys": [
     "net.ipv4.ip_forward",
