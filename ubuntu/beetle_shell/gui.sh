@@ -5,14 +5,18 @@ set -euo pipefail
 GITHUB_REPO="the404packet/beetle"
 GUI_DIR=""
 
-if [[ -d "/usr/local/bin/gui" ]]; then
+# ── Locate an existing GUI install ──
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)"
+
+if [[ -f "/usr/local/bin/gui/app.py" ]]; then
     GUI_DIR="/usr/local/bin/gui"
-elif [[ -d "/opt/beetle-gui" ]]; then
+elif [[ -f "/opt/beetle-gui/app.py" ]]; then
     GUI_DIR="/opt/beetle-gui"
-elif [[ -d "$(cd "$(dirname "${BASH_SOURCE[0]}")/../gui" 2>/dev/null && pwd)" ]]; then
-    GUI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../gui" 2>/dev/null && pwd)"
-elif [[ -d "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../gui" 2>/dev/null && pwd)" ]]; then
-    GUI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../gui" 2>/dev/null && pwd)"
+elif [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/../gui/app.py" ]]; then
+    GUI_DIR="$(cd "$SCRIPT_DIR/../gui" && pwd)"
+elif [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/../../gui/app.py" ]]; then
+    GUI_DIR="$(cd "$SCRIPT_DIR/../../gui" && pwd)"
 fi
 
 # ── Helper Function: Interactive Prompt via Beetle IPC (FD 4) ──
@@ -55,6 +59,18 @@ prompt_user() {
     fi
 }
 
+# ── Helper: run apt-get only when root/sudo is available ──
+
+apt_install() {
+    if [[ $EUID -ne 0 ]]; then
+        echo "❌ Root privileges are required to install packages: $*"
+        echo "   Re-run with sudo."
+        exit 1
+    fi
+    apt-get update
+    apt-get install -y "$@"
+}
+
 # ── Function: Install GUI from GitHub Release ──
 
 install_gui_from_github() {
@@ -64,16 +80,17 @@ install_gui_from_github() {
 
     if ! command -v curl >/dev/null 2>&1; then
         echo "==> Installing curl..."
-        apt-get update && apt-get install -y curl
+        apt_install curl
     fi
 
     if ! command -v unzip >/dev/null 2>&1; then
         echo "==> Installing unzip..."
-        apt-get update && apt-get install -y unzip
+        apt_install unzip
     fi
 
     TARGET_DIR="/opt/beetle-gui"
     TMP_ZIP="/tmp/beetle-gui.zip"
+    TMP_EXTRACT="/tmp/beetle_extracted"
 
     echo "==> Fetching latest release download URL from GitHub ($GITHUB_REPO)..."
 
@@ -99,17 +116,22 @@ install_gui_from_github() {
 
     echo "==> Extracting to $TARGET_DIR..."
 
-    mkdir -p "$TARGET_DIR"
+    rm -rf "$TMP_EXTRACT"
+    mkdir -p "$TARGET_DIR" "$TMP_EXTRACT"
 
-    unzip -q -o "$TMP_ZIP" -d /tmp/beetle_extracted
+    unzip -q -o "$TMP_ZIP" -d "$TMP_EXTRACT"
 
-    if [[ -d "/tmp/beetle_extracted/gui" ]]; then
-        cp -a /tmp/beetle_extracted/gui/. "$TARGET_DIR/"
+    if [[ -d "$TMP_EXTRACT/gui" ]]; then
+        cp -a "$TMP_EXTRACT/gui/." "$TARGET_DIR/"
     else
-        cp -a /tmp/beetle_extracted/. "$TARGET_DIR/"
+        cp -a "$TMP_EXTRACT/." "$TARGET_DIR/"
     fi
 
-    rm -rf /tmp/beetle_extracted "$TMP_ZIP"
+    rm -rf "$TMP_EXTRACT" "$TMP_ZIP"
+
+    # A venv shipped inside the release zip was built on the CI runner and has
+    # hardcoded absolute paths, so it can never work here. Always discard it.
+    rm -rf "$TARGET_DIR/venv"
 
     chmod +x "$TARGET_DIR/app.py" 2>/dev/null || true
 
@@ -133,43 +155,60 @@ if [[ -z "$GUI_DIR" || ! -f "$GUI_DIR/app.py" ]]; then
     fi
 fi
 
-# ── 2. Check if Python3 and venv are installed ──
+# ── 2. Check Python3, venv and ensurepip ──
 
 if ! command -v python3 >/dev/null 2>&1; then
     echo "⚠️ Python3 is not installed."
 
     if prompt_user "Install Python3 now?" "Y"; then
         echo "==> Installing Python3, python3-pip, and python3-venv..."
-
-        apt-get update
-        apt-get install -y python3 python3-pip python3-venv
+        apt_install python3 python3-pip python3-venv
     else
         echo "❌ Python3 is required to run Beetle GUI."
         exit 1
     fi
 fi
 
-# Ensure python3-venv is present.
+# `python3 -m venv --help` succeeds even when ensurepip is missing, so test
+# ensurepip directly.
+if ! python3 -c "import ensurepip, venv" >/dev/null 2>&1; then
+    echo "==> Installing python3-venv and python3-pip..."
 
-if ! python3 -m venv --help >/dev/null 2>&1; then
-    echo "==> Installing python3-venv..."
+    PY_MINOR="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 
+    # Try the version-specific package first (e.g. python3.10-venv), then generic.
+    if [[ $EUID -ne 0 ]]; then
+        echo "❌ Root privileges are required. Re-run with sudo."
+        exit 1
+    fi
     apt-get update
-    apt-get install -y python3-venv python3-pip
+    apt-get install -y "python${PY_MINOR}-venv" python3-pip \
+        || apt-get install -y python3-venv python3-pip
+
+    if ! python3 -c "import ensurepip, venv" >/dev/null 2>&1; then
+        echo "❌ Could not get python venv/ensurepip working."
+        echo "   Try manually: sudo apt install python${PY_MINOR}-venv"
+        exit 1
+    fi
 fi
 
-# ── 3. Check and install Python dependencies ──
+# ── 3. Create (or repair) venv and install dependencies ──
 
 VENV_DIR="$GUI_DIR/venv"
-
-if [[ ! -d "$VENV_DIR" ]]; then
-    echo "==> Setting up Python virtual environment in $VENV_DIR..."
-
-    python3 -m venv "$VENV_DIR"
-fi
-
 PYTHON_BIN="$VENV_DIR/bin/python3"
-PIP_BIN="$VENV_DIR/bin/pip"
+
+# Recreate the venv if it's missing, half-built, or broken
+# (e.g. stale CI paths, or a previous failed creation with no pip).
+if [[ ! -x "$PYTHON_BIN" ]] || ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
+    echo "==> (Re)creating Python virtual environment in $VENV_DIR..."
+    rm -rf "$VENV_DIR"
+
+    if ! python3 -m venv "$VENV_DIR"; then
+        rm -rf "$VENV_DIR"
+        echo "❌ Failed to create virtual environment."
+        exit 1
+    fi
+fi
 
 NEED_INSTALL=false
 
@@ -178,16 +217,15 @@ if ! "$PYTHON_BIN" -c "import fastapi, uvicorn, multipart" >/dev/null 2>&1; then
 fi
 
 if [[ "$NEED_INSTALL" == "true" ]]; then
+    # Always call pip via `python -m pip` so the pip script's shebang is irrelevant.
+    "$PYTHON_BIN" -m pip install --upgrade pip
+
     if [[ -f "$GUI_DIR/requirements.txt" ]]; then
         echo "==> Installing dependencies from requirements.txt..."
-
-        "$PIP_BIN" install --upgrade pip
-        "$PIP_BIN" install -r "$GUI_DIR/requirements.txt"
+        "$PYTHON_BIN" -m pip install -r "$GUI_DIR/requirements.txt"
     else
         echo "==> requirements.txt not found, installing dependencies directly..."
-
-        "$PIP_BIN" install --upgrade pip
-        "$PIP_BIN" install fastapi "uvicorn[standard]" python-multipart
+        "$PYTHON_BIN" -m pip install fastapi "uvicorn[standard]" python-multipart
     fi
 fi
 
