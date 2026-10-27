@@ -43,7 +43,7 @@ show_help() {
 
 # ---------- ID ----------
 generate_id() {
-    date +"%Y%m%d%H%M%S"
+    echo "$(date +"%Y%m%d%H%M%S")_$RANDOM"
 }
 
 # ---------- STORE OBJECT ----------
