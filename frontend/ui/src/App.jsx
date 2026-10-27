@@ -4,13 +4,15 @@ import Sidebar from './components/Sidebar'
 import AuditTab from './components/AuditTab'
 import HardenTab from './components/HardenTab'
 
-import { ScanSearch, Shield, Camera } from 'lucide-react'
+import { ScanSearch, Shield, Camera, Settings } from 'lucide-react'
 import SnapshotTab from './components/SnapshotTab'
+import ConfigTab from './components/ConfigTab'
 
 export const TABS = [
   { id: 'audit',    label: 'Audit',     Icon: ScanSearch, Component: AuditTab    },
   { id: 'harden',   label: 'Harden',    Icon: Shield,     Component: HardenTab   },
   { id: 'snapshot', label: 'Snapshots', Icon: Camera,     Component: SnapshotTab },
+  { id: 'config',   label: 'Config',    Icon: Settings,   Component: ConfigTab   },
 ]
 
 const DEFAULT_MODULES = { audit: [], harden: [], severities: ['basic', 'moderate', 'strong'] }
@@ -114,6 +116,7 @@ export default function App() {
               {active.id === 'audit'    && '— Scan system configurations'}
               {active.id === 'harden'   && '— Apply hardening remediation'}
               {active.id === 'snapshot' && '— Capture and manage system snapshots'}
+              {active.id === 'config'   && '— Edit JSON configurations'}
             </span>
           </div>
 

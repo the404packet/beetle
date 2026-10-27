@@ -42,7 +42,7 @@ function Toast({ msg, ok, onDone }) {
     }}>
       {ok
         ? <CheckCircle2 size={16} color="var(--green-stroke)" style={{ flexShrink: 0, marginTop: 1 }} />
-        : <XCircle      size={16} color="var(--red-stroke)"   style={{ flexShrink: 0, marginTop: 1 }} />
+        : <XCircle size={16} color="var(--red-stroke)" style={{ flexShrink: 0, marginTop: 1 }} />
       }
       <span style={{ fontSize: 12.5, color: 'var(--text-2)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{msg}</span>
     </div>
@@ -51,8 +51,8 @@ function Toast({ msg, ok, onDone }) {
 
 /* ── Restore Modal (streaming output) ── */
 function RestoreModal({ snap, onClose, onNotify }) {
-  const [lines,   setLines]   = useState([])
-  const [done,    setDone]    = useState(false)
+  const [lines, setLines] = useState([])
+  const [done, setDone] = useState(false)
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
@@ -98,7 +98,7 @@ function RestoreModal({ snap, onClose, onNotify }) {
                   )
                 }
               }
-            } catch {}
+            } catch { }
           }
         }
       } catch (e) {
@@ -162,7 +162,7 @@ function RestoreModal({ snap, onClose, onNotify }) {
                 ? <LoaderCircle size={15} className="spin" color="var(--accent)" />
                 : success
                   ? <CheckCircle2 size={15} color="var(--green-stroke)" />
-                  : <XCircle      size={15} color="var(--red-stroke)"   />
+                  : <XCircle size={15} color="var(--red-stroke)" />
               }
             </div>
             <div>
@@ -245,12 +245,12 @@ function RestoreModal({ snap, onClose, onNotify }) {
 
 /* ══ MAIN ══════════════════════════════════════════════════════════════════ */
 export default function SnapshotTab() {
-  const [snapshots,   setSnapshots]   = useState([])
-  const [loading,     setLoading]     = useState(false)
-  const [capturing,   setCapturing]   = useState(false)
-  const [deletingId,  setDeletingId]  = useState(null)
-  const [nameInput,   setNameInput]   = useState('')
-  const [toast,       setToast]       = useState(null)
+  const [snapshots, setSnapshots] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [capturing, setCapturing] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
+  const [nameInput, setNameInput] = useState('')
+  const [toast, setToast] = useState(null)
   const [storageInfo, setStorageInfo] = useState('')
   const [restoreSnap, setRestoreSnap] = useState(null)   // snap object being restored
 
@@ -272,7 +272,7 @@ export default function SnapshotTab() {
       const r = await fetch('/api/snapshots/size')
       const d = await r.json()
       setStorageInfo(d.output || '')
-    } catch {}
+    } catch { }
   }, [])
 
   useEffect(() => { loadSnapshots(); loadSize() }, [loadSnapshots, loadSize])
@@ -382,7 +382,7 @@ export default function SnapshotTab() {
               width: 180,
             }}
             onFocus={e => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px var(--accent-ring)' }}
-            onBlur={e  => { e.target.style.borderColor = 'var(--border-solid)'; e.target.style.boxShadow = 'var(--shadow-sm)' }}
+            onBlur={e => { e.target.style.borderColor = 'var(--border-solid)'; e.target.style.boxShadow = 'var(--shadow-sm)' }}
           />
         </div>
 

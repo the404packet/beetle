@@ -115,6 +115,40 @@ def parse_summary(raw: str) -> dict | None:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+CONFIG_DIR = BASE_DIR / "ubuntu" / "config"
+
+@app.get("/api/config/files")
+async def api_config_files():
+    """List JSON configuration files."""
+    if not CONFIG_DIR.exists():
+        return {"files": []}
+    files = [f.name for f in CONFIG_DIR.glob("*.json")]
+    return {"files": sorted(files)}
+
+@app.get("/api/config/{filename}")
+async def api_config_get(filename: str):
+    """Get content of a JSON configuration file."""
+    path = CONFIG_DIR / filename
+    if path.parent != CONFIG_DIR or not path.exists():
+        return {"error": "File not found"}
+    return {"content": path.read_text(encoding="utf-8")}
+
+@app.post("/api/config/{filename}")
+async def api_config_save(filename: str, request: Request):
+    """Save content of a JSON configuration file."""
+    path = CONFIG_DIR / filename
+    if path.parent != CONFIG_DIR:
+        return {"error": "Invalid path"}
+    body = await request.json()
+    content = body.get("content", "")
+    try:
+        # validate it's valid JSON
+        json.loads(content)
+        path.write_text(content, encoding="utf-8")
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 @app.get("/api/modules")
 async def api_modules():
     """Return available audit and harden folder names."""
