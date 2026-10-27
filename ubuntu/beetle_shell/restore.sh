@@ -128,6 +128,66 @@ if [[ -n "$state_hash" && "$state_hash" != "null" ]]; then
     fi
 fi
 
+# ---------- RESTORE FILE CONTENTS (files[] + config_dirs[]) ----------
+echo "[*] Restoring file contents from snapshot..."
+
+# Helper: decompress a CAS object to a destination path.
+# Objects were stored with zstd -19; decompress with -f to overwrite.
+_restore_object() {
+    local hash="$1"
+    local dest="$2"
+    local prefix="${hash:0:2}"
+    local obj="$OBJECT_DIR/$prefix/$hash"
+
+    if [ ! -f "$obj" ]; then
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+
+    if command -v zstd >/dev/null 2>&1 && zstd -t "$obj" >/dev/null 2>&1; then
+        zstd -d -q -f -o "$dest" "$obj" 2>/dev/null
+        return $?
+    else
+        cp -f -p "$obj" "$dest" 2>/dev/null
+        return $?
+    fi
+}
+
+# ── file_contents (individual files) ──
+fc_count=$("$JQ" '.file_contents // {} | length' "$MANIFEST_FILE" 2>/dev/null || echo 0)
+if [ "$fc_count" -gt 0 ]; then
+    echo "    [*] file_contents: $fc_count files"
+    while IFS= read -r path; do
+        [ -z "$path" ] && continue
+        hash=$("$JQ" -r --arg k "$path" '.file_contents[$k] // empty' "$MANIFEST_FILE" 2>/dev/null)
+        [ -z "$hash" ] && continue
+
+        if _restore_object "$hash" "$path"; then
+            echo "    [+] Restored content: $path"
+        else
+            echo "    [!] Missing object for $path ($hash)"
+        fi
+    done < <("$JQ" -r '.file_contents // {} | keys[]' "$MANIFEST_FILE" 2>/dev/null)
+fi
+
+# ── config_dirs_contents (files inside config directories) ──
+cd_count=$("$JQ" '.config_dirs_contents // {} | length' "$MANIFEST_FILE" 2>/dev/null || echo 0)
+if [ "$cd_count" -gt 0 ]; then
+    echo "    [*] config_dirs_contents: $cd_count files"
+    while IFS= read -r path; do
+        [ -z "$path" ] && continue
+        hash=$("$JQ" -r --arg k "$path" '.config_dirs_contents[$k] // empty' "$MANIFEST_FILE" 2>/dev/null)
+        [ -z "$hash" ] && continue
+
+        if _restore_object "$hash" "$path"; then
+            echo "    [+] Restored content: $path"
+        else
+            echo "    [!] Missing object for $path ($hash)"
+        fi
+    done < <("$JQ" -r '.config_dirs_contents // {} | keys[]' "$MANIFEST_FILE" 2>/dev/null)
+fi
+
 # ---------- LOAD STATE ----------
 STATE_FILE="$RESTORE_TMP/state.json"
 if [[ ! -f "$STATE_FILE" ]]; then

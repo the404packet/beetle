@@ -22,6 +22,12 @@ SOURCE_DIR="/etc/beetle"
 META_FILE="$BASE_DIR/.snapshot_meta"
 STATE_SCRIPT="/usr/local/bin/beetle_shell/lib/state_snapshot.sh"
 
+# Resolve bundled jq
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JQ="$SELF_DIR/lib/bin/jq"
+[[ -x "$JQ" ]] || JQ="$(command -v jq)"
+[[ -x "$JQ" ]] || { echo "[!] jq not found"; exit 1; }
+
 mkdir -p "$OBJECT_DIR" "$MANIFEST_DIR" "$BEETLE_DIR" "$USER_DIR"
 touch "$META_FILE"
 
@@ -130,33 +136,53 @@ capture_snapshot() {
         echo "  \"snapshot_id\": \"$SNAP_ID\","
         echo "  \"timestamp\": \"$TIMESTAMP\","
         echo "  \"type\": \"$TYPE\","
+
+        # ── files: /etc/beetle/* ──
         echo "  \"files\": {"
-
         FIRST=true
-
-        # Store all files from /etc/beetle
         while IFS= read -r -d '' file; do
             rel="${file#$SOURCE_DIR/}"
             hash=$(store_object "$file")
-            if [[ "$FIRST" == true ]]; then
-                FIRST=false
-            else
-                echo ","
-            fi
+            if [[ "$FIRST" == true ]]; then FIRST=false; else echo ","; fi
             printf '    "%s": "%s"' "$rel" "$hash"
         done < <(find "$SOURCE_DIR" -type f -print0)
 
-        # Store state.json
         if [[ -f "$STATE_OUT" ]]; then
             hash=$(store_object "$STATE_OUT")
-            if [[ "$FIRST" == true ]]; then
-                FIRST=false
-            else
-                echo ","
-            fi
+            if [[ "$FIRST" == true ]]; then FIRST=false; else echo ","; fi
             printf '    "__state__": "%s"' "$hash"
         fi
+        echo ""
+        echo "  },"
 
+        # ── file_contents: every file in concerned.json.files[] ──
+        echo "  \"file_contents\": {"
+        FIRST=true
+        while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            [[ ! -f "$path" ]] && continue
+            hash=$(store_object "$path") || continue
+            [[ -z "$hash" ]] && continue
+            if [[ "$FIRST" == true ]]; then FIRST=false; else echo ","; fi
+            printf '    "%s": "%s"' "$path" "$hash"
+        done < <("$JQ" -r '.files[].path?' "$STATE_OUT" 2>/dev/null)
+        echo ""
+        echo "  },"
+
+        # ── config_dirs_contents: every file in concerned.json.config_dirs[] ──
+        echo "  \"config_dirs_contents\": {"
+        FIRST=true
+        while IFS= read -r dirpath; do
+            [[ -z "$dirpath" ]] && continue
+            [[ ! -d "$dirpath" ]] && continue
+            while IFS= read -r -d '' f; do
+                [[ -z "$f" ]] && continue
+                hash=$(store_object "$f") || continue
+                [[ -z "$hash" ]] && continue
+                if [[ "$FIRST" == true ]]; then FIRST=false; else echo ","; fi
+                printf '    "%s": "%s"' "$f" "$hash"
+            done < <(find "$dirpath" -maxdepth 1 -type f -print0 2>/dev/null)
+        done < <("$JQ" -r '.config_dirs[].path? // empty' "$STATE_OUT" 2>/dev/null)
         echo ""
         echo "  }"
         echo "}"

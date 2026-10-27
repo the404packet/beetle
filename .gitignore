@@ -1,4 +1,37 @@
-.vscode/
+# ── Build artifacts (test.sh now compiles to temp) ──
+/beetle
+/beetled
+*.o
+*.a
 
-ubuntu/beetle
-ubuntu/beetled
+# ── Never commit project-local configs ──
+/etc/
+/tmp/
+/tests/tmp/
+
+# ── Backups ──
+*.bak
+*.bak_*
+*.orig
+
+# ── Logs ──
+*.log
+beetle.log
+
+# ── Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Python (legacy) ──
+**/__pycache__/
+*.py[cod]
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── Beetle runtime ──
+beetle_*.env

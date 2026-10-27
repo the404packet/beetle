@@ -1,0 +1,76 @@
+---
+# ansible-playbook audit.yml -e beetle_severity=moderate
+- name: Run Beetle audit and collect reports
+  hosts: beetle_hosts
+  become: true
+  vars_files: [vars.yml]
+  tasks:
+    - name: Check beetle binary
+      ansible.builtin.stat:
+        path: /usr/local/bin/beetle
+      register: beetle_bin
+
+    - name: Check daemon socket
+      ansible.builtin.stat:
+        path: /var/run/beetle.sock
+      register: beetle_sock
+
+    - name: Fail if beetle is missing
+      ansible.builtin.fail:
+        msg: "beetle or beetled not ready on {{ inventory_hostname }}. Run install.yml first."
+      when: not beetle_bin.stat.exists or not (beetle_sock.stat.issock | default(false))
+
+    - name: Create marker (to find reports from this run)
+      ansible.builtin.tempfile:
+        state: file
+        prefix: beetle_marker_
+      register: beetle_marker
+
+    - name: Run beetle audit
+      ansible.builtin.command:
+        argv: >-
+          {{ ['beetle', 'audit']
+             + ([beetle_target] if beetle_target | length > 0 else [])
+             + [beetle_severity]
+             + (['--generate-report'] if beetle_generate_report | bool else []) }}
+      register: beetle_result
+      failed_when: false
+      changed_when: false
+      async: "{{ beetle_timeout }}"
+      poll: 15
+
+    - name: Show console summary
+      ansible.builtin.debug:
+        msg: "{{ (beetle_result.stdout | default('') | regex_replace(beetle_ansi_re, '')).splitlines()[-8:] }}"
+
+    - name: Find new reports
+      ansible.builtin.command:
+        argv: [find, "{{ beetle_report_dir }}", -maxdepth, "1", -type, f, -name, "audit_*.pdf", -newer, "{{ beetle_marker.path }}"]
+      register: beetle_found
+      changed_when: false
+      failed_when: false
+
+    - name: Fetch reports to control node
+      ansible.builtin.fetch:
+        src: "{{ item }}"
+        dest: "{{ beetle_local_report_dir }}/{{ inventory_hostname }}/{{ item | basename }}"
+        flat: true
+      loop: "{{ beetle_found.stdout_lines }}"
+
+    - name: Save console log on control node
+      ansible.builtin.copy:
+        content: "{{ beetle_result.stdout | default('') | regex_replace(beetle_ansi_re, '') }}"
+        dest: "{{ beetle_local_report_dir }}/{{ inventory_hostname }}/audit_{{ beetle_severity }}_{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}.log"
+        mode: "0640"
+      delegate_to: localhost
+      become: false
+
+    - name: Remove marker
+      ansible.builtin.file:
+        path: "{{ beetle_marker.path }}"
+        state: absent
+
+    - name: Fail host if beetle errored
+      ansible.builtin.fail:
+        msg: "beetle audit exited {{ beetle_result.rc }}: {{ beetle_result.stderr | default('') }}"
+      when: beetle_result.rc | default(1) != 0

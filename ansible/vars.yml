@@ -1,0 +1,23 @@
+---
+beetle_repo_url: https://github.com/the404packet/beetle.git
+beetle_repo_version: main
+beetle_src_dir: /opt/beetle
+beetle_packages:
+  - git
+  - sudo
+  - build-essential
+  - dos2unix
+  - ca-certificates
+
+beetle_force_config: false        # true = pass --force-config (overwrites /etc/beetle)
+beetle_reinstall: false           # true = re-run install.sh even if already installed
+
+beetle_severity: basic            # basic | moderate | strict
+beetle_target: ""                 # optional sub-folder under audit/ or harden/
+beetle_generate_report: true
+beetle_timeout: 3600
+beetle_harden_confirm: false      # must be true for harden.yml
+
+beetle_report_dir: /var/lib/beetle/reports
+beetle_local_report_dir: "{{ playbook_dir }}/reports"
+beetle_ansi_re: '\x1b\[[0-9;]*[A-Za-z]'

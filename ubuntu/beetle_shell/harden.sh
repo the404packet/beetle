@@ -12,6 +12,7 @@ LIB_DIR="$BEETLE_SHELL_ROOT/lib"
 source "$LIB_DIR/ram_store.sh"  || { echo "ERROR: cannot load ram_store.sh"; exit 1; }
 source "$LIB_DIR/find_json.sh"  || { echo "ERROR: cannot load find_json.sh"; exit 1; }
 source "$LIB_DIR/order.sh"    || { echo "ERROR: cannot load order.sh"; exit 1; }
+source "$LIB_DIR/report.sh"   || { echo "ERROR: cannot load report.sh"; exit 1; }
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -40,7 +41,6 @@ spinner() {
 
 run_harden() {
     local script="$1"
-
     NAME=$(awk -F= '/^NAME=/{gsub(/"/,"",$2); print $2}' "$script")
     [ -z "$NAME" ] && NAME="$(basename "$script")"
 
@@ -49,16 +49,15 @@ run_harden() {
         return
     fi
 
-    # ── Find this script's JSON (returns "type::path" or "") ──
+    # ── Find this script's JSON ──
     local module_json json_type json_file
     module_json=$(find_module_json "$script")
 
     if [ -n "$module_json" ]; then
         json_type="${module_json%%::*}"
         json_file="${module_json##*::}"
-
         load_module_json "$json_type" "$json_file" || {
-            printf "${RED}[FAIL]${RESET} %s  ${RED}JSON LOAD ERROR${RESET}\n" "$NAME"
+            printf "${RED}[FAIL]${RESET} %s ${RED}JSON LOAD ERROR${RESET}\n" "$NAME"
             ((FAIL_COUNT++))
             return
         }
@@ -75,12 +74,22 @@ run_harden() {
     export INITIAL_SETUP_RAM_STORE
 
     TMP_FILE=$(mktemp)
-    bash "$script" > "$TMP_FILE" 2>/dev/null &
+
+    # ── KEY FIX: --line-buffered forces grep to pass PROMPT: immediately ──
+     (
+        stdbuf -oL -eL bash "$script" 2>&1 \
+            | stdbuf -oL tee "$TMP_FILE" \
+            | grep --line-buffered -v -P '^(\x1b\[[0-9;]*m)?(SUCCESS|FAILED)(\x1b\[[0-9;]*m)?$'
+        exit "${PIPESTATUS[0]}"
+    ) &
     pid=$!
-    spinner "$pid"
+
     wait "$pid"
     exit_code=$?
-    result=$(<"$TMP_FILE")
+
+    # Extract final execution outcome from captured output log
+    result=$(grep -E 'SUCCESS|FAILED' "$TMP_FILE" | tail -n 1 || true)
+    [ -z "$result" ] && result="FAILED"
     rm -f "$TMP_FILE"
 
     # ── Unload this script's JSON from RAM ──
@@ -93,7 +102,7 @@ run_harden() {
     dots=$(printf "%0.s." $(seq 1 $dots_count))
 
     if [ "$exit_code" -ne 0 ]; then
-        printf "${RED}[FAIL]${RESET} %s %s  ${RED}ERROR${RESET}\n" "$NAME" "$dots"
+        printf "${RED}[FAIL]${RESET} %s %s ${RED}ERROR${RESET}\n" "$NAME" "$dots"
         ((FAIL_COUNT++))
         return
     fi
@@ -108,7 +117,12 @@ run_harden() {
         STATE_COLOR="${RED}"
     fi
 
-    printf "${GREEN}[DONE]${RESET} %s %s  ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
+    if [ "$GENERATE_REPORT" = true ]; then
+        local rel="${script#$BEETLE_SHELL_ROOT/harden/}"
+        report_add "$rel" "$NAME" "$result"
+    fi
+
+    printf "${GREEN}[DONE]${RESET} %s %s ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
 }
 echo -e "${CYAN}Starting Beetle Hardening...${RESET}\n"
 
@@ -121,12 +135,15 @@ fi
 # ── Parse arguments ──
 TARGET_FOLDER=""
 TARGET_LEVEL=""
+GENERATE_REPORT=false
 
 for arg in "$@"; do
     if [ -d "$BEETLE_SHELL_ROOT/harden/$arg" ]; then
         TARGET_FOLDER="$arg"
     elif [[ "$arg" == "basic" || "$arg" == "moderate" || "$arg" == "strict" ]]; then
         TARGET_LEVEL="$arg"
+    elif [[ "$arg" == "--generate-report" ]]; then
+        GENERATE_REPORT=true
     fi
 done
 
@@ -162,6 +179,12 @@ else
 
     if echo "$SNAP_RESPONSE" | grep -q "\[+\] Snapshot created"; then
         echo -e "${GREEN}Snapshot captured${RESET}\n"
+        # Extract snapshot ID for report
+        SNAP_ID_REPORT=$(echo "$SNAP_RESPONSE" | awk '/ID *:/{print $NF}')
+        if [ "$GENERATE_REPORT" = true ] && [ -n "$SNAP_ID_REPORT" ]; then
+            # Restart report with snapshot id
+            report_init "harden" "$TARGET_LEVEL" "$SNAP_ID_REPORT"
+        fi
     else
         echo -e "${RED}Snapshot failed — aborting${RESET}"
         echo "$SNAP_RESPONSE"
@@ -182,6 +205,10 @@ echo
 echo -e "Harden Summary : "
 echo -e "+----------------------+------------------+------------+---------------+"
 echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Execution Failed") | $(printf "%-10s" "Succeeded") | $(printf "%-13s" "Failed") |"
-echo -e "+----------------------+------------------+------------+---------------+-----------+"
+echo -e "+----------------------+------------------+------------+---------------+"
 echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$SUCCESS_COUNT") | $(printf "%-13s" "$FAILED_COUNT") |"
 echo -e "+----------------------+------------------+------------+---------------+"
+# ── Generate PDF report ──
+if [ "$GENERATE_REPORT" = true ]; then
+    report_finalize
+fi

@@ -12,6 +12,7 @@ LIB_DIR="$BEETLE_SHELL_ROOT/lib"
 source "$LIB_DIR/ram_store.sh"  || { echo "ERROR: cannot load ram_store.sh"; exit 1; }
 source "$LIB_DIR/find_json.sh"  || { echo "ERROR: cannot load find_json.sh"; exit 1; }
 source "$LIB_DIR/order.sh"    || { echo "ERROR: cannot load order.sh"; exit 1; }
+source "$LIB_DIR/report.sh"   || { echo "ERROR: cannot load report.sh"; exit 1; }
 
 GREEN="\e[32m"
 RED="\e[31m"
@@ -107,6 +108,11 @@ run_check() {
         STATE_COLOR="${RED}"
     fi
 
+    if [ "$GENERATE_REPORT" = true ]; then
+        local rel="${script#$BEETLE_SHELL_ROOT/audit/}"
+        report_add "$rel" "$NAME" "$result"
+    fi
+
     printf "${GREEN}[PASS]${RESET} %s %s  ${STATE_COLOR}%s${RESET}\n" "$NAME" "$dots" "$result"
 }
 
@@ -120,12 +126,15 @@ fi
 
 TARGET_FOLDER=""
 TARGET_LEVEL=""
+GENERATE_REPORT=false
 
 for arg in "$@"; do
     if [ -d "$BEETLE_SHELL_ROOT/audit/$arg" ]; then
         TARGET_FOLDER="$arg"
     elif [[ "$arg" == "basic" || "$arg" == "moderate" || "$arg" == "strict" ]]; then
         TARGET_LEVEL="$arg"
+    elif [[ "$arg" == "--generate-report" ]]; then
+        GENERATE_REPORT=true
     fi
 done
 
@@ -143,6 +152,11 @@ load_dpkg || { echo -e "${RED}Failed to load dpkg${RESET}"; unload_all; exit 1; 
 # ── Load severity levels cumulatively ──
 echo -e "${CYAN}Loading severity configuration.......${RESET}\n"
 load_severity "${TARGET_LEVEL,,}" || { echo -e "${RED}Failed to load severity: $TARGET_LEVEL${RESET}"; unload_all; exit 1; }
+
+# ── Init report if requested ──
+if [ "$GENERATE_REPORT" = true ]; then
+    report_init "audit" "$TARGET_LEVEL"
+fi
 
 if [ -n "$TARGET_FOLDER" ]; then
     SEARCH_PATH="$BEETLE_SHELL_ROOT/audit/$TARGET_FOLDER"
@@ -164,6 +178,10 @@ echo
 echo -e "Audit Summary : "
 echo -e "+----------------------+------------------+------------+---------------+"
 echo -e "| $(printf "%-20s" "Executed Successfully")| $(printf "%-16s" "Execution Failed") | $(printf "%-10s" "Hardened") | $(printf "%-13s" "Not Hardened") |"
-echo -e "+----------------------+------------------+------------+---------------+-----------+"
+echo -e "+----------------------+------------------+------------+---------------+"
 echo -e "| $(printf "%-20s" "$PASS_COUNT") | $(printf "%-16s" "$FAIL_COUNT") | $(printf "%-10s" "$HARDENED_COUNT") | $(printf "%-13s" "$NOT_HARDENED_COUNT") |"
 echo -e "+----------------------+------------------+------------+---------------+"
+# ── Generate PDF report ──
+if [ "$GENERATE_REPORT" = true ]; then
+    report_finalize
+fi

@@ -5,18 +5,23 @@ NAME="ensure SUID and SGID files are reviewed"
 GREEN="\e[32m"
 RED="\e[31m"
 CYAN="\e[36m"
-YELLOW="\e[33m"
 RESET="\e[0m"
 
-[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
+# Load the prompt helper
+source "${BEETLE_SHELL_ROOT:-/usr/local/bin/beetle_shell}/lib/beetle_prompt.sh"
+
+[ -f "$PERM_RAM_STORE" ] && source "$PERM_RAM_STORE" || {
+    echo -e "${RED}FAILED${RESET}"; exit 1
+}
 
 count="$SS_count"
 a_suspicious=()
 
+# ---------- Detection ----------
 for ((i=0; i<count; i++)); do
-    n_var="SS_${i}_name"; name="${!n_var}"
-    p_var="SS_${i}_path"; path="${!p_var}"
-    r_var="SS_${i}_risk"; risk="${!r_var}"
+    n_var="SS_${i}_name";  name="${!n_var}"
+    p_var="SS_${i}_path";  path="${!p_var}"
+    r_var="SS_${i}_risk";  risk="${!r_var}"
     [ -f "$path" ] || continue
 
     mode=$(stat -Lc '%#a' "$path" 2>/dev/null)
@@ -31,8 +36,10 @@ for ((i=0; i<count; i++)); do
             expected_perm=$((8#$expected_mode))
             expected_suid=$(( expected_perm & 04000 ))
             expected_sgid=$(( expected_perm & 02000 ))
-            [ "$has_suid" -gt 0 ] && [ "$expected_suid" -eq 0 ] && { a_suspicious+=("UNEXPECTED SUID [$risk]: $path (pkg: $pkg)"); continue; }
-            [ "$has_sgid" -gt 0 ] && [ "$expected_sgid" -eq 0 ] && { a_suspicious+=("UNEXPECTED SGID [$risk]: $path (pkg: $pkg)"); continue; }
+            [ "$has_suid" -gt 0 ] && [ "$expected_suid" -eq 0 ] && \
+                { a_suspicious+=("UNEXPECTED SUID [$risk]: $path (pkg: $pkg)"); continue; }
+            [ "$has_sgid" -gt 0 ] && [ "$expected_sgid" -eq 0 ] && \
+                { a_suspicious+=("UNEXPECTED SGID [$risk]: $path (pkg: $pkg)"); continue; }
         else
             a_suspicious+=("UNEXPECTED SUID/SGID [$risk]: $path (pkg: $pkg)")
         fi
@@ -52,29 +59,17 @@ for entry in "${a_suspicious[@]}"; do
     echo "    $entry"
 done
 echo ""
-echo -e "  Beetle recommends removing SUID/SGID bits from suspicious binaries above"
-echo ""
 
-# Interactive prompt only when we have a terminal; otherwise default to "y"
-response="y"
-if [ -t 0 ] && [ -c /dev/tty ]; then
-    while true; do
-        echo -e "Apply default hardening? [${GREEN}y${RESET}/${RED}n${RESET}] (default: y): "
-        read -r response </dev/tty
-        response="${response:-y}"
-        case "${response,,}" in
-            y|yes) response="y"; break ;;
-            n|no)  response="n"; break ;;
-            *) echo -e "${RED}Please answer y or n.${RESET}" ;;
-        esac
-    done
-fi
+# ---------- Ask the user ----------
+response=$(beetle_prompt \
+    "Apply Beetle-recommended hardening (remove SUID/SGID from the above)?" "y")
 
-if [[ "$response" == "n" ]]; then
+if [[ "$response" != "y" ]]; then
     echo -e "${RED}FAILED${RESET}"
     exit 1
 fi
 
+# ---------- Remediation ----------
 failed=false
 for entry in "${a_suspicious[@]}"; do
     path=$(echo "$entry" | grep -oP '(?<=: )/\S+(?= \(|$)')
@@ -89,10 +84,6 @@ for entry in "${a_suspicious[@]}"; do
     fi
 done
 
-if $failed; then
-    echo -e "${RED}FAILED${RESET}"
-    exit 1
-fi
-
+$failed && { echo -e "${RED}FAILED${RESET}"; exit 1; }
 echo -e "${GREEN}SUCCESS${RESET}"
 exit 0

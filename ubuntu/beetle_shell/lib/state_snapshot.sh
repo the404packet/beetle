@@ -65,6 +65,13 @@ dump_firewall() {
     esac
 }
 
+# sha256 of a file (empty if not readable)
+file_hash() {
+    local f="$1"
+    [[ -f "$f" ]] || { echo ""; return; }
+    sha256sum "$f" 2>/dev/null | cut -d' ' -f1
+}
+
 # ---------- BUILD JSON ----------
 umask 077
 
@@ -160,6 +167,46 @@ while IFS= read -r path; do
         "$(jstr "$path")" "$(jstr "$owner")" "$(jstr "$group")" "$(jstr "$mode")"
 done < <("$JQ" -r '.files[]' "$CONCERNED_JSON" 2>/dev/null)
 
+printf '\n  ],\n'
+
+# -------- CONFIG DIRS --------
+printf '  "config_dirs": [\n'
+first_dir=true
+while IFS= read -r dir; do
+    [[ -z "$dir" ]] && continue
+    $first_dir && first_dir=false || printf ',\n'
+
+    if [[ ! -d "$dir" ]]; then
+        printf '    { "path": %s, "exists": false, "files": [] }' "$(jstr "$dir")"
+        continue
+    fi
+
+    printf '    {\n'
+    printf '      "path": %s,\n' "$(jstr "$dir")"
+    printf '      "exists": true,\n'
+    printf '      "files": ['
+    first_f=true
+    while IFS= read -r -d '' f; do
+        [[ -z "$f" ]] && continue
+        rel="${f#$dir/}"
+        $first_f && first_f=false || printf ','
+
+        fowner=$(stat -c '%U' "$f" 2>/dev/null)
+        fgroup=$(stat -c '%G' "$f" 2>/dev/null)
+        fmode=$(stat -c '%a'  "$f" 2>/dev/null)
+        fhash=$(file_hash "$f")
+
+        if [[ -n "$fhash" ]]; then
+            printf '\n        { "rel": %s, "owner": %s, "group": %s, "mode": %s, "sha256": %s }' \
+                "$(jstr "$rel")" "$(jstr "$fowner")" "$(jstr "$fgroup")" "$(jstr "$fmode")" "$(jstr "$fhash")"
+        else
+            printf '\n        { "rel": %s, "owner": %s, "group": %s, "mode": %s }' \
+                "$(jstr "$rel")" "$(jstr "$fowner")" "$(jstr "$fgroup")" "$(jstr "$fmode")"
+        fi
+    done < <(find "$dir" -maxdepth 1 -type f -print0 2>/dev/null)
+    $first_f && printf ']\n' || printf '\n      ]\n'
+    printf '    }'
+done < <("$JQ" -r '.config_dirs[]?' "$CONCERNED_JSON" 2>/dev/null)
 printf '\n  ],\n'
 
 # -------- DIRECTORIES --------
