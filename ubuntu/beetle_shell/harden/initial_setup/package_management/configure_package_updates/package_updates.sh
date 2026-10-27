@@ -9,8 +9,13 @@ RED="\e[31m"
 YELLOW="\e[33m"
 RESET="\e[0m"
 
-apt-get update -qq 2>/dev/null
-pending=$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst')
+# Refresh package lists; warn if it fails so a stale count isn't trusted blindly
+apt-get update -qq >/dev/null 2>&1 || \
+    echo -e "${YELLOW}  (apt update failed; counts may be stale)${RESET}"
+
+# Simulate the upgrade once and reuse the result
+sim=$(apt-get -s upgrade 2>/dev/null | grep '^Inst')
+pending=$(printf '%s\n' "$sim" | grep -c '^Inst')
 
 if [ "$pending" -eq 0 ]; then
     echo -e "${GREEN}SUCCESS${RESET} (no pending updates)"
@@ -24,7 +29,7 @@ echo "    sudo apt-get upgrade -y"
 echo "    # or: sudo apt-get dist-upgrade -y"
 echo ""
 echo "  Top packages to be upgraded:"
-apt-get -s upgrade 2>/dev/null | grep '^Inst' | awk '{print "    " $2}' | head -10
+printf '%s\n' "$sim" | awk '{print "    " $2}' | head -10
 echo ""
 echo -e "${RED}FAILED${RESET} (${pending} pending)"
 exit 1

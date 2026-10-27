@@ -20,7 +20,9 @@ echo ""
 echo -e "${CYAN}  Currently configured trusted keyrings:${RESET}"
 found=false
 for f in /etc/apt/trusted.gpg.d/*.gpg /etc/apt/trusted.gpg.d/*.asc \
-         /etc/apt/sources.list.d/*.gpg /etc/apt/sources.list.d/*.asc; do
+         /etc/apt/sources.list.d/*.gpg /etc/apt/sources.list.d/*.asc \
+         /etc/apt/keyrings/*.gpg /etc/apt/keyrings/*.asc \
+         /usr/share/keyrings/*.gpg /usr/share/keyrings/*.asc; do
     [ -f "$f" ] && { echo "    $f"; found=true; }
 done
 echo ""

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 NAME="ensure the running and on disk configuration is the same"
 GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
+
+source "${BEETLE_SHELL_ROOT:-/usr/local/bin/beetle_shell}/lib/beetle_prompt.sh"
+
 [ -f "$LOGGING_RAM_STORE" ] && source "$LOGGING_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
 umask 0027
@@ -13,16 +16,11 @@ fi
 [ -z "$AR_rules_dir" ] && { echo -e "${RED}FAILED${RESET} (rules dir not set)"; exit 1; }
 mkdir -p "$AR_rules_dir"
 
-# Skip the interactive prompt in non-interactive runs
-if [ -t 0 ] && [ -c /dev/tty ]; then
 # Ensure rule files have correct permissions
 [ -n "$rules_file" ] && [ -f "$rules_file" ] && chmod 0640 "$rules_file" 2>/dev/null || true
 
-    echo -n "  Apply augenrules --load? [y/n] (default: y): "
-    read -r response </dev/tty
-    response="${response:-y}"
-    [[ "${response,,}" == "y" ]] || { echo -e "${RED}FAILED${RESET} (user declined)"; exit 1; }
-fi
+response=$(beetle_prompt "Apply augenrules --load?" "y")
+[ "$response" = "y" ] || { echo -e "${RED}FAILED${RESET} (user declined)"; exit 1; }
 
 augenrules --load 2>/dev/null || true
 

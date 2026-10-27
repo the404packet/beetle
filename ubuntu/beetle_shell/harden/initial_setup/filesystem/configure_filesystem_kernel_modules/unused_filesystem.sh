@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 NAME="ensure unused filesystems kernel modules are not available"
-GREEN="\e[32m"; RED="\e[31m"; RESET="\e[0m"
+GREEN="\e[32m"; RED="\e[31m"; YELLOW="\e[33m"; CYAN="\e[36m"; RESET="\e[0m"
+
+source "${BEETLE_SHELL_ROOT:-/usr/local/bin/beetle_shell}/lib/beetle_prompt.sh"
+
 [ -f "$INITIAL_SETUP_RAM_STORE" ] && source "$INITIAL_SETUP_RAM_STORE" || { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
 echo
@@ -9,20 +12,8 @@ echo -e "  ${YELLOW}This check requires manual review — disabling wrong module
 echo -e "  ${CYAN}Run:${RESET} beetle audit initial_setup to see which modules need attention."
 echo
 
-# Interactive prompt only if we have a terminal; otherwise default to 'y'
-response="y"
-if [ -t 0 ] && [ -c /dev/tty ]; then
-    while true; do
-        echo -e "Apply default hardening? [${GREEN}y${RESET}/${RED}n${RESET}] (default: y): "
-        read -r response </dev/tty
-        response="${response:-y}"
-        case "${response,,}" in
-            y|yes) response="y"; break ;;
-            n|no)  response="n"; break ;;
-            *) echo -e "${RED}Please answer y or n.${RESET}" ;;
-        esac
-    done
-fi
+# Ask the user through beetle_prompt (works under the daemon, standalone, and non-interactive)
+response=$(beetle_prompt "Apply default hardening?" "y")
 [ "$response" = "n" ] && { echo -e "${RED}FAILED${RESET}"; exit 1; }
 
 a_ignore=("xfs" "vfat" "ext2" "ext3" "ext4")
