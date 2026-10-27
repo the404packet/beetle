@@ -35,3 +35,6 @@ Thumbs.db
 
 # ── Beetle runtime ──
 beetle_*.env
+
+# -- node modules --
+gui/ui/node_modules
